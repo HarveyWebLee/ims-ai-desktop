@@ -137,8 +137,8 @@ class Settings(BaseSettings):
     # 声纹门禁：语音输入前须选择已录入用户，并比对通过后才接受 ASR
     # 嵌入后端为 SpeechBrain ECAPA-TDNN（192 维）；换算法后须重新录入
     voiceprint_enabled: bool = True
-    # ECAPA 余弦阈值：同说话人通常明显高于 0.35；可按现场 FAR/FRR 微调
-    voiceprint_match_threshold: float = 0.40
+    # ECAPA 短窗余弦常见 0.25~0.6；默认 0.25，可按现场 FAR/FRR 微调
+    voiceprint_match_threshold: float = 0.25
     voiceprint_ecapa_source: str = "speechbrain/spkrec-ecapa-voxceleb"
     # 空=落到 agent_data_dir/pretrained/spkrec-ecapa-voxceleb
     voiceprint_ecapa_savedir: str = ""

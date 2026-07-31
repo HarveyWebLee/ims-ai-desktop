@@ -365,6 +365,10 @@ export default {
     selectRequiredHint: "Select a voiceprint before voice input (manage in Settings)",
     audioTooShort: "Speech too short for verification — speak a bit longer",
     mismatch: "Voiceprint mismatch (score {score} < {threshold}); transcript discarded",
+    mismatchLive:
+      "Voiceprint mismatch (score {score} < {threshold}); recording stopped and transcript discarded",
+    filteredKeepListening:
+      "Filtered unmatched speech (score {score} < {threshold}); still listening…",
     verifyFailed: "Voiceprint verification failed: {error}",
   },
   workspace: {

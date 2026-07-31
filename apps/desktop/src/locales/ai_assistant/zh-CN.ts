@@ -361,6 +361,8 @@ export default {
     selectRequiredHint: "语音输入前请先选择声纹用户（可在「配置」中管理声纹库）",
     audioTooShort: "有效语音过短，无法核验声纹，请再说稍长一点",
     mismatch: "声纹不匹配（相似度 {score} < {threshold}），未采纳识别结果",
+    mismatchLive: "声纹不匹配（相似度 {score} < {threshold}），已停止录音并丢弃识别内容",
+    filteredKeepListening: "已滤除不匹配语音（相似度 {score} < {threshold}），继续聆听中…",
     verifyFailed: "声纹核验失败：{error}",
   },
   workspace: {

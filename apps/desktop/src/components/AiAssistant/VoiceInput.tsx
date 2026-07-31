@@ -28,10 +28,14 @@ const TARGET_SAMPLE_RATE = 16000;
 const SILENCE_TIMEOUT_MS = 10_000;
 /** 录音中声纹实时核验间隔 */
 const VOICEPRINT_LIVE_CHECK_MS = 1000;
-/** 实时核验最少有效 PCM（秒） */
-const VOICEPRINT_LIVE_MIN_SEC = 0.8;
-/** 实时核验滑动窗（秒），取最近一段比对 */
-const VOICEPRINT_LIVE_WINDOW_SEC = 2.0;
+/** 实时核验最少有效 PCM（秒）；过短易误伤本人 */
+const VOICEPRINT_LIVE_MIN_SEC = 1.2;
+/** 实时核验滑动窗（秒） */
+const VOICEPRINT_LIVE_WINDOW_SEC = 2.5;
+/** 关闭门禁相对阈值的滞后，减少来回抖动 */
+const VOICEPRINT_LIVE_CLOSE_MARGIN = 0.05;
+/** 滤除提示最小间隔 */
+const VOICEPRINT_FILTER_HINT_MS = 4000;
 /**
  * 视为「有效说话」的 RMS 阈值（经 VOLUME_GAIN 后）。
  * 过低会被环境底噪一直刷新计时，导致 10s 永不触发；偏高只影响静音判定，不影响动效曲线。
@@ -152,15 +156,15 @@ export default function VoiceInput({
     source: MediaStreamAudioSourceNode;
     processor: ScriptProcessorNode;
   } | null>(null);
-  /** 录音中已至少一次声纹匹配（通过前不回显 interim） */
+  /** 当前是否放行 ASR（匹配中）；不匹配时继续录音但不送识别 */
   const voiceprintLiveOkRef = useRef(false);
-  /** 因声纹不匹配已中止，避免重复提示 / 走停录终验 */
-  const voiceprintRejectedRef = useRef(false);
+  /** 本轮是否曾匹配成功（停录时判断是否有可采纳内容） */
+  const voiceprintEverMatchedRef = useRef(false);
+  /** 匹配时段已采纳的 interim，滤除时回滚到此 */
+  const matchedInterimRef = useRef("");
   const voiceprintVerifyInflightRef = useRef(false);
   const liveVoiceprintTimerRef = useRef<number | null>(null);
-  const abortDueToVoiceprintRef = useRef<
-    (result: { score: number; threshold: number; display_name?: string }) => void
-  >(() => undefined);
+  const filterHintAtRef = useRef(0);
 
   const clearElapsedTimer = useCallback(() => {
     if (elapsedTimerRef.current) {
@@ -238,6 +242,7 @@ export default function VoiceInput({
     }
     clearElapsedTimer();
     clearSilenceWatch();
+    clearLiveVoiceprintWatch();
     teardownAudioGraph();
     const pcmNodes = pcmCaptureNodesRef.current;
     pcmCaptureNodesRef.current = null;
@@ -255,7 +260,7 @@ export default function VoiceInput({
     mediaRecorderRef.current = null;
     chunksRef.current = [];
     pcmVerifyChunksRef.current = [];
-  }, [clearElapsedTimer, clearSilenceWatch, teardownAudioGraph]);
+  }, [clearElapsedTimer, clearLiveVoiceprintWatch, clearSilenceWatch, teardownAudioGraph]);
 
   const appendVerifyPcm = useCallback((pcm: Int16Array) => {
     if (!pcm.length) return;
@@ -277,7 +282,7 @@ export default function VoiceInput({
       const total = chunks.reduce((n, c) => n + c.length, 0);
       const minSec = opts?.minSec ?? 0.6;
       if (total < TARGET_SAMPLE_RATE * minSec) return null;
-      let merged = new Int16Array(total);
+      const merged = new Int16Array(total);
       let offset = 0;
       for (const c of chunks) {
         merged.set(c, offset);
@@ -287,7 +292,10 @@ export default function VoiceInput({
       if (windowSec && windowSec > 0) {
         const maxSamples = Math.floor(TARGET_SAMPLE_RATE * windowSec);
         if (merged.length > maxSamples) {
-          merged = merged.subarray(merged.length - maxSamples);
+          const windowed = merged.subarray(merged.length - maxSamples);
+          const copy = new Int16Array(windowed.length);
+          copy.set(windowed);
+          return new Blob([copy.buffer], { type: "application/octet-stream" });
         }
       }
       return new Blob([merged.buffer], { type: "application/octet-stream" });
@@ -359,6 +367,92 @@ export default function VoiceInput({
     }
   }, [buildVerifyPcmBlob, intl, selectedVoiceprintId]);
 
+  const applyVoiceprintGate = useCallback(
+    (open: boolean, opts?: { score?: number; threshold?: number }) => {
+      const wasOpen = voiceprintLiveOkRef.current;
+      if (open) {
+        voiceprintLiveOkRef.current = true;
+        voiceprintEverMatchedRef.current = true;
+        if (!wasOpen && matchedInterimRef.current) {
+          setInterimText(matchedInterimRef.current);
+          onInterim?.(matchedInterimRef.current);
+        }
+        return;
+      }
+      // 关闭：停止送 ASR，输入框回滚到已匹配内容
+      voiceprintLiveOkRef.current = false;
+      lastPartialRef.current = matchedInterimRef.current;
+      setInterimText(matchedInterimRef.current);
+      onInterim?.(matchedInterimRef.current);
+      if (wasOpen) {
+        const now = Date.now();
+        if (now - filterHintAtRef.current >= VOICEPRINT_FILTER_HINT_MS) {
+          filterHintAtRef.current = now;
+          message.info(
+            intl.formatMessage(
+              { id: "aiAssistant.voiceprint.filteredKeepListening" },
+              {
+                score: opts?.score ?? "-",
+                threshold: opts?.threshold ?? "-",
+              },
+            ),
+          );
+        }
+      }
+    },
+    [intl, onInterim],
+  );
+
+  const runLiveVoiceprintCheck = useCallback(async () => {
+    if (stoppingRef.current) return;
+    if (!selectedVoiceprintId || voiceprintVerifyInflightRef.current) return;
+    const blob = buildVerifyPcmBlob({
+      windowSec: VOICEPRINT_LIVE_WINDOW_SEC,
+      minSec: VOICEPRINT_LIVE_MIN_SEC,
+    });
+    if (!blob) return;
+    voiceprintVerifyInflightRef.current = true;
+    try {
+      const result = await verifyVoiceprint(selectedVoiceprintId, blob, {
+        sampleRate: TARGET_SAMPLE_RATE,
+      });
+      if (stoppingRef.current) return;
+      if (result.skipped) {
+        applyVoiceprintGate(true);
+        return;
+      }
+      const score = Number(result.score);
+      const threshold = Number(result.threshold);
+      if (voiceprintLiveOkRef.current) {
+        // 已放行：仅明显低于阈值才关闭，避免本人短窗抖动被滤掉
+        if (score < threshold - VOICEPRINT_LIVE_CLOSE_MARGIN) {
+          applyVoiceprintGate(false, { score, threshold });
+        }
+      } else if (score >= threshold) {
+        applyVoiceprintGate(true);
+      }
+      // 未放行且未达阈值：保持滤除，继续录音，不中断
+    } catch (err) {
+      if (stoppingRef.current) return;
+      console.warn("live voiceprint verify failed", err);
+    } finally {
+      voiceprintVerifyInflightRef.current = false;
+    }
+  }, [applyVoiceprintGate, buildVerifyPcmBlob, selectedVoiceprintId]);
+
+  const startLiveVoiceprintWatch = useCallback(() => {
+    clearLiveVoiceprintWatch();
+    liveVoiceprintTimerRef.current = window.setInterval(() => {
+      void runLiveVoiceprintCheck();
+    }, VOICEPRINT_LIVE_CHECK_MS);
+    window.setTimeout(
+      () => {
+        void runLiveVoiceprintCheck();
+      },
+      Math.floor(VOICEPRINT_LIVE_MIN_SEC * 1000),
+    );
+  }, [clearLiveVoiceprintWatch, runLiveVoiceprintCheck]);
+
   useEffect(() => () => cleanupMic(), [cleanupMic]);
 
   const resolveModelId = useCallback((): AgentModelId | undefined => {
@@ -370,11 +464,13 @@ export default function VoiceInput({
     (text: string) => {
       if (!text?.trim()) return;
       const next = text.trim();
-      // 仅文本变化视为有效输入（同一句反复 partial 不拖住超时）
       if (next !== lastPartialRef.current) {
         noteVoiceActivity();
       }
       lastPartialRef.current = next;
+      // 仅匹配时段写入输入框；不匹配时段直接滤掉
+      if (!voiceprintLiveOkRef.current) return;
+      matchedInterimRef.current = next;
       setInterimText(next);
       onInterim?.(next);
     },
@@ -533,6 +629,8 @@ export default function VoiceInput({
         const pcm = floatTo16BitPCM(input, ctx.sampleRate);
         if (!pcm.length) return;
         appendVerifyPcm(pcm);
+        // 不匹配时段不送 ASR，相当于滤掉该段语音
+        if (!voiceprintLiveOkRef.current) return;
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
         wsRef.current.send(
           JSON.stringify({
@@ -553,6 +651,7 @@ export default function VoiceInput({
 
   const enqueueHttpChunk = useCallback(
     (blob: Blob) => {
+      if (!voiceprintLiveOkRef.current) return;
       const sessionId = sessionIdRef.current;
       if (!sessionId || blob.size <= 0) return;
       const seq = seqRef.current;
@@ -625,12 +724,18 @@ export default function VoiceInput({
   );
 
   const finishCapture = useCallback(async () => {
+    clearLiveVoiceprintWatch();
     setPhase("transcribing");
     try {
-      const allowed = await gateByVoiceprint();
-      if (!allowed) {
-        onTranscribed("");
-        return;
+      // 本轮从未匹配成功：终验兜底；已匹配过则采信门禁期内送入 ASR 的内容
+      if (!voiceprintEverMatchedRef.current) {
+        const allowed = await gateByVoiceprint();
+        if (!allowed) {
+          onTranscribed("");
+          return;
+        }
+        voiceprintLiveOkRef.current = true;
+        voiceprintEverMatchedRef.current = true;
       }
 
       if (modeRef.current === "realtime") {
@@ -641,7 +746,8 @@ export default function VoiceInput({
         const finalPayload = await waitForFinal(15000);
         wsRef.current?.close();
         wsRef.current = null;
-        onTranscribed(finalPayload.text.trim(), {
+        const text = (finalPayload.text.trim() || matchedInterimRef.current).trim();
+        onTranscribed(text, {
           raw: finalPayload.raw,
           stage: finalPayload.stage,
           changed: finalPayload.changed,
@@ -708,13 +814,22 @@ export default function VoiceInput({
       setElapsedSec(0);
       setInterimText("");
     }
-  }, [cleanupMic, gateByVoiceprint, intl, onTranscribed, resolveModelId, waitForFinal]);
+  }, [
+    cleanupMic,
+    clearLiveVoiceprintWatch,
+    gateByVoiceprint,
+    intl,
+    onTranscribed,
+    resolveModelId,
+    waitForFinal,
+  ]);
 
   const stopRecording = useCallback(() => {
     if (stoppingRef.current) return;
     stoppingRef.current = true;
     clearElapsedTimer();
     clearSilenceWatch();
+    clearLiveVoiceprintWatch();
     // realtime：先停采集图，再 finish；http：finish 里 stop recorder
     if (modeRef.current === "realtime") {
       teardownAudioGraph();
@@ -722,7 +837,13 @@ export default function VoiceInput({
       streamRef.current = null;
     }
     void finishCapture();
-  }, [clearElapsedTimer, clearSilenceWatch, finishCapture, teardownAudioGraph]);
+  }, [
+    clearElapsedTimer,
+    clearLiveVoiceprintWatch,
+    clearSilenceWatch,
+    finishCapture,
+    teardownAudioGraph,
+  ]);
 
   stopRecordingRef.current = stopRecording;
 
@@ -757,6 +878,11 @@ export default function VoiceInput({
       lastPartialRef.current = "";
       finalTextRef.current = null;
       pcmVerifyChunksRef.current = [];
+      voiceprintLiveOkRef.current = false;
+      voiceprintEverMatchedRef.current = false;
+      matchedInterimRef.current = "";
+      voiceprintVerifyInflightRef.current = false;
+      filterHintAtRef.current = 0;
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -831,6 +957,7 @@ export default function VoiceInput({
       setPhase("recording");
       onRecordingStart?.();
       startSilenceWatch();
+      startLiveVoiceprintWatch();
 
       clearElapsedTimer();
       elapsedTimerRef.current = window.setInterval(() => {
@@ -869,6 +996,7 @@ export default function VoiceInput({
     startPcmCaptureForVerify,
     startRealtimeCapture,
     startSilenceWatch,
+    startLiveVoiceprintWatch,
     stopRecording,
   ]);
 
