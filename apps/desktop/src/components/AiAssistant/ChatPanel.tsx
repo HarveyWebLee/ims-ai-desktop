@@ -9,7 +9,7 @@ import { useAgentStream } from "./hooks/useAgentStream";
 import styles from "./index.module.less";
 
 export default function ChatPanel() {
-  const { messages, isStreaming, pendingInterrupt } = useAiAssistantStore();
+  const { messages, isStreaming, isLoadingHistory, pendingInterrupt } = useAiAssistantStore();
   const { sendMessage, loadSessions, submitHitlResume, submitHitlConfirm } = useAgentStream();
 
   const messageAreaRef = useRef<HTMLDivElement>(null);
@@ -27,7 +27,7 @@ export default function ChatPanel() {
     const el = messageAreaRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages, pendingInterrupt, isStreaming]);
+  }, [messages, pendingInterrupt, isStreaming, isLoadingHistory]);
 
   return (
     <div className={styles.chatPanel}>
@@ -35,13 +35,17 @@ export default function ChatPanel() {
         <MessageList
           messages={messages}
           loading={isStreaming}
+          loadingHistory={isLoadingHistory}
           onHitlSubmit={submitHitlResume}
           onHitlConfirm={submitHitlConfirm}
           onSend={sendMessage}
         />
       </div>
 
-      <MessageInput onSend={sendMessage} disabled={isStreaming || hasPendingHitl} />
+      <MessageInput
+        onSend={sendMessage}
+        disabled={isStreaming || isLoadingHistory || hasPendingHitl}
+      />
     </div>
   );
 }

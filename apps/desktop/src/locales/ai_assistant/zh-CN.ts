@@ -61,6 +61,7 @@ export default {
   },
   emptyWelcome: "有什么可以帮您？",
   emptyHint: "用自然语言描述需求，例如查询告警、打开页面或确认设备状态",
+  loadingHistory: "正在加载会话…",
   emptySuggest: {
     alarms: "打开告警列表",
     yesterday: "查询昨天未处理告警",

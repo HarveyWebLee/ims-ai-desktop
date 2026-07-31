@@ -19,13 +19,20 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+/** 平台要求 Authorization: Bearer <access_token>（登录返回 token_type=bearer） */
+function toBearerAuthorization(token: string): string {
+  const trimmed = token.trim();
+  if (!trimmed) return trimmed;
+  return /^Bearer\s+/i.test(trimmed) ? trimmed : `Bearer ${trimmed}`;
+}
+
 export function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
   const token = getToken();
   if (token) {
-    headers.Authorization = token;
+    headers.Authorization = toBearerAuthorization(token);
   }
   return headers;
 }
@@ -45,10 +52,7 @@ export interface LoginResult {
 }
 
 /** 简易登录：POST /api/app/auth/login */
-export async function login(
-  username: string,
-  password: string,
-): Promise<string> {
+export async function login(username: string, password: string): Promise<string> {
   const res = await fetch("/api/app/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -63,17 +67,12 @@ export async function login(
   }
   if (json.code !== 0) {
     throw new Error(
-      (typeof json.data === "string" ? json.data : null) ||
-        json.message ||
-        "登录失败",
+      (typeof json.data === "string" ? json.data : null) || json.message || "登录失败",
     );
   }
   const data = json.data || {};
   const token =
-    (typeof data === "string" ? data : null) ||
-    data.token ||
-    data.access_token ||
-    data.accessToken;
+    (typeof data === "string" ? data : null) || data.token || data.access_token || data.accessToken;
   if (!token || typeof token !== "string") {
     throw new Error("登录成功但未返回 token");
   }

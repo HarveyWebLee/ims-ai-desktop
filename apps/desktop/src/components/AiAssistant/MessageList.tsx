@@ -23,12 +23,15 @@ function getUserText(message: AiMessage): string {
 export default function MessageList({
   messages,
   loading,
+  loadingHistory,
   onHitlSubmit,
   onHitlConfirm,
   onSend,
 }: {
   messages: AiMessage[];
   loading?: boolean;
+  /** 切换历史会话拉取中：展示 loading，不展示欢迎空态 */
+  loadingHistory?: boolean;
   onHitlSubmit?: (values: Record<string, unknown>) => void | Promise<void>;
   onHitlConfirm?: (
     approved: boolean,
@@ -54,6 +57,17 @@ export default function MessageList({
     () => messages.some((m) => m.role === "assistant" && m.streaming),
     [messages],
   );
+
+  if (!messages.length && loadingHistory) {
+    return (
+      <div className={styles.emptyState}>
+        <div className={styles.historyLoading}>
+          <Spin size="large" />
+          <span>{intl.formatMessage({ id: "aiAssistant.loadingHistory" })}</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!messages.length && !loading) {
     const suggestions = [

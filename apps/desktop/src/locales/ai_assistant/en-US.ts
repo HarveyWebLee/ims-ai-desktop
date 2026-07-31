@@ -62,6 +62,7 @@ export default {
   emptyWelcome: "How can I help?",
   emptyHint:
     "Describe your request in natural language, e.g. query alarms, open a page, or check device status",
+  loadingHistory: "Loading conversation…",
   emptySuggest: {
     alarms: "Open the alarm list",
     yesterday: "Query unhandled alarms from yesterday",

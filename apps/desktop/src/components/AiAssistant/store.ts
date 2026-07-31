@@ -39,6 +39,8 @@ export interface AiAssistantState {
   sessions: AiSession[];
   messages: AiMessage[];
   isStreaming: boolean;
+  /** 正在拉取历史会话消息（切换会话期间不展示欢迎空态） */
+  isLoadingHistory: boolean;
   selectedModelId: AgentModelId;
   /** 当前选中的声纹用户 ID（语音输入必选） */
   selectedVoiceprintId: string | null;
@@ -54,6 +56,7 @@ export interface AiAssistantState {
   switchSession: (threadId: string) => void;
   setSessions: (sessions: AiSession[]) => void;
   setMessages: (messages: AiMessage[]) => void;
+  setLoadingHistory: (loading: boolean) => void;
   addUserMessage: (content: string) => string;
   appendAssistantBlock: (messageId: string, block: AiMessage["blocks"][0]) => void;
   /** 替换消息中已有 interrupt 块（HITL 从 ask_params 切到 confirm 时避免堆叠） */
@@ -156,6 +159,7 @@ export const useAiAssistantStore = create<AiAssistantState>()(
       sessions: [],
       messages: [],
       isStreaming: false,
+      isLoadingHistory: false,
       selectedModelId: DEFAULT_AGENT_MODEL_ID as AgentModelId,
       selectedVoiceprintId: null,
       pendingInterrupt: null,
@@ -174,6 +178,7 @@ export const useAiAssistantStore = create<AiAssistantState>()(
           currentThreadId: threadId,
           messages: [],
           pendingInterrupt: null,
+          isLoadingHistory: false,
         });
         return threadId;
       },
@@ -183,11 +188,14 @@ export const useAiAssistantStore = create<AiAssistantState>()(
           currentThreadId: threadId,
           messages: [],
           pendingInterrupt: null,
+          isLoadingHistory: true,
         }),
 
       setSessions: (sessions) => set({ sessions }),
 
       setMessages: (messages) => set({ messages }),
+
+      setLoadingHistory: (loading) => set({ isLoadingHistory: loading }),
 
       addUserMessage: (content) => {
         const id = uuidv4();

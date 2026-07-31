@@ -31,7 +31,7 @@ export function UserMessageCard({ content }: { content: string }) {
       <div className={styles.userBubble}>
         <div className={styles.messageText}>{content}</div>
       </div>
-      <Avatar size={28} className={styles.userAvatar} icon={<UserOutlined />} />
+      <Avatar size={32} className={styles.userAvatar} icon={<UserOutlined />} />
     </div>
   );
 }

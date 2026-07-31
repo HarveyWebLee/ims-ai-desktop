@@ -441,9 +441,14 @@ export function useAgentStream() {
 
   const loadThreadHistory = useCallback(
     async (threadId: string) => {
+      const { setLoadingHistory } = useAiAssistantStore.getState();
+      setLoadingHistory(true);
       try {
         const { messages: history, bpmn_snapshot: bpmnSnapshot } =
           await AgentController.getThreadState(threadId);
+        // 快速连续切换时，丢弃过期请求结果
+        if (useAiAssistantStore.getState().currentThreadId !== threadId) return;
+
         let mapped = mapHistoryToMessages(history);
         const restoredPending = findPendingInterruptFromMessages(mapped);
         setPendingInterrupt(restoredPending);
@@ -462,9 +467,15 @@ export function useAgentStream() {
           mapped = applyBpmnSnapshotToMessages(mapped, bpmnSnapshot);
         }
 
+        if (useAiAssistantStore.getState().currentThreadId !== threadId) return;
         setMessages(mapped);
       } catch {
+        if (useAiAssistantStore.getState().currentThreadId !== threadId) return;
         setMessages([]);
+      } finally {
+        if (useAiAssistantStore.getState().currentThreadId === threadId) {
+          setLoadingHistory(false);
+        }
       }
     },
     [setMessages, setPendingInterrupt],

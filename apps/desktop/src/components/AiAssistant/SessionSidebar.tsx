@@ -37,7 +37,7 @@ export default function SessionSidebar({
   onCollapse: (collapsed: boolean) => void;
 }) {
   const intl = useIntl();
-  const { sessions, currentThreadId, switchSession, createNewSession, setMessages, setSessions } =
+  const { sessions, currentThreadId, switchSession, createNewSession, setSessions } =
     useAiAssistantStore();
   const { loadSessions, loadThreadHistory } = useAgentStream();
 
@@ -54,18 +54,11 @@ export default function SessionSidebar({
   const handleDelete = async (threadId: string) => {
     try {
       await AgentController.deleteSession(threadId);
-      const nextSessions = sessions.filter((s) => s.thread_id !== threadId);
-      setSessions(nextSessions);
+      setSessions(sessions.filter((s) => s.thread_id !== threadId));
 
+      // 删除当前选中会话时进入空白新会话，不自动切到下一条历史
       if (threadId === currentThreadId) {
-        if (nextSessions.length > 0) {
-          const nextId = nextSessions[0].thread_id;
-          switchSession(nextId);
-          await loadThreadHistory(nextId);
-        } else {
-          createNewSession();
-          setMessages([]);
-        }
+        createNewSession();
       }
       message.success(intl.formatMessage({ id: "aiAssistant.session.deleted" }));
     } catch (err) {

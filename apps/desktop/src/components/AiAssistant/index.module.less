@@ -1,7 +1,28 @@
 /* AI 桌面端 / 聊天样式 */
 
+/*
+ * --ant-* 由 ConfigProvider 挂在 .css-var-root 上，不在 :root。
+ * 若在 :root 写 --ai-brand: var(--ant-color-primary)（无 fallback），
+ * 会在 :root 算成 guaranteed-invalid 并被子孙继承，导致用户气泡白字无底色。
+ * 此处仅放静态回退；真正的 Token 绑定在 .desktopRoot（位于 css-var 作用域内）。
+ */
 :root {
-  /* 业务样式别名 → antd 6 默认 Design Token（CSS Variables） */
+  --ai-brand: #1677ff;
+  --ai-brand-dark: #0958d9;
+  --ai-brand-soft: #e6f4ff;
+  --ai-brand-border: #91caff;
+  --ai-surface: #ffffff;
+  --ai-canvas: #f5f5f5;
+  --ai-border: #f0f0f0;
+  --ai-text: rgba(0, 0, 0, 0.88);
+  --ai-text-secondary: rgba(0, 0, 0, 0.45);
+  --ai-radius: 8px;
+  --ai-chat-max: 880px;
+}
+
+/* —— 桌面全屏壳 —— */
+.desktopRoot {
+  /* 在 ant css-var-root 内覆盖为实时 Design Token */
   --ai-brand: var(--ant-color-primary);
   --ai-brand-dark: var(--ant-color-primary-active);
   --ai-brand-soft: var(--ant-color-primary-bg);
@@ -12,11 +33,7 @@
   --ai-text: var(--ant-color-text);
   --ai-text-secondary: var(--ant-color-text-secondary);
   --ai-radius: var(--ant-border-radius-lg);
-  --ai-chat-max: 880px;
-}
 
-/* —— 桌面全屏壳 —— */
-.desktopRoot {
   height: 100vh;
   height: 100dvh;
   display: flex;
@@ -638,6 +655,17 @@
   box-sizing: border-box;
 }
 
+.historyLoading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 20px;
+  color: var(--ai-text-secondary);
+  font-size: 14px;
+}
+
 .emptyStateInner {
   display: flex;
   flex-direction: column;
@@ -695,15 +723,16 @@
 .userBubble {
   max-width: calc(100% - 44px);
   padding: 10px 14px;
-  background: var(--ai-brand);
+  /* 双层 fallback，避免品牌色无效时白字不可见 */
+  background: var(--ai-brand, var(--ant-color-primary, #1677ff));
   color: #fff;
   border-radius: 12px 12px 4px 12px;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ai-brand) 18%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ai-brand, #1677ff) 18%, transparent);
 }
 
 .userAvatar {
   flex-shrink: 0;
-  background: var(--ai-brand) !important;
+  background: var(--ai-brand, var(--ant-color-primary, #1677ff)) !important;
 }
 
 /* —— 助手消息 —— */
@@ -745,7 +774,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 0;
+  padding: 12px 14px;
   background: var(--ai-surface);
   border-radius: 4px 14px 14px 14px;
   border: 1px solid var(--ai-border);
@@ -882,21 +911,13 @@
   word-break: break-word;
 }
 
-/* —— HITL 交互卡片 —— */
+/* —— HITL 交互卡片（布局；外观交给 antd 默认） —— */
 .hitlCard {
-  border-radius: 10px;
-  border: 1px solid #ffe58f;
-  background: linear-gradient(180deg, #fffef5 0%, #fffbe6 100%);
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(250, 173, 20, 0.12);
 }
 
 .hitlCardCompleted {
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--ai-brand) 35%, transparent);
-  background: linear-gradient(180deg, var(--ai-brand-soft) 0%, var(--ai-brand-soft) 100%);
   overflow: hidden;
-  box-shadow: none;
 }
 
 .hitlCardHeader {
@@ -914,14 +935,14 @@
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: rgba(250, 173, 20, 0.18);
-  color: #d48806;
   font-size: 16px;
+  color: var(--ant-color-warning);
+  background: var(--ant-color-warning-bg);
 }
 
 .hitlCardCompleted .hitlCardIcon {
-  background: color-mix(in srgb, var(--ai-brand) 15%, transparent);
-  color: var(--ai-brand);
+  color: var(--ant-color-primary);
+  background: var(--ant-color-primary-bg);
 }
 
 .hitlCardHeaderText {
@@ -1069,10 +1090,6 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(250, 173, 20, 0.28);
-  background: linear-gradient(180deg, #ffffff 0%, #fffaf0 100%);
 }
 
 .hitlDevicePickerHint {
@@ -1082,7 +1099,6 @@
 .hitlDevicePickerSelected {
   font-size: 12px;
   font-weight: 600;
-  color: #ad6800;
 }
 
 .hitlDevicePickerFilters {
@@ -1108,7 +1124,7 @@
 .hitlDevicePickerFilterLabel {
   font-size: 11px;
   line-height: 1.2;
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--ant-color-text-secondary);
 }
 
 .hitlDevicePickerActions {
@@ -1119,14 +1135,10 @@
 .hitlDevicePickerTable {
   :global(.ant-table) {
     font-size: 12px;
-    border-radius: 8px;
-    overflow: hidden;
   }
 
   :global(.ant-table-thead > tr > th) {
-    background: #fff7e6 !important;
     font-weight: 600;
-    color: rgba(0, 0, 0, 0.75);
     padding: 6px 8px !important;
   }
 
@@ -1136,10 +1148,6 @@
 
   :global(.ant-table-tbody > tr) {
     cursor: pointer;
-  }
-
-  :global(.ant-table-tbody > tr.ant-table-row-selected > td) {
-    background: #fff1b8 !important;
   }
 
   :global(.ant-pagination) {
@@ -1310,17 +1318,6 @@
     0 8px 24px color-mix(in srgb, var(--ai-text) 5%, transparent);
   /* 录音涟漪会超出卡片，不可裁切 */
   overflow: visible;
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
-
-  /* 仅文本输入聚焦时高亮外壳；工具条 Select 聚焦不触发 */
-  &:has(.inputTextarea:focus) {
-    border-color: var(--ai-brand);
-    box-shadow:
-      0 0 0 3px var(--ai-brand-soft),
-      0 8px 24px color-mix(in srgb, var(--ai-text) 8%, transparent);
-  }
 }
 
 /* 文本框本体：白底内嵌字段，与外层灰底形成对比 */
@@ -1331,16 +1328,6 @@
   border-radius: 10px;
   background: #fff;
   box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ai-text) 4%, transparent);
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
-
-  &:has(.inputTextarea:focus) {
-    border-color: var(--ai-brand-border);
-    box-shadow:
-      inset 0 1px 2px color-mix(in srgb, var(--ai-text) 3%, transparent),
-      0 0 0 2px var(--ai-brand-soft);
-  }
 }
 
 .inputTextarea {
