@@ -78,6 +78,8 @@ class ResumeRequest(BaseModel):
     ----
     thread_id : str
         须与 interrupt 时 chat 使用的 thread_id 一致。
+    mid : str | None
+        用户本轮需求 ID；须与产生 interrupt 的 chat mid 一致。省略时从 checkpoint HumanMessage 回退。
     model_id : str | None
         恢复执行时使用的模型，默认 catalog 默认项。
     decisions : list[ResumeDecision]
@@ -85,6 +87,7 @@ class ResumeRequest(BaseModel):
     """
 
     thread_id: str = Field(..., min_length=1)
+    mid: str | None = None
     model_id: str | None = None
     decisions: list[ResumeDecision] = Field(..., min_length=1)
 
@@ -160,6 +163,7 @@ async def resume_sse(request: Request, body: ResumeRequest):
     agent_debug(
         "flow.api.resume",
         thread_id=body.thread_id,
+        mid=(body.mid or "").strip() or None,
         decision_type=decision.type,
         hitl_tool=((decision.args or {}).get("_hitl_tool") if decision.type == "respond" else None),
         arg_keys=list((decision.args or {}).keys()) if decision.args else [],
@@ -220,6 +224,7 @@ async def resume_sse(request: Request, body: ResumeRequest):
             resume_value=resume_value,
             auth_token=authorization,
             user_id=user_id,
+            mid=body.mid,
         ),
         thread_id=body.thread_id,
     )

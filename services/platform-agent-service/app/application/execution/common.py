@@ -37,10 +37,15 @@ def emit_tool_events(
     *,
     retry: bool = False,
     attempt: int = 0,
+    tool_call_id: str | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
     """构造 tool_start / tool_end SSE 事件对。"""
     start_payload: dict[str, Any] = {"tool": tool_name, "args": tool_input or {}}
     end_payload: dict[str, Any] = {"tool": tool_name, "result": result}
+    tc_id = (tool_call_id or "").strip()
+    if tc_id:
+        start_payload["tool_call_id"] = tc_id
+        end_payload["tool_call_id"] = tc_id
     if retry:
         start_payload["retry"] = True
         start_payload["attempt"] = attempt

@@ -10,6 +10,30 @@ import type { AiMessage, AiSession, HitlPayload } from "./types";
 import { reconcilePlanStepsWithToolBlocks } from "./utils/planGraphUtils";
 import { v4 as uuidv4 } from "uuid";
 
+/** 在消息块中定位待更新的 tool_call：优先 toolCallId，否则按工具名取最近匹配状态 */
+function findToolCallBlockIndex(
+  blocks: AiMessage["blocks"],
+  tool: string,
+  toolCallId: string | undefined,
+  statuses: string[],
+): number {
+  if (toolCallId) {
+    for (let i = blocks.length - 1; i >= 0; i -= 1) {
+      const b = blocks[i];
+      if (b.type === "tool_call" && b.toolCallId === toolCallId) {
+        return i;
+      }
+    }
+  }
+  for (let i = blocks.length - 1; i >= 0; i -= 1) {
+    const b = blocks[i];
+    if (b.type === "tool_call" && b.tool === tool && statuses.includes(b.status)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 /** 持久化模型 ID 若已下线则回退默认，避免下拉空白 / 请求非法 model_id */
 function resolvePersistedModelId(id: unknown): AgentModelId {
   if (typeof id === "string" && getCatalogItem(id)) {
@@ -71,11 +95,12 @@ export interface AiAssistantState {
     tool: string,
     result?: string,
     finalStatus?: "done" | "error" | "awaiting_hitl" | "cancelled",
+    toolCallId?: string,
   ) => void;
   /** HITL 中断：仅标记 running 工具为 awaiting_hitl，不覆盖已 error/done 的历史块 */
-  markAssistantToolAwaitingHitl: (messageId: string, tool: string) => void;
+  markAssistantToolAwaitingHitl: (messageId: string, tool: string, toolCallId?: string) => void;
   /** HITL 已批准/已提交：将 awaiting_hitl 工具块恢复为 running（续跑等待 SSE 前） */
-  markAssistantToolRunning: (messageId: string, tool: string) => void;
+  markAssistantToolRunning: (messageId: string, tool: string, toolCallId?: string) => void;
   completeClientAction: (messageId: string, status: "done" | "error") => void;
   updateAssistantText: (
     messageId: string,
@@ -261,76 +286,85 @@ export const useAiAssistantStore = create<AiAssistantState>()(
           ),
         })),
 
-      completeAssistantToolCall: (messageId, tool, result, finalStatus = "done") =>
+      completeAssistantToolCall: (messageId, tool, result, finalStatus = "done", toolCallId) =>
         set((s) => ({
           messages: s.messages.map((m) => {
             if (m.id !== messageId) return m;
             const blocks = [...m.blocks];
-            for (let i = blocks.length - 1; i >= 0; i -= 1) {
+            const i = findToolCallBlockIndex(blocks, tool, toolCallId, [
+              "running",
+              "error",
+              "awaiting_hitl",
+            ]);
+            if (i >= 0) {
               const b = blocks[i];
-              if (
-                b.type === "tool_call" &&
-                b.tool === tool &&
-                (b.status === "running" || b.status === "error" || b.status === "awaiting_hitl")
-              ) {
-                blocks[i] = { ...b, status: finalStatus, result };
-                break;
+              if (b.type === "tool_call") {
+                blocks[i] = {
+                  ...b,
+                  status: finalStatus,
+                  result,
+                  toolCallId: b.toolCallId ?? toolCallId,
+                };
               }
             }
             return { ...m, blocks };
           }),
         })),
 
-      markAssistantToolAwaitingHitl: (messageId, tool) =>
+      markAssistantToolAwaitingHitl: (messageId, tool, toolCallId) =>
         set((s) => ({
           messages: s.messages.map((m) => {
             if (m.id !== messageId) return m;
             const blocks = [...m.blocks];
-            let marked = false;
-            for (let i = blocks.length - 1; i >= 0; i -= 1) {
+            const i = findToolCallBlockIndex(blocks, tool, toolCallId, ["running"]);
+            if (i >= 0) {
               const b = blocks[i];
-              if (b.type === "tool_call" && b.tool === tool && b.status === "running") {
-                blocks[i] = { ...b, status: "awaiting_hitl" };
-                marked = true;
-                break;
+              if (b.type === "tool_call") {
+                blocks[i] = {
+                  ...b,
+                  status: "awaiting_hitl",
+                  toolCallId: b.toolCallId ?? toolCallId,
+                };
               }
-            }
-            if (!marked) {
+            } else {
               blocks.push({
                 type: "tool_call",
                 tool,
                 status: "awaiting_hitl",
                 args: {},
+                toolCallId,
               });
             }
             return { ...m, blocks };
           }),
         })),
 
-      markAssistantToolRunning: (messageId, tool) =>
+      markAssistantToolRunning: (messageId, tool, toolCallId) =>
         set((s) => ({
           messages: s.messages.map((m) => {
             if (m.id !== messageId) return m;
             const blocks = [...m.blocks];
-            let marked = false;
-            for (let i = blocks.length - 1; i >= 0; i -= 1) {
+            const i = findToolCallBlockIndex(blocks, tool, toolCallId, [
+              "awaiting_hitl",
+              "running",
+            ]);
+            if (i >= 0) {
               const b = blocks[i];
-              if (
-                b.type === "tool_call" &&
-                b.tool === tool &&
-                (b.status === "awaiting_hitl" || b.status === "running")
-              ) {
-                blocks[i] = { ...b, status: "running", result: undefined };
-                marked = true;
-                break;
+              if (b.type === "tool_call") {
+                blocks[i] = {
+                  ...b,
+                  status: "running",
+                  result: undefined,
+                  toolCallId: b.toolCallId ?? toolCallId,
+                };
               }
-            }
-            if (!marked) {
+            } else {
               blocks.push({
                 type: "tool_call",
                 tool,
                 status: "running",
                 args: {},
+                toolCallId,
               });
             }
             return { ...m, blocks };

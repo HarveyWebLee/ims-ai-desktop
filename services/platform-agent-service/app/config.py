@@ -135,8 +135,15 @@ class Settings(BaseSettings):
     # Redis 纠错映射 TTL（秒）
     transcribe_correct_cache_ttl_seconds: int = 30 * 24 * 3600
     # 声纹门禁：语音输入前须选择已录入用户，并比对通过后才接受 ASR
+    # 嵌入后端为 SpeechBrain ECAPA-TDNN（192 维）；换算法后须重新录入
     voiceprint_enabled: bool = True
-    voiceprint_match_threshold: float = 0.62
+    # ECAPA 余弦阈值：同说话人通常明显高于 0.35；可按现场 FAR/FRR 微调
+    voiceprint_match_threshold: float = 0.40
+    voiceprint_ecapa_source: str = "speechbrain/spkrec-ecapa-voxceleb"
+    # 空=落到 agent_data_dir/pretrained/spkrec-ecapa-voxceleb
+    voiceprint_ecapa_savedir: str = ""
+    # 空=自动（有 CUDA 用 cuda，否则 cpu）
+    voiceprint_ecapa_device: str = ""
     # 流式分片并行：线程池大小 / 会话 TTL / finish 等待上限
     transcribe_stream_enabled: bool = True
     transcribe_pipeline_workers: int = 4

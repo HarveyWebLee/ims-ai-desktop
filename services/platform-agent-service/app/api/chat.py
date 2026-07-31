@@ -95,6 +95,8 @@ class ChatRequest(BaseModel):
     ----
     thread_id : str
         会话唯一 ID，前端生成 UUID，贯穿 checkpoint 与 SSE 重连。
+    mid : str | None
+        用户本轮需求 ID；省略时后端生成。SSE / resume / 历史投影按 mid 归属。
     message : str
         用户本轮输入文本，min_length=1 禁止空字符串。
     model_id : str | None
@@ -107,6 +109,7 @@ class ChatRequest(BaseModel):
     """
 
     thread_id: str = Field(..., min_length=1)
+    mid: str | None = None
     message: str = Field(..., min_length=1)
     model_id: str | None = None
     metadata: dict[str, Any] | None = None
@@ -141,6 +144,16 @@ def _format_sse(event: str, data: dict[str, Any]) -> str:
     """
     # f-string 多行：event 行 + data 行 + 空行分隔
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _payload_with_mid(payload: dict[str, Any]) -> dict[str, Any]:
+    """为 SSE payload 注入本轮 mid（已有则不覆盖）。"""
+    from contracts.context import current_message_id
+
+    mid = (current_message_id.get() or "").strip()
+    if not mid or payload.get("mid"):
+        return payload
+    return {**payload, "mid": mid}
 
 
 # HITL 前平台 API（如统计 6 万条告警）可能耗时 30s+，需周期性 SSE 注释保活
@@ -286,15 +299,23 @@ async def _sse_from_stream(
 
                 from contracts.agent_debug import trace_sse_outgoing
 
-                trace_sse_outgoing(event_name, payload if isinstance(payload, dict) else {})
-                if event_name == "tool_end" and payload.get("result"):
+                out_payload = _payload_with_mid(payload) if isinstance(payload, dict) else payload
+                trace_sse_outgoing(event_name, out_payload if isinstance(out_payload, dict) else {})
+                if (
+                    event_name == "tool_end"
+                    and isinstance(out_payload, dict)
+                    and out_payload.get("result")
+                ):
                     try:
-                        result_data = json.loads(payload["result"])
+                        result_data = json.loads(out_payload["result"])
                         for action in _client_actions_from_tool_result(result_data):
-                            yield _format_sse("client_action", action)
+                            yield _format_sse(
+                                "client_action",
+                                _payload_with_mid(action) if isinstance(action, dict) else action,
+                            )
                     except json.JSONDecodeError, TypeError:
                         pass
-                yield _format_sse(event_name, payload)
+                yield _format_sse(event_name, out_payload if isinstance(out_payload, dict) else {})
         except asyncio.CancelledError:
             _clear_thread_orchestration_on_abort(thread_id, reason="cancelled")
             raise
@@ -380,6 +401,7 @@ async def chat_sse(request: Request, body: ChatRequest):
     agent_debug(
         "flow.api.chat",
         thread_id=body.thread_id,
+        mid=(body.mid or "").strip() or None,
         model_id=model_id,
         message_preview=preview_text(body.message, max_len=120),
         current_path=str((body.metadata or {}).get("current_path") or ""),
@@ -396,6 +418,7 @@ async def chat_sse(request: Request, body: ChatRequest):
             auth_token=authorization,
             recent_user_messages=body.recent_user_messages,
             user_id=user_id,
+            mid=body.mid,
         ),
         thread_id=body.thread_id,
     )

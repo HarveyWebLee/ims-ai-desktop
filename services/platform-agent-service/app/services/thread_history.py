@@ -154,29 +154,40 @@ def checkpoint_messages_to_ui(messages: list[Any]) -> list[dict[str, Any]]:
     将 checkpoint 消息序列转为前端 blocks 结构。
 
     输出格式:
-        [{ role: "user"|"assistant", blocks: [{type, ...}] }]
+        [{ role: "user"|"assistant", mid?: str, blocks: [{type, ...}] }]
 
     参数:
         messages: LangChain Message 列表
 
     返回:
         UI 消息列表
+
+    说明:
+        自最近一条 HumanMessage 起的 assistant 气泡共享该 Human 的 mid（方案 B 多卡同 mid）。
     """
     ui: list[dict[str, Any]] = []
     i = 0
+    current_mid: str | None = None
     # while 手动控制索引，因为 AIMessage+ToolMessage 需成组处理
     while i < len(messages):
         msg = messages[i]
 
         if isinstance(msg, HumanMessage):
             text = extract_user_display_message(_text_content(msg.content)).strip()
+            kwargs = getattr(msg, "additional_kwargs", None) or {}
+            current_mid = (
+                str(kwargs["mid"]).strip()
+                if kwargs.get("mid")
+                else (str(msg.id).strip() if getattr(msg, "id", None) else None)
+            ) or None
             if text:
-                ui.append(
-                    {
-                        "role": "user",
-                        "blocks": [{"type": "text", "content": text}],
-                    }
-                )
+                entry: dict[str, Any] = {
+                    "role": "user",
+                    "blocks": [{"type": "text", "content": text}],
+                }
+                if current_mid:
+                    entry["mid"] = current_mid
+                ui.append(entry)
             i += 1
             continue
 
@@ -201,15 +212,16 @@ def checkpoint_messages_to_ui(messages: list[Any]) -> list[dict[str, Any]]:
                     tool_name = tc.get("name") or "unknown"
                     args = tc.get("args") if isinstance(tc.get("args"), dict) else {}
                     result = tool_results.get(tc_id, "")
-                    blocks.append(
-                        {
-                            "type": "tool_call",
-                            "tool": tool_name,
-                            "args": args,
-                            "status": "done",
-                            "result": result,
-                        }
-                    )
+                    tool_block: dict[str, Any] = {
+                        "type": "tool_call",
+                        "tool": tool_name,
+                        "args": args,
+                        "status": "done",
+                        "result": result,
+                    }
+                    if tc_id:
+                        tool_block["tool_call_id"] = tc_id
+                    blocks.append(tool_block)
                     for client_action in _client_actions_from_result(result):
                         blocks.append(
                             {
@@ -223,13 +235,69 @@ def checkpoint_messages_to_ui(messages: list[Any]) -> list[dict[str, Any]]:
                 i += 1
 
             if blocks:
-                ui.append({"role": "assistant", "blocks": blocks})
+                entry = {"role": "assistant", "blocks": blocks}
+                if current_mid:
+                    entry["mid"] = current_mid
+                ui.append(entry)
             continue
 
         # 孤立的 ToolMessage（无对应 AIMessage）跳过
         i += 1
 
     return ui
+
+
+def attach_pending_interrupt_to_ui(
+    ui_messages: list[dict[str, Any]],
+    pending: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """
+    将 checkpoint pending HITL 挂到对应助手气泡（按 mid；无 mid 则挂最后一条助手）。
+
+    历史还原与实时流一致：有 pending 时 UI 必有 interrupt 块可交互。
+    """
+    if not pending or not isinstance(pending, dict):
+        return ui_messages
+
+    mid = str(pending.get("mid") or "").strip() or None
+    result = [dict(item) for item in ui_messages]
+    target_idx: int | None = None
+
+    if mid:
+        for i in range(len(result) - 1, -1, -1):
+            item = result[i]
+            if item.get("role") == "assistant" and str(item.get("mid") or "") == mid:
+                target_idx = i
+                break
+
+    if target_idx is None:
+        for i in range(len(result) - 1, -1, -1):
+            if result[i].get("role") == "assistant":
+                target_idx = i
+                break
+
+    interrupt_block = {"type": "interrupt", "payload": pending}
+    if target_idx is None:
+        entry: dict[str, Any] = {
+            "role": "assistant",
+            "blocks": [interrupt_block],
+        }
+        if mid:
+            entry["mid"] = mid
+        result.append(entry)
+        return result
+
+    blocks = [
+        b
+        for b in (result[target_idx].get("blocks") or [])
+        if not (isinstance(b, dict) and b.get("type") == "interrupt")
+    ]
+    blocks.append(interrupt_block)
+    updated = {**result[target_idx], "blocks": blocks}
+    if mid and not updated.get("mid"):
+        updated["mid"] = mid
+    result[target_idx] = updated
+    return result
 
 
 async def get_thread_ui_messages(thread_id: str) -> list[dict[str, Any]]:

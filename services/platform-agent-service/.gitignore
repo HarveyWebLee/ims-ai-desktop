@@ -64,3 +64,5 @@ Thumbs.db
 *.tmp
 *.bak
 .cache/
+# SpeechBrain ECAPA 预训练权重（首次核验自动下载）
+app/data/pretrained/

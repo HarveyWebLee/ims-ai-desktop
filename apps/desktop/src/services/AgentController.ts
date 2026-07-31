@@ -2,7 +2,7 @@
  * Agent API Client
  */
 import { getAuthHeaders } from "@ims/desktop-api";
-import type { AgentApiResponse, AgentModelId } from "@ims/shared-types";
+import type { AgentApiResponse, AgentModelId, HitlPayload } from "@ims/shared-types";
 import type { AgentSseHandler, AiSession } from "@/components/AiAssistant/types";
 import type { ThreadHistoryMessage } from "@/components/AiAssistant/utils/mapHistoryMessages";
 import { parseSseChunk } from "@/components/AiAssistant/utils/sseParser";
@@ -209,6 +209,7 @@ export async function deleteSession(threadId: string): Promise<{ thread_id: stri
 export async function getThreadState(threadId: string): Promise<{
   thread_id: string;
   messages: ThreadHistoryMessage[];
+  pending_interrupt?: HitlPayload | null;
   bpmn_snapshot?: BpmnThreadSnapshot | null;
 }> {
   const res = await fetch(`${AGENT_BASE}/threads/${threadId}/state`, {
@@ -331,6 +332,8 @@ export async function saveThreadBpmn(
 export async function chatStream(
   params: {
     thread_id: string;
+    /** 用户本轮需求 ID；与助手气泡 / SSE mid 对齐 */
+    mid: string;
     message: string;
     model_id: AgentModelId;
     metadata?: { current_path?: string };
@@ -353,6 +356,8 @@ export async function chatStream(
 export async function resumeStream(
   params: {
     thread_id: string;
+    /** 与产生 interrupt 的 chat mid 一致 */
+    mid?: string;
     model_id: AgentModelId;
     decisions: { type: string; args?: Record<string, unknown> }[];
   },

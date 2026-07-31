@@ -6,6 +6,7 @@ from typing import Any
 
 from app.config import settings
 from app.services.voice.voiceprint_features import (
+    EMBEDDING_DIM,
     cosine_similarity,
     extract_embedding,
     merge_embeddings,
@@ -64,11 +65,17 @@ def enroll_voiceprint(
         incoming = extract_embedding(audio_bytes, sample_rate=sample_rate)
     except ValueError as exc:
         raise VoiceprintError(str(exc)) from exc
-    merged = merge_embeddings(profile.embedding, incoming, count=profile.sample_count)
+    # 旧版频谱嵌入（非 192 维）与 ECAPA 不兼容，重新开始累计
+    prior_count = profile.sample_count
+    prior_emb = profile.embedding
+    if prior_emb and len(prior_emb) != EMBEDDING_DIM:
+        prior_count = 0
+        prior_emb = None
+    merged = merge_embeddings(prior_emb, incoming, count=prior_count)
     updated = store.save_embedding(
         profile_id,
         embedding=merged,
-        sample_count=profile.sample_count + 1,
+        sample_count=prior_count + 1,
     )
     if updated is None:
         raise VoiceprintError("声纹用户不存在")
@@ -95,6 +102,8 @@ def verify_voiceprint(
         raise VoiceprintError("声纹用户不存在")
     if profile.sample_count <= 0 or not profile.embedding:
         raise VoiceprintError("该用户尚未录入声纹，请先完成录入")
+    if len(profile.embedding) != EMBEDDING_DIM:
+        raise VoiceprintError("声纹模板与当前 ECAPA 算法不兼容，请重新录入")
     try:
         probe = extract_embedding(audio_bytes, sample_rate=sample_rate)
     except ValueError as exc:

@@ -32,6 +32,10 @@ dependencies = [
     "fastmcp>=2.3.0",
     # 共享运行时契约（HITL / preflight / catalog；工具执行面仅经 MCP Client）
     "contracts",
+    # 声纹：SpeechBrain ECAPA-TDNN（torch 2.13；torchaudio 暂无 PyPI 最高 2.11 兼容）
+    "torch==2.13.0",
+    "torchaudio>=2.1.0",
+    "speechbrain>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -67,7 +71,10 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = ["-ra", "--tb=short"]
+addopts = ["-ra", "--tb=short", "-m", "not integration"]
+markers = [
+    "integration: 需联网/本地下载大模型的集成测试",
+]
 
 # ── Ruff：格式化 + Lint（替代 Black / isort / Flake8）────────────────────────
 [tool.ruff]

@@ -98,13 +98,20 @@ async def get_thread_state(thread_id: str, authorization: str | None = None):
 
     # AsyncPostgresSaver 须 await aget；内存 InMemorySaver 的 aget 亦可
     messages = await get_thread_ui_messages(thread_id)
+    from app.graph.checkpoint_utils import get_pending_interrupt_for_thread
     from app.services.session_store import get_thread_bpmn_snapshot
+    from app.services.thread_history import attach_pending_interrupt_to_ui
+
+    pending_interrupt = await get_pending_interrupt_for_thread(thread_id)
+    if pending_interrupt:
+        messages = attach_pending_interrupt_to_ui(messages, pending_interrupt)
 
     bpmn_snapshot = get_thread_bpmn_snapshot(thread_id)
     return ok(
         {
             "thread_id": thread_id,
             "messages": messages,
+            "pending_interrupt": pending_interrupt,
             "bpmn_snapshot": bpmn_snapshot,
         }
     )

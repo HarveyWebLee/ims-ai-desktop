@@ -11,6 +11,7 @@ from langgraph.types import Command
 from contracts.context import (
     current_auth_token,
     current_hitl_confirm_bypass,
+    current_message_id,
     current_thread_id,
     current_turn_suppressed_tools,
     safe_reset_contextvar,
@@ -31,6 +32,25 @@ def _normalize_resume_payload(resume_value: Any) -> Any:
     return strip_hitl_meta_from_resume(_unwrap_resume_args(resume_value))
 
 
+async def _resolve_resume_mid(thread_id: str, client_mid: str | None) -> str | None:
+    """优先客户端 mid；否则取 checkpoint 最近一条带 mid 的 HumanMessage。"""
+    mid = (client_mid or "").strip()
+    if mid:
+        return mid
+    from langchain_core.messages import HumanMessage
+
+    from app.services.thread_history import read_checkpoint_messages
+
+    for msg in reversed(await read_checkpoint_messages(thread_id)):
+        if not isinstance(msg, HumanMessage):
+            continue
+        kwargs = getattr(msg, "additional_kwargs", None) or {}
+        found = kwargs.get("mid") or getattr(msg, "id", None)
+        if found:
+            return str(found)
+    return None
+
+
 async def stream_resume_core(
     *,
     thread_id: str,
@@ -38,6 +58,7 @@ async def stream_resume_core(
     resume_value: Any,
     auth_token: str | None = None,
     user_id: str | None = None,
+    mid: str | None = None,
 ) -> AsyncIterator[AgentEvent]:
     """执行 HITL 续跑：仅 ``Command(resume=...)`` 路径。"""
     from app.graph.stream_envelope import wrap_stream_with_plan_trace
@@ -58,9 +79,16 @@ async def stream_resume_core(
     run_id = str(uuid.uuid4())
     token = current_auth_token.set(auth_token)
     tid = current_thread_id.set(thread_id)
+    turn_mid = await _resolve_resume_mid(thread_id, mid)
+    mid_token = current_message_id.set(turn_mid) if turn_mid else None
     from contracts.agent_debug import agent_debug
 
-    agent_debug("resume.context.init", thread_id=thread_id, has_auth=bool(auth_token))
+    agent_debug(
+        "resume.context.init",
+        thread_id=thread_id,
+        has_auth=bool(auth_token),
+        mid=turn_mid,
+    )
     expected_resume_tool = extract_expected_hitl_tool(resume_value)
     suppressed_token = None
     if expected_resume_tool and expected_resume_tool != "download_file":
@@ -99,6 +127,7 @@ async def stream_resume_core(
         agent_debug(
             "resume.start",
             thread_id=thread_id,
+            mid=turn_mid,
             resume_type=(resume_payload.get("type") if isinstance(resume_payload, dict) else None),
         )
         agent_debug(
@@ -177,6 +206,8 @@ async def stream_resume_core(
             )
         safe_reset_contextvar(current_auth_token, token, label="current_auth_token")
         safe_reset_contextvar(current_thread_id, tid, label="current_thread_id")
+        if mid_token is not None:
+            safe_reset_contextvar(current_message_id, mid_token, label="current_message_id")
         if bypass_token is not None:
             safe_reset_contextvar(
                 current_hitl_confirm_bypass,
@@ -192,6 +223,7 @@ async def stream_resume(
     resume_value: Any,
     auth_token: str | None = None,
     user_id: str | None = None,
+    mid: str | None = None,
 ) -> AsyncIterator[AgentEvent]:
     """执行完整 HITL 续跑事件流。"""
     async for event in stream_resume_core(
@@ -200,5 +232,6 @@ async def stream_resume(
         resume_value=resume_value,
         auth_token=auth_token,
         user_id=user_id,
+        mid=mid,
     ):
         yield event

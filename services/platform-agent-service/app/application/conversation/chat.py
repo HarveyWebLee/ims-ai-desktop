@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage
 from app.graph.context import assemble_context
 from contracts.context import (
     current_auth_token,
+    current_message_id,
     current_thread_id,
     current_turn_suppressed_tools,
     safe_reset_contextvar,
@@ -27,6 +28,7 @@ async def stream_chat_core(
     metadata: dict[str, Any] | None = None,
     auth_token: str | None = None,
     recent_user_messages: list[str] | None = None,
+    mid: str | None = None,
 ) -> AsyncIterator[AgentEvent]:
     """执行新消息：组装上下文、清理 stale 状态、驱动父 StateGraph。"""
     from app.models.router import require_model_credentials
@@ -34,6 +36,8 @@ async def stream_chat_core(
     require_model_credentials()
     token = current_auth_token.set(auth_token)
     tid = current_thread_id.set(thread_id)
+    turn_mid = (mid or "").strip() or str(uuid.uuid4())
+    mid_token = current_message_id.set(turn_mid)
 
     from app.services.prompt_assembly import resolve_recent_messages_for_intent
 
@@ -88,15 +92,22 @@ async def stream_chat_core(
         agent_debug(
             "flow.checkpoint.before_chat",
             thread_id=thread_id,
+            mid=turn_mid,
             checkpoint_messages=await checkpoint_messages_summary(thread_id, model_id),
         )
 
         initial_state = {
-            "messages": [HumanMessage(content=ctx.llm_user_message)],
+            "messages": [
+                HumanMessage(
+                    content=ctx.llm_user_message,
+                    id=turn_mid,
+                    additional_kwargs={"mid": turn_mid},
+                )
+            ],
             "user_message": ctx.message,
             "llm_user_message": ctx.llm_user_message,
             "model_id": model_id,
-            "metadata": dict(ctx.metadata or {}),
+            "metadata": {**(dict(ctx.metadata or {})), "mid": turn_mid},
         }
 
         from app.graph.parent_graph_stream import stream_parent_graph
@@ -128,27 +139,33 @@ async def stream_chat_core(
             yield event
 
         if not saw_interrupt:
-            from app.graph.checkpoint_utils import collect_pending_interrupt_payloads
+            from app.graph.checkpoint_utils import (
+                collect_pending_interrupt_payloads,
+                enrich_interrupt_payload_mid,
+            )
 
+            turn_mid = (current_message_id.get() or "").strip() or None
             for payload in await collect_pending_interrupt_payloads(thread_id, model_id):
+                enriched = enrich_interrupt_payload_mid(payload, fallback_mid=turn_mid)
                 agent_debug(
                     "chat.hitl_interrupt_recovery",
                     thread_id=thread_id,
-                    interrupt_type=payload.get("type"),
-                    tool=payload.get("tool"),
+                    interrupt_type=enriched.get("type"),
+                    tool=enriched.get("tool"),
+                    mid=enriched.get("mid"),
                 )
-                if payload.get("type") == "plan_confirm":
+                if enriched.get("type") == "plan_confirm":
                     from app.services.plan_graph import build_plan_sse_payload
 
-                    steps = payload.get("steps") or []
+                    steps = enriched.get("steps") or []
                     yield (
                         "plan",
                         build_plan_sse_payload(
                             steps if isinstance(steps, list) else [],
-                            graph=payload.get("graph"),
+                            graph=enriched.get("graph"),
                         ),
                     )
-                yield ("interrupt", payload)
+                yield ("interrupt", enriched)
 
         if not saw_terminal:
             yield ("done", {"type": "done", "thread_id": thread_id})
@@ -161,6 +178,7 @@ async def stream_chat_core(
             )
         safe_reset_contextvar(current_auth_token, token, label="current_auth_token")
         safe_reset_contextvar(current_thread_id, tid, label="current_thread_id")
+        safe_reset_contextvar(current_message_id, mid_token, label="current_message_id")
 
 
 async def stream_chat(
@@ -172,6 +190,7 @@ async def stream_chat(
     auth_token: str | None = None,
     recent_user_messages: list[str] | None = None,
     user_id: str | None = None,
+    mid: str | None = None,
 ) -> AsyncIterator[AgentEvent]:
     """执行新用户消息，并包装 Plan、Trace 与审计事件。"""
     from app.graph.stream_envelope import wrap_stream_with_plan_trace
@@ -188,6 +207,7 @@ async def stream_chat(
             metadata=metadata,
             auth_token=auth_token,
             recent_user_messages=recent_user_messages,
+            mid=mid,
         ),
         thread_id=thread_id,
         run_id=str(uuid.uuid4()),

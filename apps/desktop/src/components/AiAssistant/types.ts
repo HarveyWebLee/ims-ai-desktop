@@ -45,6 +45,8 @@ export type AiMessageBlock =
       args: Record<string, unknown>;
       status: "pending" | "running" | "done" | "error" | "awaiting_hitl" | "cancelled";
       result?: string;
+      /** 与 SSE / LangChain tool_calls[].id 对齐，同 mid 内禁止仅按工具名猜 */
+      toolCallId?: string;
       /** Re-plan 后的重试轮次（来自 SSE tool_start.retry） */
       retry?: boolean;
       attempt?: number;
@@ -198,6 +200,8 @@ export interface AiMessage {
   role: AiMessageRole;
   blocks: AiMessageBlock[];
   createdAt: number;
+  /** 用户本轮需求 ID：同 mid 的 user/assistant 气泡归属同一需求（方案 B 可多助手子卡） */
+  mid?: string;
   streaming?: boolean;
   /** 本轮 SSE Trace（展示在该条助手消息内） */
   traceEvents?: TraceEvent[];
@@ -224,13 +228,17 @@ export interface PlanSsePayload {
 
 /** SSE 事件处理器 */
 export type AgentSseHandler = {
-  onTextDelta?: (delta: string) => void;
+  onTextDelta?: (delta: string, meta?: { mid?: string }) => void;
   onToolStart?: (
     tool: string,
     args: Record<string, unknown>,
-    meta?: { retry?: boolean; attempt?: number },
+    meta?: { retry?: boolean; attempt?: number; mid?: string; toolCallId?: string },
   ) => void;
-  onToolEnd?: (tool: string, result: string, meta?: { retry?: boolean; attempt?: number }) => void;
+  onToolEnd?: (
+    tool: string,
+    result: string,
+    meta?: { retry?: boolean; attempt?: number; mid?: string; toolCallId?: string },
+  ) => void;
   onInterrupt?: (payload: HitlPayload) => void;
   onClientAction?: (action: ClientAction) => void | Promise<void>;
   onPlan?: (payload: PlanSsePayload | PlanStep[]) => void;
@@ -243,14 +251,16 @@ export type AgentSseHandler = {
     skipReason?: string;
     matchedBranchKey?: string;
     label?: string;
+    mid?: string;
   }) => void;
   onReplan?: (payload: {
     reason: string;
     steps: PlanStep[];
     attempt?: number;
     failed_tool?: string;
+    mid?: string;
   }) => void;
   onTrace?: (event: TraceEvent) => void;
-  onDone?: (threadId: string) => void;
+  onDone?: (threadId: string, meta?: { mid?: string }) => void;
   onError?: (code: number, message: string, data?: unknown) => void;
 };

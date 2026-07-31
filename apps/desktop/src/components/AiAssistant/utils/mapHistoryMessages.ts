@@ -10,6 +10,8 @@ import { resolveWorkspaceFromMessage } from "./workspaceFromTool";
 /** 服务端返回的单条历史消息 */
 export interface ThreadHistoryMessage {
   role: string;
+  /** 用户本轮需求 ID（与 SSE mid 一致） */
+  mid?: string;
   /** 新版：结构化 blocks */
   blocks?: AiMessageBlock[];
   /** 旧版兼容：纯文本 */
@@ -26,12 +28,19 @@ function normalizeBlock(raw: Record<string, unknown>): AiMessageBlock | null {
     return { type: "text", content: normalizeUserTextContent(raw.content) };
   }
   if (type === "tool_call" && typeof raw.tool === "string") {
+    const toolCallId =
+      typeof raw.tool_call_id === "string"
+        ? raw.tool_call_id
+        : typeof raw.toolCallId === "string"
+          ? raw.toolCallId
+          : undefined;
     return {
       type: "tool_call",
       tool: raw.tool,
       args: (raw.args as Record<string, unknown>) || {},
       status: (raw.status as "done") || "done",
       result: typeof raw.result === "string" ? raw.result : undefined,
+      toolCallId: toolCallId?.trim() || undefined,
     };
   }
   if (type === "client_action" && raw.action) {
@@ -97,6 +106,7 @@ export function mapHistoryToMessages(history: ThreadHistoryMessage[]): AiMessage
       role,
       blocks,
       createdAt: Date.now(),
+      mid: typeof item.mid === "string" && item.mid.trim() ? item.mid.trim() : undefined,
     };
 
     if (role === "assistant") {

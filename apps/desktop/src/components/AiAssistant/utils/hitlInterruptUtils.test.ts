@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { HitlPayload } from "@ims/shared-types";
 import type { AiMessage, AiMessageBlock } from "../types";
 import {
+  applyPendingInterruptToMessages,
   findPendingInterruptFromMessages,
   isGraphLevelHitlType,
   resolveActiveHitlMessageId,
@@ -101,6 +102,15 @@ describe("resolveActiveHitlMessageId", () => {
     expect(resolveActiveHitlMessageId(messages, null)).toBe("a1");
   });
 
+  it("prefers mid-matched assistant over later interrupt-less bubble", () => {
+    const payload = { ...askParamsPayload, mid: "m-door" };
+    const messages = [
+      assistantMsg("a1", [{ type: "interrupt", payload }], { mid: "m-door" }),
+      assistantMsg("a2", [{ type: "text", content: "总结" }], { mid: "m-broadcast" }),
+    ];
+    expect(resolveActiveHitlMessageId(messages, payload)).toBe("a1");
+  });
+
   it("falls back to pendingInterrupt with awaiting plan", () => {
     const messages = [
       assistantMsg("a2", [], {
@@ -122,6 +132,26 @@ describe("findPendingInterruptFromMessages", () => {
   it("returns last assistant interrupt", () => {
     const messages = [assistantMsg("a1", [{ type: "interrupt", payload: askParamsPayload }])];
     expect(findPendingInterruptFromMessages(messages)).toEqual(askParamsPayload);
+  });
+
+  it("backfills mid from assistant message", () => {
+    const messages = [
+      assistantMsg("a1", [{ type: "interrupt", payload: askParamsPayload }], { mid: "m1" }),
+    ];
+    expect(findPendingInterruptFromMessages(messages)?.mid).toBe("m1");
+  });
+});
+
+describe("applyPendingInterruptToMessages", () => {
+  it("attaches pending interrupt to mid-matched assistant", () => {
+    const pending = { ...confirmPayload, mid: "m2" };
+    const messages = [
+      assistantMsg("a1", [{ type: "text", content: "旧" }], { mid: "m1" }),
+      assistantMsg("a2", [{ type: "text", content: "新" }], { mid: "m2" }),
+    ];
+    const next = applyPendingInterruptToMessages(messages, pending);
+    expect(next[1].blocks.some((b) => b.type === "interrupt")).toBe(true);
+    expect(findPendingInterruptFromMessages(next)?.tool).toBe("send_device_cmd");
   });
 });
 

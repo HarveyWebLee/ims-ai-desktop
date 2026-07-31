@@ -41,12 +41,28 @@ export function shouldPreserveHitlOnStreamDone(
 
 /**
  * 解析当前可交互 HITL 所在助手消息 id。
- * 优先 interrupt 块；兜底 pendingInterrupt + 计划/工具 awaiting 状态（防 onDone 误清后的恢复）。
+ * 优先：pending.mid → 同 mid 含 interrupt 的助手；再：任意 interrupt 块；再：awaiting 兜底。
  */
 export function resolveActiveHitlMessageId(
   messages: AiMessage[],
   pendingInterrupt: HitlPayload | null,
 ): string | null {
+  const mid = pendingInterrupt?.mid?.trim();
+  if (mid) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m.role === "assistant" && m.mid === mid && m.blocks.some((b) => b.type === "interrupt")) {
+        return m.id;
+      }
+    }
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m.role === "assistant" && m.mid === mid) {
+        return m.id;
+      }
+    }
+  }
+
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const m = messages[i];
     if (m.role === "assistant" && m.blocks.some((b) => b.type === "interrupt")) {
@@ -85,9 +101,86 @@ export function findPendingInterruptFromMessages(messages: AiMessage[]): HitlPay
     const m = messages[i];
     if (m.role !== "assistant") continue;
     const payload = findInterruptPayload(m.blocks);
-    if (payload) return payload;
+    if (payload) {
+      // 气泡 mid 回填到 payload，保证 resume 回传
+      if (!payload.mid && m.mid) {
+        return { ...payload, mid: m.mid };
+      }
+      return payload;
+    }
   }
   return null;
+}
+
+/**
+ * 将 /state 返回的 pending_interrupt 挂到对应助手气泡（按 mid）。
+ * 后端已挂块时幂等；仅有顶层字段时补块。
+ */
+export function applyPendingInterruptToMessages(
+  messages: AiMessage[],
+  pending: HitlPayload | null | undefined,
+): AiMessage[] {
+  if (!pending) return messages;
+  const mid = pending.mid?.trim();
+  const existing = findPendingInterruptFromMessages(messages);
+  if (existing && (!mid || existing.mid === mid || !existing.mid)) {
+    // 已有 interrupt 块：补 mid
+    if (existing.mid || !mid) return messages;
+    return messages.map((m) => {
+      if (m.role !== "assistant") return m;
+      const idx = m.blocks.findIndex((b) => b.type === "interrupt");
+      if (idx < 0) return m;
+      const block = m.blocks[idx];
+      if (block.type !== "interrupt") return m;
+      const nextBlocks = [...m.blocks];
+      nextBlocks[idx] = {
+        type: "interrupt",
+        payload: { ...block.payload, mid: block.payload.mid ?? mid },
+      };
+      return { ...m, mid: m.mid ?? mid, blocks: nextBlocks };
+    });
+  }
+
+  let targetIndex = -1;
+  if (mid) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === "assistant" && messages[i].mid === mid) {
+        targetIndex = i;
+        break;
+      }
+    }
+  }
+  if (targetIndex < 0) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === "assistant") {
+        targetIndex = i;
+        break;
+      }
+    }
+  }
+
+  if (targetIndex < 0) {
+    return [
+      ...messages,
+      {
+        id: `hitl-${mid ?? "pending"}`,
+        role: "assistant",
+        mid,
+        blocks: [{ type: "interrupt", payload: pending }],
+        createdAt: Date.now(),
+      },
+    ];
+  }
+
+  return messages.map((m, i) => {
+    if (i !== targetIndex) return m;
+    const without = m.blocks.filter((b) => b.type !== "interrupt");
+    return {
+      ...m,
+      mid: m.mid ?? mid,
+      blocks: [...without, { type: "interrupt", payload: pending }],
+    };
+  });
 }
 
 /** 是否应在计划区顶部展示快捷确认按钮（plan_confirm） */

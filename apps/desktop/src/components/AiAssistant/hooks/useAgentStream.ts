@@ -26,7 +26,9 @@ import { formatAgentErrorMessage, formatAgentErrorToast } from "../utils/formatA
 import { agentDebugLog, summarizeAssistantMessage } from "../utils/agentDebugLog";
 import { assistantMessageHasVisibleContent } from "../chatCardUtils";
 import {
+  applyPendingInterruptToMessages,
   findPendingInterruptFromMessages,
+  resolveActiveHitlMessageId,
   shouldPreserveHitlOnStreamDone,
 } from "../utils/hitlInterruptUtils";
 import { enrichPlanStepCatalogMeta } from "@/components/BpmnFlowgram/utils/plan-tool-catalog";
@@ -70,29 +72,44 @@ export function useAgentStream() {
     }
   }, [setSessions]);
 
+  /** 按 SSE mid 定位助手气泡；无 mid 时回退绑定 id */
+  const resolveAssistantIdByMid = useCallback((fallbackId: string, mid?: string) => {
+    if (!mid) return fallbackId;
+    const matched = [...useAiAssistantStore.getState().messages]
+      .reverse()
+      .find((m) => m.role === "assistant" && m.mid === mid);
+    return matched?.id ?? fallbackId;
+  }, []);
+
   /** 创建 SSE 事件处理器（绑定到指定 assistant 消息） */
   const createStreamHandlers = useCallback(
     (assistantId: string): AgentSseHandler => ({
-      onTextDelta: (delta) => updateAssistantText(assistantId, delta),
+      onTextDelta: (delta, meta) =>
+        updateAssistantText(resolveAssistantIdByMid(assistantId, meta?.mid), delta),
       onToolStart: (tool, args, meta) => {
+        const id = resolveAssistantIdByMid(assistantId, meta?.mid);
         agentDebugLog("sse.tool_start", {
-          assistantId: assistantId.slice(0, 8),
+          assistantId: id.slice(0, 8),
+          mid: meta?.mid,
           tool,
+          toolCallId: meta?.toolCallId,
         });
         if (tool === "download_file") {
           exportDownloadCountRef.current = 0;
         }
-        pendingToolArgsRef.current[tool] = args;
-        appendAssistantBlock(assistantId, {
+        const argsKey = meta?.toolCallId || tool;
+        pendingToolArgsRef.current[argsKey] = args;
+        appendAssistantBlock(id, {
           type: "tool_call",
           tool,
           args,
           status: "running",
+          toolCallId: meta?.toolCallId,
           retry: meta?.retry,
           attempt: meta?.attempt,
         });
         // 同步 Plan 步骤：running + 入参 + 开始时间
-        const planMsg = useAiAssistantStore.getState().messages.find((m) => m.id === assistantId);
+        const planMsg = useAiAssistantStore.getState().messages.find((m) => m.id === id);
         const runningStep = planMsg?.planSteps?.find(
           (s) =>
             s.tool === tool &&
@@ -106,7 +123,7 @@ export function useAgentStream() {
             ...runningStep,
             tool,
           });
-          updateAssistantPlanStep(assistantId, runningStep.id, "running", {
+          updateAssistantPlanStep(id, runningStep.id, "running", {
             args: args && typeof args === "object" ? (args as Record<string, unknown>) : undefined,
             startedAt: runningStep.startedAt ?? Date.now(),
             errorMessage: undefined,
@@ -119,9 +136,12 @@ export function useAgentStream() {
         }
       },
       onToolEnd: (tool, result, meta) => {
+        const id = resolveAssistantIdByMid(assistantId, meta?.mid);
         agentDebugLog("sse.tool_end", {
-          assistantId: assistantId.slice(0, 8),
+          assistantId: id.slice(0, 8),
+          mid: meta?.mid,
           tool,
+          toolCallId: meta?.toolCallId,
           userCancelled: parseToolResultUserCancelled(result),
         });
         if (tool === "download_file" && exportDownloadCountRef.current > 0) {
@@ -134,20 +154,23 @@ export function useAgentStream() {
           );
           exportDownloadCountRef.current = 0;
         }
-        const args = pendingToolArgsRef.current[tool];
-        delete pendingToolArgsRef.current[tool];
+        const argsKey = meta?.toolCallId || tool;
+        const args = pendingToolArgsRef.current[argsKey] ?? pendingToolArgsRef.current[tool];
+        delete pendingToolArgsRef.current[argsKey];
+        if (meta?.toolCallId) delete pendingToolArgsRef.current[tool];
         const userCancelled = parseToolResultUserCancelled(result);
         const ok = userCancelled ? false : parseToolResultOk(result);
         const shortSummary = parseToolResultShortSummary(result);
         const autoRetry = parseToolResultAutoRetry(result);
         completeAssistantToolCall(
-          assistantId,
+          id,
           tool,
           result,
           userCancelled ? "cancelled" : ok ? "done" : "error",
+          meta?.toolCallId,
         );
         syncAssistantPlanStepFromToolEnd(
-          assistantId,
+          id,
           tool,
           userCancelled ? "skipped" : ok ? "done" : "error",
           {
@@ -169,43 +192,47 @@ export function useAgentStream() {
             hitl: userCancelled ? { resolution: "cancelled" as const } : undefined,
           },
         );
-        reconcileAssistantPlanStepsFromBlocks(assistantId);
+        reconcileAssistantPlanStepsFromBlocks(id);
         const workspace = workspaceFromToolEnd(tool, result, args);
         // device_command 成败都展示结构化卡；其余 Workspace 仍仅成功写入
         if (workspace && (workspace.kind === "device_command" || ok)) {
-          patchAssistantMessage(assistantId, { workspaceContent: workspace });
+          patchAssistantMessage(id, { workspaceContent: workspace });
         }
         void meta;
       },
       onInterrupt: (payload) => {
+        const id = resolveAssistantIdByMid(assistantId, payload.mid);
+        const boundMid = useAiAssistantStore.getState().messages.find((m) => m.id === id)?.mid;
+        const interruptPayload = payload.mid || !boundMid ? payload : { ...payload, mid: boundMid };
         agentDebugLog("sse.interrupt", {
-          assistantId: assistantId.slice(0, 8),
-          type: payload.type,
-          tool: payload.tool,
+          assistantId: id.slice(0, 8),
+          mid: interruptPayload.mid,
+          type: interruptPayload.type,
+          tool: interruptPayload.tool,
         });
-        setPendingInterrupt(payload);
-        setAssistantInterruptBlock(assistantId, payload);
+        setPendingInterrupt(interruptPayload);
+        setAssistantInterruptBlock(id, interruptPayload);
         // plan_confirm：整份计划待批准，步骤标记 awaiting_confirm
-        if (payload.type === "plan_confirm") {
-          const msg = useAiAssistantStore.getState().messages.find((m) => m.id === assistantId);
-          const steps = msg?.planSteps?.length ? msg.planSteps : (payload.steps ?? []);
+        if (interruptPayload.type === "plan_confirm") {
+          const msg = useAiAssistantStore.getState().messages.find((m) => m.id === id);
+          const steps = msg?.planSteps?.length ? msg.planSteps : (interruptPayload.steps ?? []);
           steps.forEach((step) => {
             const enriched = enrichPlanStepCatalogMeta(step);
-            updateAssistantPlanStep(assistantId, step.id, "awaiting_confirm", {
+            updateAssistantPlanStep(id, step.id, "awaiting_confirm", {
               side: enriched.side,
               riskLevel: enriched.riskLevel,
               hitl: {
                 type: "plan_confirm",
                 message:
-                  typeof payload.message === "string"
-                    ? payload.message.trim().slice(0, 200)
+                  typeof interruptPayload.message === "string"
+                    ? interruptPayload.message.trim().slice(0, 200)
                     : undefined,
               },
             });
           });
-          if (!msg?.planSteps?.length && payload.steps?.length) {
-            patchAssistantMessage(assistantId, {
-              planSteps: payload.steps.map((s) => {
+          if (!msg?.planSteps?.length && interruptPayload.steps?.length) {
+            patchAssistantMessage(id, {
+              planSteps: interruptPayload.steps.map((s) => {
                 const enriched = enrichPlanStepCatalogMeta(s);
                 return {
                   ...enriched,
@@ -213,88 +240,89 @@ export function useAgentStream() {
                   hitl: {
                     type: "plan_confirm" as const,
                     message:
-                      typeof payload.message === "string"
-                        ? payload.message.trim().slice(0, 200)
+                      typeof interruptPayload.message === "string"
+                        ? interruptPayload.message.trim().slice(0, 200)
                         : undefined,
                   },
                 };
               }),
-              planGraph: payload.graph ?? null,
+              planGraph: interruptPayload.graph ?? null,
             });
-          } else if (payload.graph) {
-            patchAssistantMessage(assistantId, {
-              planGraph: payload.graph,
+          } else if (interruptPayload.graph) {
+            patchAssistantMessage(id, {
+              planGraph: interruptPayload.graph,
             });
           }
           return;
         }
         // HITL 中断并非工具失败：将关联工具与计划步骤标记为等待人工介入
-        const msgBefore = useAiAssistantStore.getState().messages.find((m) => m.id === assistantId);
+        const msgBefore = useAiAssistantStore.getState().messages.find((m) => m.id === id);
         // 导航等 HITL 到来时，将同轮误触发的 export running 块标为 skipped
         if (msgBefore) {
           for (const block of msgBefore.blocks) {
             if (
               block.type === "tool_call" &&
-              block.tool !== payload.tool &&
+              block.tool !== interruptPayload.tool &&
               block.status === "running" &&
               block.tool === "download_file"
             ) {
-              completeAssistantToolCall(assistantId, block.tool, undefined, "cancelled");
+              completeAssistantToolCall(id, block.tool, undefined, "cancelled");
               const staleStep = msgBefore.planSteps?.find(
                 (s) => s.tool === block.tool && (s.status === "running" || s.status === "pending"),
               );
               if (staleStep) {
-                updateAssistantPlanStep(assistantId, staleStep.id, "skipped");
+                updateAssistantPlanStep(id, staleStep.id, "skipped");
               }
             }
           }
         }
         // 顺序 ReAct：后续工具 HITL 说明前序 running 步已完成
-        if (msgBefore?.planSteps?.length && payload.tool) {
+        if (msgBefore?.planSteps?.length && interruptPayload.tool) {
           for (const step of msgBefore.planSteps) {
             if (
               step.tool &&
-              step.tool !== payload.tool &&
+              step.tool !== interruptPayload.tool &&
               step.status === "running" &&
               step.tool !== "download_file"
             ) {
-              updateAssistantPlanStep(assistantId, step.id, "done");
+              updateAssistantPlanStep(id, step.id, "done");
             }
           }
           for (const block of msgBefore.blocks) {
             if (
               block.type === "tool_call" &&
-              block.tool !== payload.tool &&
+              block.tool !== interruptPayload.tool &&
               block.status === "running" &&
               block.tool !== "download_file"
             ) {
-              completeAssistantToolCall(assistantId, block.tool, undefined, "done");
+              completeAssistantToolCall(id, block.tool, undefined, "done");
             }
           }
         }
-        markAssistantToolAwaitingHitl(assistantId, payload.tool);
-        const msg = useAiAssistantStore.getState().messages.find((m) => m.id === assistantId);
+        markAssistantToolAwaitingHitl(id, interruptPayload.tool);
+        const msg = useAiAssistantStore.getState().messages.find((m) => m.id === id);
         const hitlStep = msg?.planSteps?.find(
-          (s) => s.tool === payload.tool && (s.status === "running" || s.status === "error"),
+          (s) =>
+            s.tool === interruptPayload.tool && (s.status === "running" || s.status === "error"),
         );
         if (hitlStep) {
-          updateAssistantPlanStep(assistantId, hitlStep.id, "awaiting_hitl", {
+          updateAssistantPlanStep(id, hitlStep.id, "awaiting_hitl", {
             resultSummary:
-              typeof payload.message === "string" && payload.message.trim()
-                ? payload.message.trim().slice(0, 200)
+              typeof interruptPayload.message === "string" && interruptPayload.message.trim()
+                ? interruptPayload.message.trim().slice(0, 200)
                 : intl.formatMessage({
                     id: "aiAssistant.card.tool.awaitingHitl",
                   }),
             hitl: {
-              type: payload.type,
+              type: interruptPayload.type,
               message:
-                typeof payload.message === "string"
-                  ? payload.message.trim().slice(0, 200)
+                typeof interruptPayload.message === "string"
+                  ? interruptPayload.message.trim().slice(0, 200)
                   : undefined,
             },
             ...(() => {
               const meta = enrichPlanStepCatalogMeta({
-                tool: payload.tool,
+                tool: interruptPayload.tool,
               });
               return { side: meta.side, riskLevel: meta.riskLevel };
             })(),
@@ -436,6 +464,7 @@ export function useAgentStream() {
       reconcileAssistantPlanStepsFromBlocks,
       updateAssistantText,
       intl,
+      resolveAssistantIdByMid,
     ],
   );
 
@@ -444,13 +473,17 @@ export function useAgentStream() {
       const { setLoadingHistory } = useAiAssistantStore.getState();
       setLoadingHistory(true);
       try {
-        const { messages: history, bpmn_snapshot: bpmnSnapshot } =
-          await AgentController.getThreadState(threadId);
+        const {
+          messages: history,
+          bpmn_snapshot: bpmnSnapshot,
+          pending_interrupt,
+        } = await AgentController.getThreadState(threadId);
         // 快速连续切换时，丢弃过期请求结果
         if (useAiAssistantStore.getState().currentThreadId !== threadId) return;
 
         let mapped = mapHistoryToMessages(history);
-        const restoredPending = findPendingInterruptFromMessages(mapped);
+        mapped = applyPendingInterruptToMessages(mapped, pending_interrupt);
+        const restoredPending = pending_interrupt ?? findPendingInterruptFromMessages(mapped);
         setPendingInterrupt(restoredPending);
 
         try {
@@ -481,7 +514,7 @@ export function useAgentStream() {
     [setMessages, setPendingInterrupt],
   );
 
-  const appendAssistantPlaceholder = useCallback(() => {
+  const appendAssistantPlaceholder = useCallback((mid?: string) => {
     const assistantId = uuidv4();
     useAiAssistantStore.setState((s) => ({
       messages: [
@@ -489,6 +522,7 @@ export function useAgentStream() {
         {
           id: assistantId,
           role: "assistant" as const,
+          mid,
           blocks: [],
           createdAt: Date.now(),
           streaming: true,
@@ -518,6 +552,7 @@ export function useAgentStream() {
 
       const assistantId = uuidv4();
       const userMsgId = uuidv4();
+      const mid = uuidv4();
       useAiAssistantStore.setState((s) => ({
         pendingInterrupt: null,
         isStreaming: true,
@@ -526,12 +561,14 @@ export function useAgentStream() {
           {
             id: userMsgId,
             role: "user" as const,
+            mid,
             blocks: [{ type: "text" as const, content: content.trim() }],
             createdAt: Date.now(),
           },
           {
             id: assistantId,
             role: "assistant" as const,
+            mid,
             blocks: [],
             createdAt: Date.now(),
             streaming: true,
@@ -542,6 +579,7 @@ export function useAgentStream() {
       }));
       agentDebugLog("chat.send", {
         threadId: currentThreadId.slice(0, 12),
+        mid: mid.slice(0, 8),
         assistantId: assistantId.slice(0, 8),
         messagePreview: content.trim().slice(0, 80),
         priorMessages: useAiAssistantStore
@@ -566,6 +604,7 @@ export function useAgentStream() {
         await AgentController.chatStream(
           {
             thread_id: currentThreadId,
+            mid,
             message: content.trim(),
             model_id: selectedModelId,
             // 桌面端无宿主路由，固定根路径供后端 client_action 等上下文使用
@@ -616,14 +655,19 @@ export function useAgentStream() {
       setStreaming(true);
 
       let sourceMessageId: string | null = null;
+      let sourceMid: string | undefined;
       let hitlTool: string | undefined;
-      const msgs = useAiAssistantStore.getState().messages;
-      for (let i = msgs.length - 1; i >= 0; i -= 1) {
-        const m = msgs[i];
-        const interruptBlock = m.blocks.find((b) => b.type === "interrupt");
-        if (m.role === "assistant" && interruptBlock?.type === "interrupt") {
-          sourceMessageId = m.id;
-          hitlTool = interruptBlock.payload.tool;
+      const storeState = useAiAssistantStore.getState();
+      const msgs = storeState.messages;
+      const pending = storeState.pendingInterrupt;
+      sourceMessageId = resolveActiveHitlMessageId(msgs, pending);
+      if (sourceMessageId) {
+        const m = msgs.find((x) => x.id === sourceMessageId);
+        if (m) {
+          const interruptBlock = m.blocks.find((b) => b.type === "interrupt");
+          sourceMid = m.mid ?? interruptBlock?.payload.mid ?? pending?.mid;
+          hitlTool =
+            interruptBlock?.type === "interrupt" ? interruptBlock.payload.tool : pending?.tool;
           const hitlStep = m.planSteps?.find(
             (s) => s.tool === hitlTool && (s.status === "awaiting_hitl" || s.status === "running"),
           );
@@ -631,7 +675,7 @@ export function useAgentStream() {
           if (hitlTool) {
             markAssistantToolRunning(m.id, hitlTool);
           }
-          if (hitlStep) {
+          if (hitlStep && interruptBlock?.type === "interrupt") {
             updateAssistantPlanStep(m.id, hitlStep.id, "running", {
               hitl: {
                 ...(hitlStep.hitl ?? {}),
@@ -645,7 +689,6 @@ export function useAgentStream() {
           }
           clearAssistantInterruptBlock(m.id);
           patchAssistantMessage(m.id, { streaming: true });
-          break;
         }
       }
 
@@ -661,6 +704,7 @@ export function useAgentStream() {
       agentDebugLog("hitl.resume_submit", {
         threadId: currentThreadId.slice(0, 12),
         sourceMessageId: sourceMessageId?.slice(0, 8) ?? null,
+        mid: sourceMid?.slice(0, 8) ?? null,
         hitlTool,
         argKeys: Object.keys(resumeArgs),
         messagesSnapshot: msgs.filter((m) => m.role === "assistant").map(summarizeAssistantMessage),
@@ -672,7 +716,7 @@ export function useAgentStream() {
         }
       };
 
-      const fallbackAssistantId = sourceMessageId ? null : appendAssistantPlaceholder();
+      const fallbackAssistantId = sourceMessageId ? null : appendAssistantPlaceholder(sourceMid);
 
       try {
         const resumeHandlers: AgentSseHandler = sourceMessageId
@@ -730,6 +774,7 @@ export function useAgentStream() {
         await AgentController.resumeStream(
           {
             thread_id: currentThreadId,
+            mid: sourceMid,
             model_id: selectedModelId,
             decisions: [{ type: "respond", args: resumeArgs }],
           },
@@ -775,58 +820,62 @@ export function useAgentStream() {
       },
     ) => {
       setStreaming(true);
+
+      const storeState = useAiAssistantStore.getState();
+      const msgs = storeState.messages;
+      const pending = storeState.pendingInterrupt;
       setPendingInterrupt(null);
 
-      let sourceMessageId: string | null = null;
-      const msgs = useAiAssistantStore.getState().messages;
-      for (let i = msgs.length - 1; i >= 0; i -= 1) {
-        const m = msgs[i];
-        const interruptBlock = m.blocks.find((b) => b.type === "interrupt");
-        if (m.role === "assistant" && interruptBlock?.type === "interrupt") {
-          sourceMessageId = m.id;
-          if (!approved) {
-            // 清除该条消息可能残留的流式 loading（如 plan 执行中断后未复位）
-            finalizeAssistantMessage(m.id);
-            clearAssistantInterruptBlock(m.id);
-            const hitlTool = interruptBlock.payload.tool;
-            if (hitlTool) {
-              completeAssistantToolCall(m.id, hitlTool, undefined, "cancelled");
-            }
-            if (interruptBlock.payload.type === "plan_confirm") {
-              m.planSteps?.forEach((step) => {
-                if (step.status === "awaiting_confirm") {
-                  updateAssistantPlanStep(m.id, step.id, "skipped", {
-                    hitl: {
-                      ...(step.hitl ?? {}),
-                      type: "plan_confirm",
-                      resolution: "rejected",
-                    },
-                    resultSummary: intl.formatMessage({
-                      id: "aiAssistant.card.hitl.rejected",
-                    }),
-                  });
-                }
-              });
-            } else {
-              const hitlStep = m.planSteps?.find(
-                (s) =>
-                  s.tool === hitlTool && (s.status === "awaiting_hitl" || s.status === "running"),
-              );
-              if (hitlStep) {
-                updateAssistantPlanStep(m.id, hitlStep.id, "skipped", {
+      let sourceMessageId: string | null = resolveActiveHitlMessageId(msgs, pending);
+      let sourceMid: string | undefined;
+      if (sourceMessageId) {
+        const m = msgs.find((x) => x.id === sourceMessageId);
+        const interruptBlock = m?.blocks.find((b) => b.type === "interrupt");
+        sourceMid =
+          m?.mid ??
+          (interruptBlock?.type === "interrupt" ? interruptBlock.payload.mid : undefined) ??
+          pending?.mid;
+        if (m && interruptBlock?.type === "interrupt" && !approved) {
+          // 清除该条消息可能残留的流式 loading（如 plan 执行中断后未复位）
+          finalizeAssistantMessage(m.id);
+          clearAssistantInterruptBlock(m.id);
+          const hitlTool = interruptBlock.payload.tool;
+          if (hitlTool) {
+            completeAssistantToolCall(m.id, hitlTool, undefined, "cancelled");
+          }
+          if (interruptBlock.payload.type === "plan_confirm") {
+            m.planSteps?.forEach((step) => {
+              if (step.status === "awaiting_confirm") {
+                updateAssistantPlanStep(m.id, step.id, "skipped", {
                   hitl: {
-                    ...(hitlStep.hitl ?? {}),
-                    type: interruptBlock.payload.type,
+                    ...(step.hitl ?? {}),
+                    type: "plan_confirm",
                     resolution: "rejected",
                   },
                   resultSummary: intl.formatMessage({
-                    id: "aiAssistant.card.tool.cancelled",
+                    id: "aiAssistant.card.hitl.rejected",
                   }),
                 });
               }
+            });
+          } else {
+            const hitlStep = m.planSteps?.find(
+              (s) =>
+                s.tool === hitlTool && (s.status === "awaiting_hitl" || s.status === "running"),
+            );
+            if (hitlStep) {
+              updateAssistantPlanStep(m.id, hitlStep.id, "skipped", {
+                hitl: {
+                  ...(hitlStep.hitl ?? {}),
+                  type: interruptBlock.payload.type,
+                  resolution: "rejected",
+                },
+                resultSummary: intl.formatMessage({
+                  id: "aiAssistant.card.tool.cancelled",
+                }),
+              });
             }
           }
-          break;
         }
       }
 
@@ -838,17 +887,18 @@ export function useAgentStream() {
         agentDebugLog("hitl.confirm_reject", {
           threadId: currentThreadId.slice(0, 12),
           sourceMessageId: sourceMessageId?.slice(0, 8) ?? null,
+          mid: sourceMid?.slice(0, 8) ?? null,
           interruptType: (() => {
-            if (!sourceMessageId) return null;
+            if (!sourceMessageId) return pending?.type ?? null;
             const m = msgs.find((x) => x.id === sourceMessageId);
             const b = m?.blocks.find((x) => x.type === "interrupt");
-            return b?.type === "interrupt" ? b.payload.type : null;
+            return b?.type === "interrupt" ? b.payload.type : (pending?.type ?? null);
           })(),
           hitlTool: (() => {
-            if (!sourceMessageId) return null;
+            if (!sourceMessageId) return pending?.tool ?? null;
             const m = msgs.find((x) => x.id === sourceMessageId);
             const b = m?.blocks.find((x) => x.type === "interrupt");
-            return b?.type === "interrupt" ? b.payload.tool : null;
+            return b?.type === "interrupt" ? b.payload.tool : (pending?.tool ?? null);
           })(),
         });
         const finalizeSource = () => {
@@ -860,6 +910,7 @@ export function useAgentStream() {
           await AgentController.resumeStream(
             {
               thread_id: currentThreadId,
+              mid: sourceMid,
               model_id: selectedModelId,
               decisions: [{ type: "reject" }],
             },
@@ -892,7 +943,7 @@ export function useAgentStream() {
         return;
       }
 
-      const streamMessageId = sourceMessageId ?? appendAssistantPlaceholder();
+      const streamMessageId = sourceMessageId ?? appendAssistantPlaceholder(sourceMid);
 
       // 批准续跑：始终写回触发 HITL 的助手消息（含 plan_confirm 带编排 steps），避免 Plan 与执行拆成两条气泡
       if (sourceMessageId && approved) {
@@ -982,6 +1033,7 @@ export function useAgentStream() {
         await AgentController.resumeStream(
           {
             thread_id: currentThreadId,
+            mid: sourceMid,
             model_id: selectedModelId,
             decisions: [
               {

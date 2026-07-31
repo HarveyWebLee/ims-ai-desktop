@@ -5,6 +5,16 @@
 import type { ClientAction, HitlPayload, PlanStep, TraceEvent } from "@ims/shared-types";
 import type { AgentSseHandler, PlanSsePayload } from "../types";
 
+function readMid(data: Record<string, unknown>): string | undefined {
+  const mid = data.mid;
+  return typeof mid === "string" && mid.trim() ? mid.trim() : undefined;
+}
+
+function readToolCallId(data: Record<string, unknown>): string | undefined {
+  const id = data.tool_call_id ?? data.toolCallId;
+  return typeof id === "string" && id.trim() ? id.trim() : undefined;
+}
+
 /** 解析 SSE 原始文本块（client_action 须 await，保证 Plan 内跳转/停留顺序执行） */
 export async function parseSseChunk(buffer: string, handlers: AgentSseHandler): Promise<string> {
   const parts = buffer.split("\n\n");
@@ -43,10 +53,12 @@ async function dispatchSseEvent(
   data: Record<string, unknown>,
   handlers: AgentSseHandler,
 ): Promise<void> {
+  const mid = readMid(data);
+
   switch (event) {
     case "message":
       if (data.type === "text" && typeof data.delta === "string") {
-        handlers.onTextDelta?.(data.delta);
+        handlers.onTextDelta?.(data.delta, mid ? { mid } : undefined);
       }
       break;
 
@@ -57,6 +69,8 @@ async function dispatchSseEvent(
         {
           retry: Boolean(data.retry),
           attempt: typeof data.attempt === "number" ? data.attempt : undefined,
+          mid,
+          toolCallId: readToolCallId(data),
         },
       );
       break;
@@ -65,6 +79,8 @@ async function dispatchSseEvent(
       handlers.onToolEnd?.(String(data.tool ?? ""), String(data.result ?? ""), {
         retry: Boolean(data.retry),
         attempt: typeof data.attempt === "number" ? data.attempt : undefined,
+        mid,
+        toolCallId: readToolCallId(data),
       });
       break;
 
@@ -97,6 +113,7 @@ async function dispatchSseEvent(
           skipReason?: string;
           matchedBranchKey?: string;
           label?: string;
+          mid?: string;
         },
       );
       break;
@@ -108,6 +125,7 @@ async function dispatchSseEvent(
           steps: PlanStep[];
           attempt?: number;
           failed_tool?: string;
+          mid?: string;
         },
       );
       break;
@@ -117,7 +135,7 @@ async function dispatchSseEvent(
       break;
 
     case "done":
-      handlers.onDone?.(String(data.thread_id ?? ""));
+      handlers.onDone?.(String(data.thread_id ?? ""), mid ? { mid } : undefined);
       break;
 
     case "error":

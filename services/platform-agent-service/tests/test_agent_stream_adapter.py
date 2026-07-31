@@ -139,7 +139,10 @@ class TestStateGraphStreamAdapter:
                         yield ("values", next(vi))
 
         events = list(iter_state_graph_sse_events(FakeStream()))
-        assert ("tool_start", {"tool": "query_alarms", "args": {"start_time": "近三天"}}) in events
+        start = next(e for e in events if e[0] == "tool_start")
+        assert start[1]["tool"] == "query_alarms"
+        assert start[1]["args"] == {"start_time": "近三天"}
+        assert start[1].get("tool_call_id") == "tc1"
         assert any(e[0] == "tool_end" and e[1]["tool"] == "query_alarms" for e in events)
         assert ("message", {"type": "text", "delta": "好的"}) in events
 
@@ -407,7 +410,10 @@ class TestStateGraphStreamAdapter:
 
         events = list(iter_state_graph_sse_events(FakeStream(), model_id="qwen3.7-plus"))
 
-        assert ("tool_start", {"tool": "send_device_cmd", "args": {"device_code": "D1"}}) in events
+        start = next(e for e in events if e[0] == "tool_start")
+        assert start[1]["tool"] == "send_device_cmd"
+        assert start[1]["args"] == {"device_code": "D1"}
+        assert start[1].get("tool_call_id") == "tc-hitl"
         assert ("interrupt", hitl_payload) in events
         assert not any(e[0] == "error" for e in events)
 
@@ -665,6 +671,93 @@ class TestStateGraphStreamAdapter:
         ends = [e for e in events if e[0] == "tool_end"]
         assert len(starts) == 1
         assert len(ends) <= 1
+
+    def test_skip_history_does_not_bind_prior_same_tool_result(self):
+        """同 thread 多轮同名工具：pump 不得把上轮 ToolMessage 错绑为本轮 tool_end。"""
+        from contracts.context import current_stream_message_skip
+
+        h1 = HumanMessage(content="开门", id="mid-door")
+        ai1 = AIMessage(
+            content="",
+            id="ai-door",
+            tool_calls=[
+                {
+                    "name": "send_device_cmd",
+                    "args": {"action": "开门"},
+                    "id": "tc-door",
+                    "type": "tool_call",
+                }
+            ],
+        )
+        tool_door = ToolMessage(
+            content=json.dumps(
+                {
+                    "ok": True,
+                    "summary": "已成功向设备「B口门禁」下发变量 status_door_control=1。",
+                },
+                ensure_ascii=False,
+            ),
+            tool_call_id="tc-door",
+            name="send_device_cmd",
+            id="tm-door",
+        )
+        ai_done = AIMessage(content="开门完成", id="ai-door-done")
+        h2 = HumanMessage(content="播广播", id="mid-broadcast")
+        ai2 = AIMessage(
+            content="",
+            id="ai-broadcast",
+            tool_calls=[
+                {
+                    "name": "send_device_cmd",
+                    "args": {"action": "播报"},
+                    "id": "tc-broadcast",
+                    "type": "tool_call",
+                }
+            ],
+        )
+        tool_broadcast = ToolMessage(
+            content=json.dumps(
+                {
+                    "ok": True,
+                    "summary": "已成功向设备「世邦真实二号」下发播报指令。",
+                },
+                ensure_ascii=False,
+            ),
+            tool_call_id="tc-broadcast",
+            name="send_device_cmd",
+            id="tm-broadcast",
+        )
+        history = [h1, ai1, tool_door, ai_done, h2]
+        skip_token = current_stream_message_skip.set(len(history))
+
+        class FakeStream:
+            extensions = {"messages": object(), "values": object()}
+            interrupted = False
+            interrupts: list = []
+
+            def __init__(self) -> None:
+                self._latest = {"messages": [*history, ai2]}
+                self._pumped = False
+
+            def _pump_next(self) -> bool:
+                if self._pumped:
+                    return False
+                self._pumped = True
+                self._latest = {"messages": [*history, ai2, tool_broadcast]}
+                return False
+
+            def interleave(self, *names):
+                yield ("values", {"messages": [*history, ai2]})
+
+        try:
+            events = list(iter_state_graph_sse_events(FakeStream()))
+        finally:
+            current_stream_message_skip.reset(skip_token)
+
+        ends = [e for e in events if e[0] == "tool_end"]
+        assert len(ends) == 1
+        assert "世邦真实二号" in ends[0][1]["result"]
+        assert "status_door_control" not in ends[0][1]["result"]
 
     def test_iter_agent_sse_events_dispatches(self):
         class FakeStream:

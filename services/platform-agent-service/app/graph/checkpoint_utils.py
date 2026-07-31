@@ -123,6 +123,63 @@ async def collect_pending_interrupt_payloads(thread_id: str, model_id: str) -> l
     return payloads
 
 
+def _mid_from_checkpoint_messages(messages: list[Any]) -> str | None:
+    """从 checkpoint 最近一条 HumanMessage 解析 mid。"""
+    from langchain_core.messages import HumanMessage
+
+    for msg in reversed(messages):
+        if not isinstance(msg, HumanMessage):
+            continue
+        kwargs = getattr(msg, "additional_kwargs", None) or {}
+        found = kwargs.get("mid") or getattr(msg, "id", None)
+        if found:
+            return str(found).strip() or None
+    return None
+
+
+def enrich_interrupt_payload_mid(
+    payload: dict[str, Any],
+    *,
+    messages: list[Any] | None = None,
+    fallback_mid: str | None = None,
+) -> dict[str, Any]:
+    """为 interrupt 载荷补 mid（已有则不覆盖）。"""
+    if not isinstance(payload, dict):
+        return payload
+    if str(payload.get("mid") or "").strip():
+        return payload
+    mid = (fallback_mid or "").strip() or None
+    if not mid and messages:
+        mid = _mid_from_checkpoint_messages(messages)
+    if not mid:
+        return payload
+    return {**payload, "mid": mid}
+
+
+async def get_pending_interrupt_for_thread(
+    thread_id: str,
+    *,
+    model_id: str | None = None,
+) -> dict[str, Any] | None:
+    """
+    读取会话当前待处理 HITL（供 /state 与历史恢复）。
+
+    返回首个 dict 载荷，并尽量附带 mid（来自最近 HumanMessage）。
+    """
+    from app.models.catalog import get_default_model_id
+    from app.services.thread_history import read_checkpoint_messages
+
+    tid = (thread_id or "").strip()
+    if not tid:
+        return None
+    mid_model = (model_id or "").strip() or get_default_model_id()
+    payloads = await collect_pending_interrupt_payloads(tid, mid_model)
+    if not payloads:
+        return None
+    raw_messages = await read_checkpoint_messages(tid)
+    return enrich_interrupt_payload_mid(payloads[0], messages=raw_messages)
+
+
 async def abandon_stale_checkpoint_interrupt(
     thread_id: str,
     model_id: str,

@@ -26,6 +26,7 @@ ContextVar ≈ 每个请求自带的小书包：set 一次，深层 tool/helper 
 ---------------
 - current_auth_token：平台 Authorization
 - current_thread_id：对话线程
+- current_message_id：用户本轮 mid（SSE / 历史归属键）
 - current_hitl_confirm_bypass：编排层已确认，跳过二次 ask_user_confirm
 - current_turn_suppressed_tools：本轮忽略的 stale 工具（如误触发的 download_file）
 - current_stream_message_skip：stream 仅发增量消息，避免简历历史 tool SSE
@@ -44,6 +45,9 @@ current_auth_token: ContextVar[str | None] = ContextVar("current_auth_token", de
 
 # 当前对话线程 ID（thread_id），用于 pending/HITL、审计与工具执行上下文
 current_thread_id: ContextVar[str | None] = ContextVar("current_thread_id", default=None)
+
+# 用户本轮需求 ID（mid）：chat 生成、resume 回传；SSE / 历史投影按 mid 归属，禁止按工具名猜
+current_message_id: ContextVar[str | None] = ContextVar("current_message_id", default=None)
 
 # 编排层 HITL resume 续跑时跳过 ask_user_confirm 二次中断（用户已在前端确认）
 current_hitl_confirm_bypass: ContextVar[bool] = ContextVar(

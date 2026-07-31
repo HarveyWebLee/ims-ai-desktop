@@ -414,9 +414,10 @@ def _pump_until_tool_call_answered(
 
 
 def _interrupt_signature(payload: dict[str, Any]) -> str:
-    """同轮 HITL 去重键（type + tool + message 摘要）。"""
+    """同轮 HITL 去重键（mid + type + tool + message 摘要）。"""
     return json.dumps(
         {
+            "mid": payload.get("mid"),
             "type": payload.get("type"),
             "tool": payload.get("tool"),
             "message": str(payload.get("message") or "")[:500],
@@ -435,9 +436,14 @@ def _yield_interrupt_events(
     if not _stream_is_interrupted(stream):
         return
     seen = emitted if emitted is not None else set()
+    from contracts.context import current_message_id
+
+    turn_mid = (current_message_id.get() or "").strip() or None
     for intr in _stream_interrupt_list(stream):
         value = intr.value if hasattr(intr, "value") else intr
         if isinstance(value, dict):
+            if turn_mid and not str(value.get("mid") or "").strip():
+                value = {**value, "mid": turn_mid}
             sig = _interrupt_signature(value)
             if sig in seen:
                 continue
@@ -446,11 +452,14 @@ def _yield_interrupt_events(
                 "flow.ai.hitl_interrupt",
                 interrupt_type=value.get("type"),
                 tool=value.get("tool"),
+                mid=value.get("mid"),
                 message_preview=preview_text(value.get("message"), max_len=160),
             )
             yield ("interrupt", value)
         else:
-            payload = {"type": "ask_params", "message": str(value)}
+            payload: dict[str, Any] = {"type": "ask_params", "message": str(value)}
+            if turn_mid:
+                payload["mid"] = turn_mid
             sig = _interrupt_signature(payload)
             if sig not in seen:
                 seen.add(sig)
@@ -489,19 +498,25 @@ async def _ayield_interrupt_from_checkpoint(
     if not tid or not mid:
         return
     seen = emitted if emitted is not None else set()
+    from app.graph.checkpoint_utils import enrich_interrupt_payload_mid
+    from contracts.context import current_message_id
+
+    turn_mid = (current_message_id.get() or "").strip() or None
     for payload in await collect_pending_interrupt_payloads(tid, mid):
-        sig = _interrupt_signature(payload)
+        enriched = enrich_interrupt_payload_mid(payload, fallback_mid=turn_mid)
+        sig = _interrupt_signature(enriched)
         if sig in seen:
             continue
         seen.add(sig)
         agent_debug(
             "flow.ai.hitl_from_checkpoint",
             thread_id=tid,
-            interrupt_type=payload.get("type"),
-            tool=payload.get("tool"),
-            message_preview=preview_text(payload.get("message"), max_len=160),
+            interrupt_type=enriched.get("type"),
+            tool=enriched.get("tool"),
+            mid=enriched.get("mid"),
+            message_preview=preview_text(enriched.get("message"), max_len=160),
         )
-        yield ("interrupt", payload)
+        yield ("interrupt", enriched)
 
 
 def _yield_all_interrupts(
@@ -625,6 +640,32 @@ def _stable_tool_message_key(msg: ToolMessage) -> str:
     return f"body:{name}:{str(content)[:240]}"
 
 
+def _seed_skipped_history_tool_ends(
+    messages: list[Any],
+    *,
+    skip: int,
+    emitted_tool_ends: set[str],
+    seen_messages: set[str] | None = None,
+) -> None:
+    """
+    将 skip 之前的历史 ToolMessage 标为已 emit。
+
+    避免 pump/_latest 回扫时按工具名把上轮 send_device_cmd 结果错绑到本轮 open call。
+    """
+    if skip <= 0:
+        return
+    for msg in messages[: min(skip, len(messages))]:
+        if seen_messages is not None:
+            seen_messages.add(_message_id(msg))
+        if not isinstance(msg, ToolMessage):
+            continue
+        key = _stable_tool_message_key(msg)
+        emitted_tool_ends.add(key)
+        tc_id = str(msg.tool_call_id or "").strip()
+        if tc_id:
+            emitted_tool_ends.add(f"tc:{tc_id}")
+
+
 def _yield_tool_end_for_message(
     msg: ToolMessage,
     *,
@@ -642,7 +683,17 @@ def _yield_tool_end_for_message(
         raw_tc = str(msg.tool_call_id or "").strip()
         if raw_tc and raw_tc in open_tool_calls:
             matched_start = raw_tc
+        elif raw_tc:
+            # 有明确 tool_call_id 但不在本轮 open：历史/他轮结果，禁止按工具名错绑
+            agent_debug(
+                "flow.ai.skip_stale_tool_end",
+                tool=tool_name,
+                key_preview=key[:120],
+            )
+            emitted_tool_ends.add(key)
+            return
         elif tool_name:
+            # 无 tool_call_id 时才允许按工具名绑定仍 open 的调用（官方仍推荐有 id）
             for tc_id, name in open_tool_calls.items():
                 if name == tool_name:
                     matched_start = tc_id
@@ -672,7 +723,13 @@ def _yield_tool_end_for_message(
         tool=tool_name,
         result_summary=summarize_tool_result(str(result)),
     )
-    yield ("tool_end", {"tool": tool_name, "result": str(result)})
+    end_payload: dict[str, Any] = {"tool": tool_name, "result": str(result)}
+    tc_out = (matched_start if open_tool_calls is not None else None) or str(
+        msg.tool_call_id or ""
+    ).strip()
+    if tc_out:
+        end_payload["tool_call_id"] = tc_out
+    yield ("tool_end", end_payload)
 
 
 def _yield_tool_end_from_latest(
@@ -685,7 +742,7 @@ def _yield_tool_end_from_latest(
 ) -> Iterator[tuple[str, dict[str, Any]]]:
     """pump 完成后从 _latest 即时下发 tool_end。"""
     messages = _stream_latest_messages(stream)
-    # 优先按 tool_call_id 精确匹配
+    # 优先按 tool_call_id 精确匹配（官方 ToolMessage ↔ AIMessage.tool_calls[].id）
     for msg in messages:
         if not isinstance(msg, ToolMessage):
             continue
@@ -698,9 +755,9 @@ def _yield_tool_end_from_latest(
             )
             return
 
-    # 回退：按工具名匹配仍 open 的调用
+    # 回退：从新到旧按工具名匹配仍 open 的调用；未实际 emit 则继续找，禁止误绑历史
     if tool_name:
-        for msg in messages:
+        for msg in reversed(messages):
             if not isinstance(msg, ToolMessage):
                 continue
             if str(msg.name or "") != tool_name:
@@ -708,12 +765,16 @@ def _yield_tool_end_from_latest(
             key = _stable_tool_message_key(msg)
             if key in emitted_tool_ends:
                 continue
-            yield from _yield_tool_end_for_message(
+            emitted_any = False
+            for evt in _yield_tool_end_for_message(
                 msg,
                 emitted_tool_ends=emitted_tool_ends,
                 open_tool_calls=open_tool_calls,
-            )
-            return
+            ):
+                emitted_any = True
+                yield evt
+            if emitted_any:
+                return
 
 
 def _custom_sse_dedupe_key(payload: dict[str, Any]) -> str:
@@ -849,6 +910,7 @@ def iter_state_graph_sse_events(
     emitted_interrupts: set[str] = set()
     open_tool_calls: dict[str, str] = {}
     emitted_custom_keys: set[str] = set()
+    history_seeded = False
     # 父图 messages 投影通常不含 create_agent 子图 token；有则优先生效，避免 values 回填重复
     streamed_message_tokens = False
     from contracts.context import current_stream_message_skip
@@ -891,6 +953,14 @@ def iter_state_graph_sse_events(
             continue
 
         messages = item.get("messages") or []
+        if not history_seeded and skip > 0 and len(messages) >= skip:
+            _seed_skipped_history_tool_ends(
+                messages,
+                skip=skip,
+                emitted_tool_ends=emitted_tool_ends,
+                seen_messages=seen_messages,
+            )
+            history_seeded = True
         if len(messages) < message_count:
             # 仅回拨游标；禁止清空 tool 去重（否则会出现大量重复 tool_end）
             message_count = len(messages)
@@ -919,7 +989,14 @@ def iter_state_graph_sse_events(
                         tool=tool_name,
                         tool_args=summarize_tool_args(tool_input),
                     )
-                    yield ("tool_start", {"tool": tool_name, "args": tool_input})
+                    yield (
+                        "tool_start",
+                        {
+                            "tool": tool_name,
+                            "args": tool_input,
+                            "tool_call_id": tc_id,
+                        },
+                    )
                     pump_status = _pump_until_tool_call_answered(
                         stream,
                         tool_call_id=tc_id,
@@ -1071,6 +1148,7 @@ async def _async_iter_state_graph_sse_events(
     emitted_interrupts: set[str] = set()
     open_tool_calls: dict[str, str] = {}
     emitted_custom_keys: set[str] = set()
+    history_seeded = False
     streamed_message_tokens = False
     from contracts.context import current_stream_message_skip
 
@@ -1112,6 +1190,14 @@ async def _async_iter_state_graph_sse_events(
             continue
 
         messages = item.get("messages") or []
+        if not history_seeded and skip > 0 and len(messages) >= skip:
+            _seed_skipped_history_tool_ends(
+                messages,
+                skip=skip,
+                emitted_tool_ends=emitted_tool_ends,
+                seen_messages=seen_messages,
+            )
+            history_seeded = True
         if len(messages) < message_count:
             # 仅回拨游标；禁止清空 tool 去重
             message_count = len(messages)
@@ -1140,7 +1226,14 @@ async def _async_iter_state_graph_sse_events(
                         tool=tool_name,
                         tool_args=summarize_tool_args(tool_input),
                     )
-                    yield ("tool_start", {"tool": tool_name, "args": tool_input})
+                    yield (
+                        "tool_start",
+                        {
+                            "tool": tool_name,
+                            "args": tool_input,
+                            "tool_call_id": tc_id,
+                        },
+                    )
                     pump_status = await _apump_until_tool_call_answered(
                         stream,
                         tool_call_id=tc_id,
