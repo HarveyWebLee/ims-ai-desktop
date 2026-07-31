@@ -57,8 +57,10 @@ export default function MessageInput({
   textRef.current = text;
   /** 开始录音时锁定的已有文案；中间结果 / 终稿拼在其后 */
   const voiceBaseRef = useRef("");
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const { isStreaming, selectedVoiceprintId, setSelectedVoiceprintId } = useAiAssistantStore();
   const disabled = inputDisabled || isStreaming;
+  const voiceprintSelectDisabled = disabled || voiceBusy;
   const canSend = Boolean(text.trim()) && !disabled;
 
   const refreshVoiceprints = useCallback(async () => {
@@ -166,25 +168,34 @@ export default function MessageInput({
             </div>
             <div className={styles.inputActionsRight}>
               <div className={styles.voiceControlGroup}>
-                <Select
-                  className={styles.voiceprintSelect}
-                  size="small"
-                  variant="borderless"
-                  placeholder={intl.formatMessage({
-                    id: "aiAssistant.voiceprint.selectPlaceholder",
-                  })}
-                  value={selectedVoiceprintId ?? undefined}
-                  onChange={(id) => setSelectedVoiceprintId(id)}
-                  options={enrolledOptions}
-                  allowClear
-                  disabled={disabled}
-                  popupMatchSelectWidth={false}
-                  style={{ minWidth: 132 }}
-                />
+                <Tooltip
+                  title={
+                    voiceBusy
+                      ? intl.formatMessage({ id: "aiAssistant.voiceprint.lockDuringVoice" })
+                      : undefined
+                  }
+                >
+                  <Select
+                    className={styles.voiceprintSelect}
+                    size="small"
+                    variant="borderless"
+                    placeholder={intl.formatMessage({
+                      id: "aiAssistant.voiceprint.selectPlaceholder",
+                    })}
+                    value={selectedVoiceprintId ?? undefined}
+                    onChange={(id) => setSelectedVoiceprintId(id)}
+                    options={enrolledOptions}
+                    allowClear={!voiceBusy}
+                    disabled={voiceprintSelectDisabled}
+                    popupMatchSelectWidth={false}
+                    style={{ minWidth: 132 }}
+                  />
+                </Tooltip>
                 <VoiceInput
                   onRecordingStart={handleRecordingStart}
                   onInterim={handleInterim}
                   onTranscribed={handleTranscribed}
+                  onBusyChange={setVoiceBusy}
                   disabled={disabled}
                 />
               </div>

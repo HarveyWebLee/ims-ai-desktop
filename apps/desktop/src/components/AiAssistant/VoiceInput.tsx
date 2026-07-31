@@ -112,11 +112,14 @@ export default function VoiceInput({
   onTranscribed,
   onInterim,
   onRecordingStart,
+  onBusyChange,
   disabled = false,
 }: {
   onTranscribed: (text: string, meta?: VoiceCorrectionMeta) => void;
   onInterim?: (text: string) => void;
   onRecordingStart?: () => void;
+  /** 录音/转写中为 true，供父级禁用声纹切换等 */
+  onBusyChange?: (busy: boolean) => void;
   disabled?: boolean;
 }) {
   const intl = useIntl();
@@ -124,6 +127,8 @@ export default function VoiceInput({
   const [phase, setPhase] = useState<VoicePhase>("idle");
   const [elapsedSec, setElapsedSec] = useState(0);
   const [interimText, setInterimText] = useState("");
+  /** 本轮录音锁定的声纹 ID，过程中不允许随 Store 切换 */
+  const activeVoiceprintIdRef = useRef<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -328,7 +333,8 @@ export default function VoiceInput({
   );
 
   const gateByVoiceprint = useCallback(async (): Promise<boolean> => {
-    if (!selectedVoiceprintId) {
+    const profileId = activeVoiceprintIdRef.current || selectedVoiceprintId;
+    if (!profileId) {
       message.warning(intl.formatMessage({ id: "aiAssistant.voiceprint.selectRequired" }));
       return false;
     }
@@ -338,7 +344,7 @@ export default function VoiceInput({
       return false;
     }
     try {
-      const result = await verifyVoiceprint(selectedVoiceprintId, blob, {
+      const result = await verifyVoiceprint(profileId, blob, {
         sampleRate: TARGET_SAMPLE_RATE,
       });
       if (result.skipped) return true;
@@ -405,7 +411,8 @@ export default function VoiceInput({
 
   const runLiveVoiceprintCheck = useCallback(async () => {
     if (stoppingRef.current) return;
-    if (!selectedVoiceprintId || voiceprintVerifyInflightRef.current) return;
+    const profileId = activeVoiceprintIdRef.current || selectedVoiceprintId;
+    if (!profileId || voiceprintVerifyInflightRef.current) return;
     const blob = buildVerifyPcmBlob({
       windowSec: VOICEPRINT_LIVE_WINDOW_SEC,
       minSec: VOICEPRINT_LIVE_MIN_SEC,
@@ -413,7 +420,7 @@ export default function VoiceInput({
     if (!blob) return;
     voiceprintVerifyInflightRef.current = true;
     try {
-      const result = await verifyVoiceprint(selectedVoiceprintId, blob, {
+      const result = await verifyVoiceprint(profileId, blob, {
         sampleRate: TARGET_SAMPLE_RATE,
       });
       if (stoppingRef.current) return;
@@ -813,6 +820,7 @@ export default function VoiceInput({
       setPhase("idle");
       setElapsedSec(0);
       setInterimText("");
+      activeVoiceprintIdRef.current = null;
     }
   }, [
     cleanupMic,
@@ -870,6 +878,7 @@ export default function VoiceInput({
     }
     try {
       stoppingRef.current = false;
+      activeVoiceprintIdRef.current = selectedVoiceprintId;
       modeRef.current = "realtime";
       sessionIdRef.current = null;
       seqRef.current = 0;
@@ -979,6 +988,7 @@ export default function VoiceInput({
       setPhase("idle");
       setElapsedSec(0);
       const name = err instanceof DOMException ? err.name : "";
+      activeVoiceprintIdRef.current = null;
       if (name === "NotAllowedError" || name === "PermissionDeniedError") {
         message.error(intl.formatMessage({ id: "aiAssistant.voice.permissionDenied" }));
       } else {
@@ -1001,6 +1011,10 @@ export default function VoiceInput({
   ]);
 
   const busy = phase !== "idle";
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
+
   const handleClick = () => {
     if (disabled || phase === "transcribing") return;
     if (phase === "recording") {

@@ -349,8 +349,8 @@ export default {
     empty: "No voiceprint users yet. Create one and enroll.",
     enrolled: "Enrolled ({count})",
     notEnrolled: "Not enrolled",
-    enrollTip: "Record ~2.5s of speech for enrollment",
-    enrolling: "Enrolling — please speak…",
+    enrollTip: "Record about 4.5s of continuous speech for enrollment",
+    enrolling: "Enrolling — please speak continuously for about 4.5s…",
     enrollOk: "Voiceprint enrolled",
     enrollFailed: "Enrollment failed: {error}",
     created: "Voiceprint user created",
@@ -363,6 +363,7 @@ export default {
     selectPlaceholder: "Select voiceprint user",
     selectRequired: "Select an enrolled voiceprint user before voice input",
     selectRequiredHint: "Select a voiceprint before voice input (manage in Settings)",
+    lockDuringVoice: "Cannot switch voiceprint while recording or transcribing",
     audioTooShort: "Speech too short for verification — speak a bit longer",
     mismatch: "Voiceprint mismatch (score {score} < {threshold}); transcript discarded",
     mismatchLive:

@@ -10,7 +10,8 @@ import * as AgentController from "@/services/AgentController";
 import type { VoiceprintProfile } from "@/services/AgentController";
 
 const TARGET_SR = 16000;
-const ENROLL_MS = 2500;
+/** 单次录入时长：略长有利于 ECAPA 嵌入更稳（过长则体验变差） */
+const ENROLL_MS = 4500;
 
 function floatTo16BitPCM(input: Float32Array, inputSampleRate: number): Int16Array {
   if (inputSampleRate === TARGET_SR) {
