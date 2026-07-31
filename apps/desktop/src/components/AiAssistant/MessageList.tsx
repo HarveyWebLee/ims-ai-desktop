@@ -2,11 +2,11 @@
  * 消息列表 — 聊天卡片布局
  */
 import { useMemo } from "react";
-import { RobotOutlined } from "@ant-design/icons";
-import { Avatar, Button, Spin } from "antd";
+import { Button, Spin } from "antd";
 import { useIntl } from "react-intl";
 import { useAiAssistantStore } from "./store";
 import { AssistantMessageCard, UserMessageCard } from "./ChatCards";
+import { AiAvatar } from "./AiAvatar";
 import type { AiMessage } from "./types";
 import type { FlowDocumentJSON } from "@/components/BpmnFlowgram";
 import { extractUserDisplayText } from "./utils/extractUserDisplayText";
@@ -64,9 +64,7 @@ export default function MessageList({
     return (
       <div className={styles.emptyState}>
         <div className={styles.emptyStateInner}>
-          <div className={styles.emptyStateBadge} aria-hidden>
-            <RobotOutlined />
-          </div>
+          <AiAvatar size={56} className={styles.emptyStateBadge} />
           <h2 className={styles.emptyStateTitle}>
             {intl.formatMessage({ id: "aiAssistant.emptyWelcome" })}
           </h2>
@@ -105,13 +103,11 @@ export default function MessageList({
         );
       })}
       {loading && !hasStreamingAssistant ? (
-        <div className={styles.assistantRow}>
-          <Avatar size={28} className={styles.assistantAvatar} icon={<RobotOutlined />} />
-          <div className={styles.assistantBubble}>
-            <div className={styles.streamingHint}>
-              <Spin size="small" />
-              <span>{intl.formatMessage({ id: "aiAssistant.thinkingHint" })}</span>
-            </div>
+        <div className={`${styles.assistantRow} ${styles.assistantRowThinking}`}>
+          <AiAvatar size={32} />
+          <div className={styles.streamingHint}>
+            <Spin size="small" />
+            <span>{intl.formatMessage({ id: "aiAssistant.thinkingHint" })}</span>
           </div>
         </div>
       ) : null}

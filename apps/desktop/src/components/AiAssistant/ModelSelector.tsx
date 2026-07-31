@@ -3,11 +3,12 @@
  * 数据源：@ims/agent-core/model-catalog
  */
 import { Select } from "antd";
-import { CaretDownOutlined, RobotOutlined } from "@ant-design/icons";
+import { CaretDownOutlined } from "@ant-design/icons";
 import { useIntl } from "react-intl";
 import { AGENT_MODEL_CATALOG, DEFAULT_AGENT_MODEL_ID } from "@ims/agent-core/model-catalog";
 import type { AgentModelId } from "@ims/shared-types";
 import { useAiAssistantStore } from "./store";
+import { AiMark } from "./AiAvatar";
 import styles from "./index.module.less";
 
 export default function ModelSelector({ className }: { className?: string }) {
@@ -27,6 +28,7 @@ export default function ModelSelector({ className }: { className?: string }) {
     <Select<AgentModelId>
       className={[styles.modelSelect, className].filter(Boolean).join(" ")}
       size="small"
+      variant="borderless"
       value={currentId}
       options={options}
       disabled={isStreaming}
@@ -38,7 +40,7 @@ export default function ModelSelector({ className }: { className?: string }) {
       aria-label={intl.formatMessage({ id: "aiAssistant.model.label" })}
       labelRender={({ label }) => (
         <span className={styles.modelSelectLabel}>
-          <RobotOutlined className={styles.modelSelectIcon} aria-hidden />
+          <AiMark size={12} className={styles.modelSelectIcon} />
           <span className={styles.modelSelectText}>{label}</span>
         </span>
       )}

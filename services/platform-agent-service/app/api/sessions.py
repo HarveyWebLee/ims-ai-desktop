@@ -96,8 +96,8 @@ async def get_thread_state(thread_id: str, authorization: str | None = None):
     if is_postgres_enabled() and not can_read_thread(user_id, thread_id):
         return fail(40404, "会话不存在", "无权访问该会话或会话已过期")
 
-    # 同步调用 graph 层：从 checkpointer 反序列化 messages
-    messages = get_thread_ui_messages(thread_id)
+    # AsyncPostgresSaver 须 await aget；内存 InMemorySaver 的 aget 亦可
+    messages = await get_thread_ui_messages(thread_id)
     from app.services.session_store import get_thread_bpmn_snapshot
 
     bpmn_snapshot = get_thread_bpmn_snapshot(thread_id)
@@ -123,7 +123,7 @@ async def delete_session(thread_id: str, authorization: str | None = None):
     from app.services.thread_cleanup import delete_thread_persistence
 
     try:
-        delete_thread_persistence(thread_id)
+        await delete_thread_persistence(thread_id)
     except Exception:
         return fail(50001, "删除失败", "会话索引已删除，但持久化数据清理失败，请稍后重试")
 

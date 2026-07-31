@@ -24,37 +24,21 @@ Trace / Audit 一并清掉，避免侧栏删了会话但后端仍留着旧图进
 但 LangGraph 自己的 checkpoint 表要单独 DELETE。
 
 Postgres 模式下 agent_sessions 删除会 CASCADE 业务表（trace/audit/user_messages），
-但 LangGraph checkpoint_* 表独立，需显式按 thread_id 清理。
+但 LangGraph checkpoint_* 表独立，需显式按 thread_id 清理（AsyncPostgresSaver.adelete_thread）。
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.checkpoint.postgres import PostgresSaver
-from psycopg_pool import ConnectionPool
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from app.persistence.bootstrap import get_checkpointer, is_postgres_enabled
 from app.services.audit_store import audit_store
 from app.services.trace_store import trace_store
 
 logger = logging.getLogger(__name__)
-
-# LangGraph PostgresSaver 使用的表（与 checkpoint/postgres/base.py MIGRATIONS 一致）
-# 删除顺序从「写依赖」到「主表」，避免残留分片数据
-_CHECKPOINT_TABLES = (
-    "checkpoint_writes",
-    "checkpoint_blobs",
-    "checkpoints",
-)
-
-
-def _delete_postgres_checkpoints(thread_id: str, conn: Any) -> None:
-    """按 thread_id 删除 LangGraph checkpoint 相关行。"""
-    for table in _CHECKPOINT_TABLES:
-        conn.execute(f"DELETE FROM {table} WHERE thread_id = %s", (thread_id,))
 
 
 def _delete_memory_checkpoints(checkpointer: InMemorySaver, thread_id: str) -> None:
@@ -74,7 +58,7 @@ def _delete_memory_checkpoints(checkpointer: InMemorySaver, thread_id: str) -> N
         checkpointer.blobs.pop(key, None)
 
 
-def delete_thread_persistence(thread_id: str) -> None:
+async def delete_thread_persistence(thread_id: str) -> None:
     """
     删除 thread 关联的 Checkpoint；内存模式下同步清理 Trace/Audit。
 
@@ -82,7 +66,8 @@ def delete_thread_persistence(thread_id: str) -> None:
         thread_id: 会话线程 ID
 
     说明:
-        - Postgres：checkpoint_* 表显式 DELETE；trace/audit 由 agent_sessions CASCADE
+        - Postgres（AsyncPostgresSaver）：adelete_thread 清理 checkpoint_* 表；
+          trace/audit 由 agent_sessions CASCADE
         - Memory：checkpoint + trace_store + audit_store 一并清理
 
     异常:
@@ -95,13 +80,9 @@ def delete_thread_persistence(thread_id: str) -> None:
     checkpointer = get_checkpointer()
 
     try:
-        if isinstance(checkpointer, PostgresSaver):
-            conn_holder = checkpointer.conn
-            if isinstance(conn_holder, ConnectionPool):
-                with conn_holder.connection() as conn:
-                    _delete_postgres_checkpoints(tid, conn)
-            else:
-                _delete_postgres_checkpoints(tid, conn_holder)
+        if isinstance(checkpointer, AsyncPostgresSaver):
+            # 主线程须用异步接口，与 thread_history.aget 一致
+            await checkpointer.adelete_thread(tid)
         elif isinstance(checkpointer, InMemorySaver):
             _delete_memory_checkpoints(checkpointer, tid)
         else:

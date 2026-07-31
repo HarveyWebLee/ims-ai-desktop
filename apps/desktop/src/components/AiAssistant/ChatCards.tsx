@@ -1,7 +1,7 @@
 /**
  * AI 助手聊天卡片组件
  */
-import { RobotOutlined, UserOutlined } from "@ant-design/icons";
+import { UserOutlined } from "@ant-design/icons";
 import { Avatar, Spin } from "antd";
 import { useIntl } from "react-intl";
 import MarkdownContent from "@/components/MarkdownContent";
@@ -21,6 +21,7 @@ import HitlQuickActions from "./HitlQuickActions";
 import type { HitlPayload } from "@ims/shared-types";
 import type { FlowDocumentJSON } from "@/components/BpmnFlowgram";
 import { resolveWorkspaceFromMessage } from "./utils/workspaceFromTool";
+import { AiAvatar } from "./AiAvatar";
 import styles from "./index.module.less";
 
 /** 用户消息气泡 */
@@ -90,9 +91,22 @@ export function AssistantMessageCard({
     (message.traceEvents?.length ?? 0) > 0 ||
     !!message.traceGraph;
 
+  /* 纯思考态：头像与提示同一中线，不套气泡边框 */
+  if (message.streaming && !hasRenderedContent) {
+    return (
+      <div className={`${styles.assistantRow} ${styles.assistantRowThinking}`}>
+        <AiAvatar size={32} />
+        <div className={styles.streamingHint}>
+          <Spin size="small" />
+          <span>{intl.formatMessage({ id: "aiAssistant.thinkingHint" })}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.assistantRow}>
-      <Avatar size={28} className={styles.assistantAvatar} icon={<RobotOutlined />} />
+      <AiAvatar size={32} />
       <div className={styles.assistantBubble}>
         {/* 1. Trace（执行观测，默认折叠） */}
         <MessageTraceSection
@@ -151,19 +165,12 @@ export function AssistantMessageCard({
           />
         )}
 
-        {message.streaming && !hasRenderedContent && (
-          <div className={styles.streamingHint}>
-            <Spin size="small" />
-            <span>{intl.formatMessage({ id: "aiAssistant.thinkingHint" })}</span>
-          </div>
-        )}
-
-        {message.streaming && hasRenderedContent && (
+        {message.streaming && hasRenderedContent ? (
           <div className={styles.streamingHint}>
             <Spin size="small" />
             <span>…</span>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

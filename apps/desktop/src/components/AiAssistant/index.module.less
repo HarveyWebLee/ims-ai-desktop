@@ -342,26 +342,43 @@
   padding: 0;
 }
 
-.sessionDrawerItem,
-.sessionDrawerItemActive {
+.sessionDrawerItem {
+  position: relative;
   display: flex;
   align-items: stretch;
-  gap: 4px;
-  margin: 0 0 6px;
+  gap: 2px;
+  margin: 0 0 4px;
   border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid transparent;
+  border: none;
   background: transparent;
+  box-shadow: none;
+  outline: none;
+  transition: background 0.15s;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
 }
 
 .sessionDrawerItemActive {
-  background: var(--ai-surface);
-  border-color: var(--ai-border);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--ai-text) 4%, transparent);
+  background: var(--ant-color-primary-bg, #e6f4ff) !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+
+  &:hover {
+    background: var(--ant-color-primary-bg, #e6f4ff) !important;
+  }
 }
 
-.sessionDrawerItem:hover {
-  background: color-mix(in srgb, var(--ai-surface) 80%, transparent);
+.sessionDrawerItemActive .sessionDrawerTitle {
+  color: var(--ant-color-primary, #1677ff);
+  font-weight: 600;
+}
+
+.sessionDrawerItemActive .sessionDrawerTime {
+  color: var(--ant-color-primary, #1677ff);
+  opacity: 0.72;
 }
 
 .sessionDrawerItemMain {
@@ -371,7 +388,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  padding: 10px 12px;
+  padding: 10px 8px 10px 12px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -630,17 +647,8 @@
 }
 
 .emptyStateBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
   margin-bottom: 16px;
-  border-radius: 14px;
-  color: #fff;
-  font-size: 24px;
-  background: var(--ai-brand);
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--ai-brand) 24%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ai-brand) 22%, transparent);
 }
 
 .emptyStateTitle {
@@ -706,11 +714,28 @@
   max-width: 100%;
 }
 
+/* 思考态：头像与文案中线对齐 */
+.assistantRowThinking {
+  align-items: center;
+}
+
 .assistantAvatar {
   flex-shrink: 0;
   background: var(--ai-brand-soft) !important;
   color: var(--ai-brand) !important;
   border: 1px solid var(--ai-brand-border);
+}
+
+.aiAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+  background: var(--ai-brand);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent),
+    0 2px 8px color-mix(in srgb, var(--ai-brand) 22%, transparent);
 }
 
 .assistantBubble {
@@ -720,7 +745,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 0;
   background: var(--ai-surface);
   border-radius: 4px 14px 14px 14px;
   border: 1px solid var(--ai-border);
@@ -744,9 +769,11 @@
 .streamingHint {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
+  gap: 8px;
+  min-height: 32px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ai-text-secondary);
 }
 
 /* —— 执行步骤子卡片 —— */
@@ -1166,51 +1193,70 @@
   margin: 0 auto;
 }
 
-/* —— 模型选择：底部左侧胶囊触发器 —— */
+/* —— 模型选择：与右侧声纹组同款白底胶囊 —— */
 .modelSelect {
   width: auto !important;
-  max-width: 100%;
+  max-width: min(100%, 220px);
   flex-shrink: 0;
-  &.ant-select-sm {
-    height: auto;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding-inline: 10px 8px !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--ai-border) !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  outline: none !important;
+  --ant-select-active-border-color: transparent;
+  --ant-select-active-outline-color: transparent;
+  --ant-select-hover-border-color: var(--ai-brand-border);
+
+  &:global(.ant-select-sm) {
+    height: 30px !important;
+    min-height: 30px !important;
   }
 
-  :global(.ant-select-selector) {
+  :global(.ant-select-selector),
+  :global(.ant-select-content),
+  :global(.ant-select-content-value) {
     width: auto !important;
     min-width: 0;
-    height: 30px !important;
-    border-radius: 999px !important;
-    border: 1px solid var(--ai-border) !important;
-    background: #fff !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
     box-shadow: none !important;
-    padding-inline: 10px 24px !important;
-    transition:
-      border-color 0.2s,
-      box-shadow 0.2s;
+    outline: none !important;
   }
 
-  :global(.ant-select-selection-item) {
+  :global(.ant-select-selection-item),
+  :global(.ant-select-content-value) {
     padding-inline-end: 0 !important;
     overflow: hidden;
-    line-height: 28px !important;
+    line-height: 1 !important;
   }
 
   :global(.ant-select-arrow) {
+    inset-inline-end: 8px;
     width: 12px;
     height: 12px;
+    margin-top: 0;
     pointer-events: none;
   }
 
-  &:hover:not(:global(.ant-select-disabled)) :global(.ant-select-selector) {
+  &:hover:not(:global(.ant-select-disabled)) {
     border-color: var(--ai-brand-border) !important;
   }
 
-  &:global(.ant-select-open) :global(.ant-select-selector) {
-    border-color: var(--ai-brand) !important;
-    box-shadow: 0 0 0 2px var(--ai-brand-soft) !important;
+  &:global(.ant-select-focused),
+  &:global(.ant-select-open),
+  &:has(:global(input:focus-visible)) {
+    border-color: var(--ai-brand-border) !important;
+    box-shadow: none !important;
+    outline: none !important;
   }
 
-  &:global(.ant-select-disabled) :global(.ant-select-selector) {
+  &:global(.ant-select-disabled) {
     opacity: 0.55;
     cursor: not-allowed;
     background: var(--ant-color-fill-quaternary, #f5f5f5) !important;
@@ -1220,14 +1266,13 @@
 .modelSelectLabel {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
   max-width: 100%;
 }
 
 .modelSelectIcon {
   flex-shrink: 0;
-  font-size: 11px;
   color: var(--ai-brand);
 }
 
@@ -1238,7 +1283,7 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--ai-text);
-  line-height: 1;
+  line-height: 1.2;
 }
 
 .modelSelectArrow {
@@ -1263,12 +1308,14 @@
   box-shadow:
     0 2px 8px color-mix(in srgb, var(--ai-text) 6%, transparent),
     0 8px 24px color-mix(in srgb, var(--ai-text) 5%, transparent);
-  overflow: hidden;
+  /* 录音涟漪会超出卡片，不可裁切 */
+  overflow: visible;
   transition:
     border-color 0.2s,
     box-shadow 0.2s;
 
-  &:focus-within {
+  /* 仅文本输入聚焦时高亮外壳；工具条 Select 聚焦不触发 */
+  &:has(.inputTextarea:focus) {
     border-color: var(--ai-brand);
     box-shadow:
       0 0 0 3px var(--ai-brand-soft),
@@ -1288,7 +1335,7 @@
     border-color 0.2s,
     box-shadow 0.2s;
 
-  .inputComposer:focus-within & {
+  &:has(.inputTextarea:focus) {
     border-color: var(--ai-brand-border);
     box-shadow:
       inset 0 1px 2px color-mix(in srgb, var(--ai-text) 3%, transparent),
@@ -1322,9 +1369,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 48px;
+  min-height: 52px;
   margin-top: 8px;
-  padding: 8px 10px 10px;
+  padding: 10px 12px 12px;
   border-top: none;
   background: transparent;
   overflow: visible;
@@ -1340,16 +1387,28 @@
 .voiceControlGroup {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  max-width: min(100%, 280px);
-  padding: 2px 4px 2px 6px;
+  gap: 4px;
+  max-width: min(100%, 300px);
+  padding: 3px 6px 3px 8px;
   border: 1px solid var(--ai-border);
   border-radius: 999px;
   background: #fff;
-  transition: border-color 0.2s;
+  overflow: visible;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 
+  /* 声纹下拉聚焦时保持胶囊静默，不额外描边 */
   &:focus-within {
-    border-color: var(--ai-brand-border);
+    border-color: var(--ai-border);
+    box-shadow: none;
+  }
+
+  /* 录音中整组高亮，麦克风不被裁切 */
+  &:has(.voiceBtnWrapRecording) {
+    border-color: var(--ai-brand);
+    box-shadow: 0 0 0 2px var(--ai-brand-soft);
+    padding-inline-end: 8px;
   }
 }
 
@@ -1357,12 +1416,34 @@
   flex: 1;
   min-width: 0;
   max-width: 200px;
+  /* antd 6 borderless：聚焦时仍会在根节点画 outline / box-shadow */
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  --ant-select-active-border-color: transparent;
+  --ant-select-active-outline-color: transparent;
+  --ant-select-hover-border-color: transparent;
 
   :global(.ant-select-selector) {
     padding-inline: 6px !important;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
+    outline: none !important;
+  }
+
+  &:global(.ant-select-focused),
+  &:global(.ant-select-open),
+  &:has(:global(input:focus-visible)) {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+
+    :global(.ant-select-selector) {
+      border: none !important;
+      box-shadow: none !important;
+      outline: none !important;
+    }
   }
 
   :global(.ant-select-selection-placeholder),
@@ -1420,11 +1501,12 @@
   width: 44px;
   height: 44px;
   line-height: 0;
-  /* 由 Analyser 实时写入：静音≈0，说话≈0.3~1 */
+  z-index: 2;
+  /* Analyser 写入 0~1，驱动涟漪与缩放 */
   --voice-level: 0;
 }
 
-/* 录音中双层涟漪：随音量放大，静止时也有基础脉动 */
+/* 录音中：主色实心钮 + 随音量变化的双层涟漪 */
 .voiceBtnWrapRecording {
   &::before,
   &::after {
@@ -1432,88 +1514,87 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: calc(22px + var(--voice-level) * 26px);
-    height: calc(22px + var(--voice-level) * 26px);
+    width: calc(24px + var(--voice-level) * 24px);
+    height: calc(24px + var(--voice-level) * 24px);
     margin: 0;
-    border: 2px solid rgba(255, 77, 79, calc(0.45 + var(--voice-level) * 0.45));
+    border: 2px solid var(--ant-color-primary, #1677ff);
     border-radius: 50%;
+    opacity: calc(0.55 - var(--voice-level) * 0.15);
     transform: translate(-50%, -50%) scale(1);
     pointer-events: none;
     animation: voiceRippleRing 1.15s ease-out infinite;
   }
 
   &::after {
-    animation-delay: 0.45s;
-    border-color: rgba(255, 120, 117, calc(0.35 + var(--voice-level) * 0.4));
+    animation-delay: 0.42s;
+    opacity: calc(0.38 - var(--voice-level) * 0.1);
   }
 
   &[data-speaking="1"]::before,
   &[data-speaking="1"]::after {
-    animation-duration: 0.75s;
+    animation-duration: 0.72s;
+    border-color: var(--ant-color-primary-active, #0958d9);
   }
 }
 
 @keyframes voiceRippleRing {
   0% {
-    opacity: 0.9;
-    transform: translate(-50%, -50%) scale(0.72);
+    opacity: 0.65;
+    transform: translate(-50%, -50%) scale(0.78);
   }
   70% {
-    opacity: 0.25;
+    opacity: 0.18;
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(calc(1.55 + var(--voice-level) * 0.55));
+    transform: translate(-50%, -50%) scale(calc(1.55 + var(--voice-level) * 0.45));
   }
 }
 
 .voiceBtn {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  color: rgba(0, 0, 0, 0.55);
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  color: var(--ai-text-secondary);
 
   &:hover:not(:disabled) {
-    color: color-mix(in srgb, var(--ai-brand) 85%, transparent);
-    background: color-mix(in srgb, var(--ai-brand) 8%, transparent);
+    color: var(--ai-brand);
+    background: var(--ai-brand-soft);
   }
 }
 
 .voiceBtnRecording {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  padding: 0;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
   color: #fff !important;
-  background: radial-gradient(
-    circle at 50% 45%,
-    rgba(255, 120, 117, calc(0.95 + var(--voice-level) * 0.05)) 0%,
-    rgba(207, 19, 34, calc(0.88 + var(--voice-level) * 0.12)) 70%
-  ) !important;
-  /* 音量越高：放大与光晕越明显；静音时也保持醒目底色 */
-  transform: scale(calc(1.06 + var(--voice-level) * 0.42));
+  background: var(--ant-color-primary, #1677ff) !important;
+  border: none !important;
+  /* 音量越高放大越明显 */
+  transform: scale(calc(1.06 + var(--voice-level) * 0.32));
   box-shadow:
-    0 0 0 calc(2px + var(--voice-level) * 6px)
-      rgba(255, 77, 79, calc(0.35 + var(--voice-level) * 0.45)),
-    0 0 calc(10px + var(--voice-level) * 18px)
-      rgba(255, 77, 79, calc(0.35 + var(--voice-level) * 0.5));
+    0 0 0 calc(2px + var(--voice-level) * 5px) var(--ai-brand-soft),
+    0 0 calc(10px + var(--voice-level) * 14px) rgba(22, 119, 255, 0.35);
   transition:
     transform 50ms linear,
-    box-shadow 50ms linear,
-    background-color 50ms linear;
+    box-shadow 50ms linear;
   animation: voiceMicBeat 1s ease-in-out infinite;
 
   :global(.anticon) {
-    font-size: 18px;
-    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.25));
+    font-size: 17px;
+    color: #fff !important;
   }
 
   &:hover:not(:disabled) {
     color: #fff !important;
-    filter: brightness(1.06);
+    background: var(--ant-color-primary-hover, #4096ff) !important;
+    filter: none;
   }
 }
 
@@ -1523,17 +1604,18 @@
     filter: brightness(1);
   }
   50% {
-    filter: brightness(calc(1.08 + var(--voice-level) * 0.2));
+    filter: brightness(calc(1.06 + var(--voice-level) * 0.12));
   }
 }
 
 .voiceBtnTranscribing {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  color: color-mix(in srgb, var(--ai-brand) 95%, transparent) !important;
-  background: color-mix(in srgb, var(--ai-brand) 10%, transparent) !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  color: var(--ai-brand) !important;
+  background: var(--ai-brand-soft) !important;
   cursor: wait;
   pointer-events: none;
   animation: voiceTranscribeGlow 1.6s ease-in-out infinite;

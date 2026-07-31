@@ -40,7 +40,7 @@ async def test_delete_thread_persistence_clears_memory_stores():
         tool_name="query_alarms",
     )
 
-    delete_thread_persistence(thread_id)
+    await delete_thread_persistence(thread_id)
 
     assert thread_id not in saver.storage
     assert not trace_store.list_runs(thread_id)

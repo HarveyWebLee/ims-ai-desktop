@@ -27,6 +27,10 @@ Checkpoint 里是「内部剧本」（Human/AI/Tool 交替）；本模块翻译�
 与 session_store 的区别:
     - session_store：仅存用户消息文本列表（轻量，供多轮上下文）
     - thread_history：从 Checkpoint 还原完整对话含工具调用结果
+
+注意:
+    Postgres 模式下 Checkpointer 为 AsyncPostgresSaver，读状态须 ``await aget``，
+    不可在 FastAPI 主线程调用同步 ``get``。
 """
 
 from __future__ import annotations
@@ -47,7 +51,7 @@ from app.utils.runnable_config import thread_runnable_config
 logger = logging.getLogger(__name__)
 
 
-def read_checkpoint_messages(thread_id: str) -> list[Any]:
+async def read_checkpoint_messages(thread_id: str) -> list[Any]:
     """
     读取 checkpoint 中的原始 LangChain 消息列表。
 
@@ -56,10 +60,14 @@ def read_checkpoint_messages(thread_id: str) -> list[Any]:
 
     返回:
         Message 对象列表；失败或无数据时返回 []
+
+    说明:
+        持久化为 AsyncPostgresSaver 时，主线程必须走 aget，禁止同步 get
+        （否则 InvalidStateError，会话历史会静默变空）。
     """
     config = thread_runnable_config(thread_id)
     try:
-        checkpoint = get_checkpointer().get(config)
+        checkpoint = await get_checkpointer().aget(config)
     except Exception:
         logger.exception("读取 checkpoint 失败: thread_id=%s", thread_id)
         return []
@@ -224,7 +232,7 @@ def checkpoint_messages_to_ui(messages: list[Any]) -> list[dict[str, Any]]:
     return ui
 
 
-def get_thread_ui_messages(thread_id: str) -> list[dict[str, Any]]:
+async def get_thread_ui_messages(thread_id: str) -> list[dict[str, Any]]:
     """
     对外入口：thread_id → UI 消息列表。
 
@@ -234,13 +242,13 @@ def get_thread_ui_messages(thread_id: str) -> list[dict[str, Any]]:
     返回:
         前端 blocks 结构消息列表；无 checkpoint 时 []
     """
-    raw = read_checkpoint_messages(thread_id)
+    raw = await read_checkpoint_messages(thread_id)
     if not raw:
         return []
     return checkpoint_messages_to_ui(raw)
 
 
-def extract_user_texts(thread_id: str, *, limit: int = 4) -> list[str]:
+async def extract_user_texts(thread_id: str, *, limit: int = 4) -> list[str]:
     """
     从 checkpoint 提取近期用户文本（供多轮时间上下文 / prompt 拼接）。
 
@@ -252,7 +260,7 @@ def extract_user_texts(thread_id: str, *, limit: int = 4) -> list[str]:
         用户消息文本列表（时间正序）
     """
     texts: list[str] = []
-    for item in get_thread_ui_messages(thread_id):
+    for item in await get_thread_ui_messages(thread_id):
         if item.get("role") != "user":
             continue
         for block in item.get("blocks") or []:

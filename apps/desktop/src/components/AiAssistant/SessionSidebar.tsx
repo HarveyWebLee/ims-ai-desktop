@@ -136,7 +136,12 @@ export default function SessionSidebar({
                 return (
                   <li
                     key={item.thread_id}
-                    className={active ? styles.sessionDrawerItemActive : styles.sessionDrawerItem}
+                    className={[
+                      styles.sessionDrawerItem,
+                      active ? styles.sessionDrawerItemActive : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                   >
                     <button
                       type="button"

@@ -3,16 +3,12 @@
  */
 import { useState } from "react";
 import { Button, Layout, Space, Tooltip, Typography, theme } from "antd";
-import {
-  RobotOutlined,
-  SettingOutlined,
-  LogoutOutlined,
-  MenuUnfoldOutlined,
-} from "@ant-design/icons";
+import { SettingOutlined, LogoutOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import { useIntl } from "react-intl";
 import { logout as clearAuth } from "@ims/desktop-api";
 import SessionSidebar from "./SessionSidebar";
 import ChatPanel from "./ChatPanel";
+import { AiMark } from "./AiAvatar";
 import styles from "./index.module.less";
 
 const { Header, Content } = Layout;
@@ -48,7 +44,7 @@ export default function DesktopChatApp({ onOpenSettings }: { onOpenSettings: () 
               }}
               aria-hidden
             >
-              <RobotOutlined />
+              <AiMark size={18} />
             </span>
             <div className={styles.desktopTitleText}>
               <span className={styles.desktopTitleMain}>
