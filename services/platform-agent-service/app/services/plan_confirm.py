@@ -37,11 +37,10 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from platform_mcp.runtime.time_range import extract_alarm_time_range_from_message
-
 from app.config import settings
 from app.graph.context import AgentContext
 from app.services.task_planner import build_task_plan, extract_alarm_status_from_message
+from contracts.time_range import extract_alarm_time_range_from_message
 
 # plan_confirm interrupt 占位 tool 名（非真实工具）
 PLAN_CONFIRM_TOOL = "__plan__"
@@ -63,7 +62,7 @@ READ_ONLY_PLAN_TOOLS = frozenset(
 
 def _write_plan_tools() -> frozenset[str]:
     """从 catalog risk_level 读取 medium/high 写操作工具（export 后生效）。"""
-    from platform_mcp.runtime.tool_catalog_loader import get_tools_by_risk
+    from contracts.tool_catalog_loader import get_tools_by_risk
 
     names = get_tools_by_risk("medium", "high")
     # catalog 未导出时的兜底，避免 plan_confirm 门控失效
@@ -193,7 +192,7 @@ def propagate_query_alarm_params_to_export(
     导出步应沿用相同时间/筛选，避免使用者重复填写。
     就地修改 params_by_tool。
     """
-    from platform_mcp.runtime.tools.alarm import _resolve_or_prepare_alarm_times
+    from contracts.alarm_params import resolve_or_prepare_alarm_times
 
     query_params = params_by_tool.get("query_alarms")
     if not query_params:
@@ -219,7 +218,7 @@ def propagate_query_alarm_params_to_export(
 
     export_start = str(export_params.get("start_time") or "")
     export_end = str(export_params.get("end_time") or "")
-    _, _, export_needs_time = _resolve_or_prepare_alarm_times(export_start, export_end)
+    _, _, export_needs_time = resolve_or_prepare_alarm_times(export_start, export_end)
 
     for key in _ALARM_QUERY_TO_EXPORT_KEYS:
         value = query_params.get(key)
@@ -245,7 +244,7 @@ def propagate_query_alarm_params_to_batch(
     典型场景：「查告警并导出然后批量处理」中，查询步补选时间后，
     批量处理步应沿用相同时间/状态筛选。
     """
-    from platform_mcp.runtime.tools.alarm import _resolve_or_prepare_alarm_times
+    from contracts.alarm_params import resolve_or_prepare_alarm_times
 
     query_params = params_by_tool.get("query_alarms")
     if not query_params:
@@ -262,7 +261,7 @@ def propagate_query_alarm_params_to_batch(
         batch_params = dict(params_by_tool.get(tool_name) or {})
         batch_start = str(batch_params.get("start_time") or "")
         batch_end = str(batch_params.get("end_time") or "")
-        _, _, batch_needs_time = _resolve_or_prepare_alarm_times(batch_start, batch_end)
+        _, _, batch_needs_time = resolve_or_prepare_alarm_times(batch_start, batch_end)
 
         for key in _ALARM_QUERY_TO_EXPORT_KEYS:
             value = query_params.get(key)
@@ -316,7 +315,7 @@ def infer_plan_params(
                 query_params["status"] = alarm_status
             params_by_tool[tool] = query_params
         elif tool == "download_file":
-            from platform_mcp.runtime.tools.export import infer_download_resource
+            from contracts.export_infer import infer_download_resource
 
             resource = infer_download_resource(msg)
             export_params: dict[str, Any] = {

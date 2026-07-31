@@ -17,7 +17,7 @@ import subprocess
 import sys
 from collections.abc import Sequence
 
-TARGETS = ("platform_mcp", "scripts")
+TARGETS = ("platform_mcp", "tests")
 
 
 def _run(cmd: Sequence[str]) -> int:

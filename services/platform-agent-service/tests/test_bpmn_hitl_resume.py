@@ -80,7 +80,7 @@ async def test_ac30_resume_does_not_rerun_device_detail():
 
     writer = MagicMock()
     with (
-        patch("platform_mcp.runtime.context.current_thread_id") as mock_tid,
+        patch("contracts.context.current_thread_id") as mock_tid,
         patch("app.graph.hitl_interrupt.interrupt_or_raise", return_value={"type": "approve"}),
         patch(
             "app.application.execution.tool_executor.execute_tool_invoke",
@@ -130,7 +130,7 @@ async def test_ac31_reject_clears_execution_state():
     )
 
     with (
-        patch("platform_mcp.runtime.context.current_thread_id") as mock_tid,
+        patch("contracts.context.current_thread_id") as mock_tid,
         patch(
             "app.graph.hitl_interrupt.interrupt_or_raise",
             return_value={"type": "reject"},

@@ -11,16 +11,20 @@
 1. **`docs-langchain`**
    - 用途：LangChain / LangGraph API 签名、能力边界、迁移说明
    - 场景：`create_agent`、`astream_events`、checkpoint、interrupt / resume、StateGraph、MCP adapters
-2. **`context7`**
-   - 用途：第三方库文档（FastAPI、Electron、antd、psycopg、pytest、ruff 等）
-3. **`filesystem`**
+2. **`antd`**
+   - 用途：Ant Design 6 组件 API、主题、迁移与最佳实践（`@ant-design/cli mcp`）
+   - 场景：桌面端 UI 组件选型、弃用 API 替换、主题 token
+3. **`context7`**
+   - 用途：第三方库文档（FastAPI、Electron、psycopg、pytest、ruff 等）
+4. **`filesystem`**
    - 用途：按仓库根路径快速读取结构、配置与文档（已绑定本仓根目录）
-4. **`github`**
+5. **`github`**
    - 用途：PR / issue / 变更上下文（需本机配置 `GITHUB_PERSONAL_ACCESS_TOKEN`）
 
 ## 强制规则
 
 - 涉及 LangGraph / LangChain API 时：**先查 `docs-langchain` 再编码**
+- 涉及 antd 组件 / 主题 / 弃用 API 时：**优先查 `antd` MCP**，并遵守 `.cursor/rules/desktop-ui-antd.mdc`
 - 无法确认 API 参数时，不得凭经验直接实现
 - 需求不完整时：先读 `docs/architecture/` + MCP 文档收敛假设，再落代码
 - 平台业务库相关：遵守达梦只读（见 `docs/architecture/09-platform-db-readonly.md`）

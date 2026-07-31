@@ -8,7 +8,8 @@
   "cursorpyright.analysis.autoImportCompletions": true,
   "cursorpyright.analysis.extraPaths": [
     "${workspaceFolder}/services/platform-agent-service",
-    "${workspaceFolder}/services/platform-mcp-server"
+    "${workspaceFolder}/services/platform-mcp-server",
+    "${workspaceFolder}/services/platform-contracts"
   ],
 
   // Ruff（各服务以各自 pyproject.toml 为准）

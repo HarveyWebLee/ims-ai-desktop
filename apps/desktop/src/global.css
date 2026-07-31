@@ -1,15 +1,28 @@
+/**
+ * 全局基线：消费 antd 6 默认 CSS Variables
+ */
 html,
 body,
 #root {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #f4f6f8;
-  color: rgba(15, 23, 42, 0.88);
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei",
-    "Helvetica Neue", Arial, sans-serif;
+  background: var(--ant-color-bg-layout);
+  color: var(--ant-color-text);
+  font-family: var(--ant-font-family);
   -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+#root > .ant-app {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .markdown-body p {

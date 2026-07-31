@@ -5,14 +5,13 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
-from platform_mcp.runtime.result import tool_result
-
 from app.application.execution.common import emit_tool_events
 from app.application.tool_execution import (
     enrich_tool_execution_context,
     get_tool_execution_pipeline,
 )
 from app.domain.tool_execution import ToolExecutionContext, ToolExecutionRequest
+from contracts.result import tool_result
 
 
 async def execute_tool_invoke(

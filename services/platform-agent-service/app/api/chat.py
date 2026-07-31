@@ -215,9 +215,8 @@ def _clear_thread_orchestration_on_abort(thread_id: str | None, *, reason: str) 
     if not tid:
         return
     try:
-        from platform_mcp.runtime.agent_debug import agent_debug, orchestration_snapshot
-
         from app.services.session_store import clear_thread_orchestration
+        from contracts.agent_debug import agent_debug, orchestration_snapshot
 
         before = orchestration_snapshot(tid)
         clear_thread_orchestration(tid)
@@ -239,7 +238,7 @@ def _clear_thread_orchestration_on_abort(thread_id: str | None, *, reason: str) 
             after=orchestration_snapshot(tid),
         )
     except Exception as exc:
-        from platform_mcp.runtime.agent_debug import agent_debug
+        from contracts.agent_debug import agent_debug
 
         agent_debug(
             "flow.sse.abort_clear_orchestration_failed",
@@ -285,7 +284,7 @@ async def _sse_from_stream(
                     yield ": keepalive\n\n"
                     continue
 
-                from platform_mcp.runtime.agent_debug import trace_sse_outgoing
+                from contracts.agent_debug import trace_sse_outgoing
 
                 trace_sse_outgoing(event_name, payload if isinstance(payload, dict) else {})
                 if event_name == "tool_end" and payload.get("result"):
@@ -301,7 +300,7 @@ async def _sse_from_stream(
             raise
         except Exception as exc:
             if _is_client_disconnect(exc):
-                from platform_mcp.runtime.agent_debug import agent_debug
+                from contracts.agent_debug import agent_debug
 
                 agent_debug(
                     "flow.sse.client_disconnect",
@@ -310,9 +309,8 @@ async def _sse_from_stream(
                 )
                 _clear_thread_orchestration_on_abort(thread_id, reason="client_disconnect")
                 raise
-            from platform_mcp.runtime.agent_debug import agent_debug
-
             from app.services.llm_error_mapper import format_llm_error_event
+            from contracts.agent_debug import agent_debug
 
             agent_debug(
                 "flow.sse.generator_error",
@@ -377,7 +375,7 @@ async def chat_sse(request: Request, body: ChatRequest):
     # 记录用户消息（直达告警查询不写 LangGraph checkpoint，靠此做多轮上下文）
     session_store.append_user_message(body.thread_id, body.message)
 
-    from platform_mcp.runtime.agent_debug import agent_debug, preview_text
+    from contracts.agent_debug import agent_debug, preview_text
 
     agent_debug(
         "flow.api.chat",

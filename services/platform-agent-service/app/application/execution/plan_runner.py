@@ -77,7 +77,7 @@ async def execute_plan_steps(
     tool_invoke_fn = execute_tool_invoke_fn or execute_tool_invoke
     steps = list(plan_steps)
     state = ExecuteState(plan_steps=steps)
-    from platform_mcp.runtime.context import current_thread_id
+    from contracts.context import current_thread_id
 
     effective_thread_id = (thread_id or current_thread_id.get() or "").strip()
 

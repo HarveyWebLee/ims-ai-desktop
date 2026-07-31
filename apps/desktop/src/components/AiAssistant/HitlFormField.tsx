@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { Input, Select } from "antd";
 import type { Rule } from "antd/es/form";
 import dayjs, { type Dayjs } from "dayjs";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import type { HitlField } from "@ims/shared-types";
 import CustomDateTimeRangePicker from "@/components/CustomDatePicker/CustomDateTimeRangePicker";
 import AsyncSelect from "@/components/common/AsyncSelect";

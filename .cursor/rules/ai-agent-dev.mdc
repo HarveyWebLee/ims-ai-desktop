@@ -98,9 +98,10 @@ SSE 建立前的 HTTP 错误仍用上述 envelope；流内 `error` 事件 payloa
 | 桌面端         | `apps/desktop/`                                                       |
 | Platform MCP   | `services/platform-mcp-server/`（端口 **8010**）                      |
 | Agent 后端     | `services/platform-agent-service/`（**Python 3.14.4**，端口 **8008**）|
+| Python 共享契约 | `services/platform-contracts/`（包名 `contracts`）                   |
 | 共享 npm 包    | `packages/`（agent-core / shared-types / desktop-api）                |
 
-Agent / MCP Python 代码 **禁止** 放入 `apps/desktop/`。详见 `docs/architecture/01-system-context.md`。
+Agent / MCP Python 代码 **禁止** 放入 `apps/desktop/`。Agent **禁止** `import platform_mcp`。详见 `docs/architecture/01-system-context.md`、`06-contracts.md`。
 
 ## 桌面端约定
 
@@ -127,7 +128,7 @@ Agent / MCP Python 代码 **禁止** 放入 `apps/desktop/`。详见 `docs/archi
 | ---- | ---- |
 | 桌面端 | `sendMessage` / HITL resume·reject / `abortStream`；Store：`pendingInterrupt`、`streaming`、`planSteps` |
 | 后端 | `stream_chat` / `stream_resume`（`Command(resume)`）；`parent_graph`；checkpointer；`session_store` |
-| 契约 | `packages/shared-types`；Tool 结果字段；SSE 事件语义 |
+| 契约 | `packages/shared-types`；`contracts`（Python）；Tool 结果字段；SSE 事件语义 |
 
 **策略不确定时**：先咨询用户再实现。
 

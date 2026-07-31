@@ -1,22 +1,11 @@
 /**
- * 声纹库管理：用户增删改查 + 录音录入
+ * 声纹库管理面板（配置页）
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Button,
-  Empty,
-  Form,
-  Input,
-  Modal,
-  Popconfirm,
-  Space,
-  Table,
-  Tag,
-  Tooltip,
-  message,
-} from "antd";
+import { Button, Empty, Form, Input, Modal, Popconfirm, Space, Table, Tag, Tooltip } from "antd";
 import { AudioOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
+import { message } from "@/antd/feedback";
 import * as AgentController from "@/services/AgentController";
 import type { VoiceprintProfile } from "@/services/AgentController";
 
@@ -83,15 +72,7 @@ async function recordPcmBlob(durationMs: number): Promise<Blob> {
   return new Blob([merged.buffer], { type: "application/octet-stream" });
 }
 
-export default function VoiceprintManagerModal({
-  open,
-  onClose,
-  onChanged,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onChanged?: () => void;
-}) {
+export default function VoiceprintManagerPanel({ onChanged }: { onChanged?: () => void }) {
   const intl = useIntl();
   const [items, setItems] = useState<VoiceprintProfile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -124,10 +105,9 @@ export default function VoiceprintManagerModal({
     }
   }, [intl]);
 
-  // 仅在弹窗打开时拉一次列表，避免 onChanged 回调导致反复请求
   useEffect(() => {
-    if (open) void refresh();
-  }, [open, refresh]);
+    void refresh();
+  }, [refresh]);
 
   const openCreate = () => {
     setEditing(null);
@@ -213,106 +193,97 @@ export default function VoiceprintManagerModal({
 
   return (
     <>
-      <Modal
-        open={open}
-        title={intl.formatMessage({ id: "aiAssistant.voiceprint.title" })}
-        onCancel={onClose}
-        footer={null}
-        width={720}
-        destroyOnClose
-      >
-        <Space style={{ marginBottom: 12 }}>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            {intl.formatMessage({ id: "aiAssistant.voiceprint.add" })}
-          </Button>
-          <Button onClick={() => void refresh()} loading={loading}>
-            {intl.formatMessage({ id: "aiAssistant.voiceprint.refresh" })}
-          </Button>
-        </Space>
-        <Table
-          rowKey="id"
-          size="small"
-          loading={loading}
-          dataSource={items}
-          locale={{
-            emptyText: (
-              <Empty
-                description={intl.formatMessage({
-                  id: "aiAssistant.voiceprint.empty",
-                })}
-              />
-            ),
-          }}
-          pagination={false}
-          columns={[
-            {
-              title: intl.formatMessage({
-                id: "aiAssistant.voiceprint.name",
-              }),
-              dataIndex: "display_name",
-            },
-            {
-              title: intl.formatMessage({
-                id: "aiAssistant.voiceprint.desc",
-              }),
-              dataIndex: "description",
-              ellipsis: true,
-            },
-            {
-              title: intl.formatMessage({
-                id: "aiAssistant.voiceprint.status",
-              }),
-              width: 120,
-              render: (_, row) =>
-                row.enrolled ? (
-                  <Tag color="success">
-                    {intl.formatMessage(
-                      { id: "aiAssistant.voiceprint.enrolled" },
-                      { count: row.sample_count },
-                    )}
-                  </Tag>
-                ) : (
-                  <Tag>
-                    {intl.formatMessage({
-                      id: "aiAssistant.voiceprint.notEnrolled",
-                    })}
-                  </Tag>
-                ),
-            },
-            {
-              title: intl.formatMessage({
-                id: "aiAssistant.voiceprint.actions",
-              }),
-              width: 180,
-              render: (_, row) => (
-                <Space>
-                  <Tooltip
-                    title={intl.formatMessage({
-                      id: "aiAssistant.voiceprint.enrollTip",
-                    })}
-                  >
-                    <Button
-                      size="small"
-                      icon={<AudioOutlined />}
-                      loading={enrollingId === row.id}
-                      onClick={() => void enroll(row)}
-                    />
-                  </Tooltip>
-                  <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)} />
-                  <Popconfirm
-                    title={intl.formatMessage({
-                      id: "aiAssistant.voiceprint.deleteConfirm",
-                    })}
-                    onConfirm={() => void removeProfile(row.id)}
-                  >
-                    <Button size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
-                </Space>
+      <Space style={{ marginBottom: 12 }}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+          {intl.formatMessage({ id: "aiAssistant.voiceprint.add" })}
+        </Button>
+        <Button onClick={() => void refresh()} loading={loading}>
+          {intl.formatMessage({ id: "aiAssistant.voiceprint.refresh" })}
+        </Button>
+      </Space>
+      <Table
+        rowKey="id"
+        size="small"
+        loading={loading}
+        dataSource={items}
+        locale={{
+          emptyText: (
+            <Empty
+              description={intl.formatMessage({
+                id: "aiAssistant.voiceprint.empty",
+              })}
+            />
+          ),
+        }}
+        pagination={false}
+        columns={[
+          {
+            title: intl.formatMessage({
+              id: "aiAssistant.voiceprint.name",
+            }),
+            dataIndex: "display_name",
+          },
+          {
+            title: intl.formatMessage({
+              id: "aiAssistant.voiceprint.desc",
+            }),
+            dataIndex: "description",
+            ellipsis: true,
+          },
+          {
+            title: intl.formatMessage({
+              id: "aiAssistant.voiceprint.status",
+            }),
+            width: 120,
+            render: (_, row) =>
+              row.enrolled ? (
+                <Tag color="success">
+                  {intl.formatMessage(
+                    { id: "aiAssistant.voiceprint.enrolled" },
+                    { count: row.sample_count },
+                  )}
+                </Tag>
+              ) : (
+                <Tag>
+                  {intl.formatMessage({
+                    id: "aiAssistant.voiceprint.notEnrolled",
+                  })}
+                </Tag>
               ),
-            },
-          ]}
-        />
-      </Modal>
+          },
+          {
+            title: intl.formatMessage({
+              id: "aiAssistant.voiceprint.actions",
+            }),
+            width: 180,
+            render: (_, row) => (
+              <Space>
+                <Tooltip
+                  title={intl.formatMessage({
+                    id: "aiAssistant.voiceprint.enrollTip",
+                  })}
+                >
+                  <Button
+                    size="small"
+                    icon={<AudioOutlined />}
+                    loading={enrollingId === row.id}
+                    onClick={() => void enroll(row)}
+                  />
+                </Tooltip>
+                <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)} />
+                <Popconfirm
+                  title={intl.formatMessage({
+                    id: "aiAssistant.voiceprint.deleteConfirm",
+                  })}
+                  onConfirm={() => void removeProfile(row.id)}
+                >
+                  <Button size="small" danger icon={<DeleteOutlined />} />
+                </Popconfirm>
+              </Space>
+            ),
+          },
+        ]}
+      />
 
       <Modal
         open={editOpen}
@@ -321,7 +292,7 @@ export default function VoiceprintManagerModal({
         })}
         onCancel={() => setEditOpen(false)}
         onOk={() => void saveProfile()}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical">
           <Form.Item

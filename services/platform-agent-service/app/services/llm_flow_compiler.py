@@ -71,7 +71,7 @@ def _load_prompt() -> str:
 
 
 def _tool_list_for_prompt() -> str:
-    from platform_mcp.runtime.tool_catalog_loader import load_tool_catalog
+    from contracts.tool_catalog_loader import load_tool_catalog
 
     lines: list[str] = []
     for tool in load_tool_catalog():
@@ -379,7 +379,7 @@ async def generate_flow_ir(
             "否则输出完整 FlowIr JSON。"
         )
 
-        from platform_mcp.runtime.agent_debug import agent_debug, preview_text
+        from contracts.agent_debug import agent_debug, preview_text
 
         agent_debug(
             "flow.ai.flow_ir.request",

@@ -216,6 +216,29 @@ wheels = [
 ]
 
 [[package]]
+name = "contracts"
+version = "0.1.0"
+source = { editable = "../platform-contracts" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "python-dotenv" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "basedpyright", marker = "extra == 'dev'", specifier = ">=1.28.0" },
+    { name = "httpx", specifier = ">=0.28.0" },
+    { name = "pydantic", specifier = ">=2.10.0" },
+    { name = "pydantic-settings", specifier = ">=2.6.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "cryptography"
 version = "49.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1248,6 +1271,7 @@ name = "platform-agent-service"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "contracts" },
     { name = "fastapi" },
     { name = "fastmcp" },
     { name = "httpx" },
@@ -1257,7 +1281,6 @@ dependencies = [
     { name = "langgraph" },
     { name = "langgraph-checkpoint-postgres" },
     { name = "openpyxl" },
-    { name = "platform-mcp-server" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -1287,6 +1310,7 @@ entity-sync = [
 [package.metadata]
 requires-dist = [
     { name = "basedpyright", marker = "extra == 'dev'", specifier = ">=1.28.0" },
+    { name = "contracts", editable = "../platform-contracts" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "fastmcp", specifier = ">=2.3.0" },
     { name = "httpx", specifier = ">=0.28.0" },
@@ -1298,7 +1322,6 @@ requires-dist = [
     { name = "langgraph", specifier = ">=1.2.7" },
     { name = "langgraph-checkpoint-postgres", specifier = ">=3.1.0" },
     { name = "openpyxl", specifier = ">=3.1.0" },
-    { name = "platform-mcp-server", editable = "../platform-mcp-server" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
@@ -1316,34 +1339,6 @@ requires-dist = [
     { name = "xlrd", specifier = "==1.2.0" },
 ]
 provides-extras = ["dev", "entity-sync"]
-
-[[package]]
-name = "platform-mcp-server"
-version = "0.3.0"
-source = { editable = "../platform-mcp-server" }
-dependencies = [
-    { name = "fastmcp" },
-    { name = "httpx" },
-    { name = "langchain-core" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "python-dotenv" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "basedpyright", marker = "extra == 'dev'", specifier = ">=1.28.0" },
-    { name = "fastmcp", specifier = ">=2.3.0" },
-    { name = "httpx", specifier = ">=0.28.0" },
-    { name = "langchain-core", specifier = ">=0.3.0" },
-    { name = "pydantic", specifier = ">=2.10.0" },
-    { name = "pydantic-settings", specifier = ">=2.6.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "platformdirs"

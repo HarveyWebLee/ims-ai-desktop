@@ -1,17 +1,28 @@
-# 06 — 契约（packages）
+# 06 — 契约（packages + Python contracts）
 
 ## 1. 唯一数据源
 
-| 包                  | 内容                                                                         |
-| ------------------- | ---------------------------------------------------------------------------- |
-| `@ims/agent-core`   | `tool-catalog.ts`、`model-catalog.ts`、路由/设备动作 catalog                 |
-| `@ims/shared-types` | `PlatformToolDefinition`、SSE 事件类型、HITL、Plan、ClientAction、ToolResult |
+| 包 / 工程                                         | 内容                                                                                           |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `@ims/agent-core`                                 | `tool-catalog.ts`、`model-catalog.ts`、路由/设备动作 catalog                                   |
+| `@ims/shared-types`                               | `PlatformToolDefinition`、SSE 事件类型、HITL、Plan、ClientAction、ToolResult                   |
+| `services/platform-contracts`（包名 `contracts`） | Agent / MCP **共享** Python 运行时：HITL、preflight、catalog 读取、平台客户端、告警/设备纯函数 |
 
 禁止在 Python / 前端硬编码工具列表或与 catalog 冲突的 schema。
 
+### 1.1 三包边界（Python）
+
+| 包                                      | 职责                                                   | 依赖约束                                                                                               |
+| --------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `contracts`                             | 共享契约与纯逻辑（无 LangChain / FastMCP / LangGraph） | Agent + MCP 均可依赖；**禁止** `import app` / `import platform_mcp`；**禁止**硬编码兄弟工程路径        |
+| `platform-mcp-server`（`platform_mcp`） | MCP 传输 + `@tool` **执行面**（`runtime/tools`）       | 依赖 `contracts`；启动时 `bind_settings` + `bind_shared_data_dir`；不反向被 Agent import               |
+| `platform-agent-service`（`app`）       | 父图 / SSE / RAG / Gateway                             | 依赖 `contracts`；启动时 `wire_contracts_runtime`；**禁止** `import platform_mcp`；工具只经 MCP Client |
+
+宿主能力（配置单例、共享 data 目录、会话历史、编排调试探针）由 Agent/MCP 经 `contracts.runtime_bind` 注入，不得在 `contracts` 内回指宿主包或写死其他服务工程路径。
+
 ## 2. ToolResult
 
-权威类型：`packages/shared-types` 的 `ToolResult`（与 `platform_mcp.runtime.result.tool_result` 对齐）。
+权威类型：`packages/shared-types` 的 `ToolResult`（与 `contracts.result.tool_result` 对齐）。
 
 ```ts
 interface ToolResult {
@@ -52,7 +63,7 @@ MCP Server 与 Agent 解析统一此结构。
 - Agent：`app/tools/catalog.json`（preflight / prompt）
 - Platform MCP：`platform_mcp/data/catalog.json`（+ navigation / device_action）
 
-工具 **实现** 在 `platform_mcp.runtime`；catalog 只描述「是什么、参数、风险」。
+工具 **实现** 在 `platform_mcp.runtime.tools`；共享逻辑在 `contracts`；catalog 只描述「是什么、参数、风险」。
 
 ## 4.1 HITL（单一路径）
 

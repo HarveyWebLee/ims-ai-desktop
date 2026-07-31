@@ -65,7 +65,7 @@ def _load_llm_plan_prompt() -> str:
 
 def _tool_list_for_prompt() -> str:
     """从 catalog 生成工具清单，注入规划 prompt（防止模型瞎编工具名）。"""
-    from platform_mcp.runtime.tool_catalog_loader import load_tool_catalog
+    from contracts.tool_catalog_loader import load_tool_catalog
 
     lines: list[str] = []
     for tool in load_tool_catalog():
@@ -79,7 +79,7 @@ def _tool_list_for_prompt() -> str:
 
 def _allowed_tool_names() -> frozenset[str]:
     """当前已导出 catalog 中的合法工具名集合。"""
-    from platform_mcp.runtime.tool_catalog_loader import load_tool_catalog
+    from contracts.tool_catalog_loader import load_tool_catalog
 
     return frozenset(str(t["name"]) for t in load_tool_catalog() if t.get("name"))
 
@@ -153,7 +153,7 @@ async def generate_llm_task_plan(
         system = _load_llm_plan_prompt().replace("{{TOOL_LIST}}", _tool_list_for_prompt())
         user_content = f"使用者需求：{msg}\n\n请输出 steps JSON。"
 
-        from platform_mcp.runtime.agent_debug import agent_debug, preview_text, summarize_plan_steps
+        from contracts.agent_debug import agent_debug, preview_text, summarize_plan_steps
 
         agent_debug(
             "flow.ai.llm_plan.request",
@@ -210,9 +210,8 @@ async def resolve_task_plan(
     list[dict] | None
         多步或规则不足时的规则结果（可能仍为单步/空，由上层再判）。
     """
-    from platform_mcp.runtime.agent_debug import agent_debug, summarize_plan_steps
-
     from app.services.task_planner import build_task_plan
+    from contracts.agent_debug import agent_debug, summarize_plan_steps
 
     rule_steps = build_task_plan(message, metadata=metadata)
     if rule_steps and len(rule_steps) >= 2:

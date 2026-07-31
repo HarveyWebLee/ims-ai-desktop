@@ -50,7 +50,7 @@ _BASE_Y = 0
 @lru_cache(maxsize=1)
 def _enabled_tool_names() -> frozenset[str]:
     """读取已启用工具名集合（来自 tool catalog）。"""
-    from platform_mcp.runtime.tool_catalog_loader import load_tool_catalog
+    from contracts.tool_catalog_loader import load_tool_catalog
 
     return frozenset(
         str(tool.get("name") or "")

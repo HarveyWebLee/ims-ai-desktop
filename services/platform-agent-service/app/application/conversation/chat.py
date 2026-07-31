@@ -7,14 +7,14 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from langchain_core.messages import HumanMessage
-from platform_mcp.runtime.context import (
+
+from app.graph.context import assemble_context
+from contracts.context import (
     current_auth_token,
     current_thread_id,
     current_turn_suppressed_tools,
     safe_reset_contextvar,
 )
-
-from app.graph.context import assemble_context
 
 AgentEvent = tuple[str, dict[str, Any]]
 
@@ -49,9 +49,8 @@ async def stream_chat_core(
             recent_user_messages=recent_user_messages,
         )
 
-        from platform_mcp.runtime.agent_debug import agent_debug, orchestration_snapshot
-
         from app.services.session_store import clear_thread_orchestration
+        from contracts.agent_debug import agent_debug, orchestration_snapshot
 
         before = orchestration_snapshot(thread_id)
         clear_thread_orchestration(thread_id)

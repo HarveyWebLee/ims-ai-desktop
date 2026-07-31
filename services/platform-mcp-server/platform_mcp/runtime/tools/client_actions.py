@@ -36,15 +36,15 @@ from __future__ import annotations
 # @tool 装饰器：将普通函数注册为 LangChain 可调用的 Tool
 from langchain_core.tools import tool
 
-from platform_mcp.runtime.hitl import ask_user_params  # 多候选时让用户选择
+from contracts.hitl import ask_user_params  # 多候选时让用户选择
 
 # 导航路由匹配服务：根据用户口语化描述查找平台页面路径
-from platform_mcp.runtime.navigation_routes import (
+from contracts.navigation_routes import (
     format_match_option_label,  # 格式化候选项展示文案
     pick_navigation_path,  # 模糊匹配，返回唯一路径或候选列表
     resolve_navigation_path,  # 纠正/规范化 path（如 groupId 错误）
 )
-from platform_mcp.runtime.result import tool_result  # 统一 JSON 返回格式
+from contracts.result import tool_result  # 统一 JSON 返回格式
 
 
 def _disambiguate_navigation_path(user_query: str, candidates: list) -> str:
@@ -108,7 +108,7 @@ def navigate_to(path: str, query: dict | None = None) -> str:
 
     LLM 应直接调用，禁止先用自然语言追问页面名称。
     """
-    from platform_mcp.runtime.tool_preflight import ensure_tool_args
+    from contracts.tool_preflight import ensure_tool_args
 
     try:
         merged = ensure_tool_args("navigate_to", {"path": path, "query": query or {}})
@@ -223,7 +223,7 @@ def open_device_detail(device_code: str, device_name: str = "") -> str:
     ----
     client_action navigate 到设备管理页，query 带 deviceCode。
     """
-    from platform_mcp.runtime.tool_preflight import ensure_tool_args
+    from contracts.tool_preflight import ensure_tool_args
 
     try:
         merged = ensure_tool_args(

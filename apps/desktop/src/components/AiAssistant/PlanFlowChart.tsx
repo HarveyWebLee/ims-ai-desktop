@@ -10,7 +10,7 @@ import {
   PauseCircleFilled,
 } from "@ant-design/icons";
 import { Tag, Tooltip, Typography } from "antd";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import type { PlanGraph, PlanStep, PlanStepStatus } from "@ims/shared-types";
 import { getToolLabelKey } from "./chatCardUtils";
 import {
@@ -178,7 +178,7 @@ export default function PlanFlowChart({
               </Text>
               {showStatusText ? (
                 <Tag
-                  bordered={false}
+                  variant="filled"
                   className={`${styles.planFlowTimelineStatusTag} ${styles[`planFlowStatusTag_${status}`]}`}
                 >
                   {statusLabel}
@@ -240,7 +240,7 @@ export default function PlanFlowChart({
               <span className={styles.planFlowNodeStatus}>{statusLabel}</span>
             ) : null}
             {showToolTag && step?.tool ? (
-              <Tag className={styles.planFlowToolTag} bordered={false}>
+              <Tag className={styles.planFlowToolTag} variant="filled">
                 {toolDisplayLabel}
               </Tag>
             ) : null}

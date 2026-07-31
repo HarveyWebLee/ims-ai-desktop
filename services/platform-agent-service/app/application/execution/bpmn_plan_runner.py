@@ -56,7 +56,7 @@ async def execute_bpmn_plan(
     - 正常结束清除 execution_state
     """
 
-    from platform_mcp.runtime.context import current_thread_id
+    from contracts.context import current_thread_id
 
     effective_thread_id = (thread_id or current_thread_id.get() or "").strip()
     graph = build_execution_graph(flow_document)
@@ -112,10 +112,9 @@ async def execute_bpmn_plan(
                 )
 
         if event[0] == "interrupt":
-            from platform_mcp.runtime.agent_debug import agent_debug
-
             from app.services.bpmn_execution_state import set_bpmn_execution_state
             from app.services.bpmn_observability import record_hitl_lifecycle
+            from contracts.agent_debug import agent_debug
 
             payload = event[1] if isinstance(event[1], dict) else {}
             paused_node_id = _resolve_paused_node_id(ctx)

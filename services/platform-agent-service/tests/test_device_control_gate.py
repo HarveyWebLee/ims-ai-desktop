@@ -90,9 +90,7 @@ class TestPrepareDeviceControlHitlGate:
 
     def test_complete_resolution_skips_gate(self):
         ctx = AgentContext(thread_id="t1", message="开门", llm_user_message="开门")
-        with patch(
-            "platform_mcp.runtime.device_command_resolver.resolve_device_command"
-        ) as mock_resolve:
+        with patch("contracts.device_command_resolver.resolve_device_command") as mock_resolve:
             mock_resolve.return_value.is_complete.return_value = True
             mock_resolve.return_value.interrupt = None
             mock_resolve.return_value.to_tool_args.return_value = {

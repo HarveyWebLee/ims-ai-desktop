@@ -23,9 +23,8 @@ class CatalogRequiredPermissionsPolicy:
     """
 
     def authorize(self, request: ToolExecutionRequest) -> ToolAuthorizationDecision:
-        from platform_mcp.runtime.tool_catalog_loader import get_tool_manifest
-
         from app.config import settings
+        from contracts.tool_catalog_loader import get_tool_manifest
 
         manifest = get_tool_manifest(request.tool_name)
         required = _as_str_list((manifest or {}).get("required_permissions"))

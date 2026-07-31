@@ -155,7 +155,7 @@ async def resume_sse(request: Request, body: ResumeRequest):
         # 未知 type：整模型转 dict 传给 graph，便于扩展新 HITL 类型
         resume_value = decision.model_dump()
 
-    from platform_mcp.runtime.agent_debug import agent_debug
+    from contracts.agent_debug import agent_debug
 
     agent_debug(
         "flow.api.resume",

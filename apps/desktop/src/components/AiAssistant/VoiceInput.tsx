@@ -3,9 +3,10 @@
  * 停止后终稿走多级纠错；录音中用 Analyser 驱动话筒音量闪烁。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, Tooltip, message } from "antd";
+import { Button, Tooltip } from "antd";
+import { message } from "@/antd/feedback";
 import { AudioFilled, AudioOutlined, LoadingOutlined } from "@ant-design/icons";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import {
   transcribeAudio,
   transcribeStreamChunk,

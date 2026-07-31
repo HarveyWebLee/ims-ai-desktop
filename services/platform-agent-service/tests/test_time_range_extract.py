@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from platform_mcp.runtime.time_range import (
+from app.services.plan_confirm import infer_plan_params
+from contracts.time_range import (
     enrich_alarm_time_args,
     extract_alarm_time_range_from_message,
     extract_time_phrase,
 )
-from platform_mcp.runtime.tool_preflight import preflight_tool
-
-from app.services.plan_confirm import infer_plan_params
+from contracts.tool_preflight import preflight_tool
 
 
 class TestExtractAlarmTimeRangeFromMessage:
@@ -88,9 +87,8 @@ class TestInferPlanParamsAbsoluteTime:
 
 class TestPreflightEnrichFromUserMessage:
     def test_preflight_fills_empty_args_from_session_message(self):
-        from platform_mcp.runtime.context import current_thread_id
-
         from app.services.session_store import session_store
+        from contracts.context import current_thread_id
 
         tid = "thread-enrich-test"
         token = current_thread_id.set(tid)

@@ -6,7 +6,6 @@ import json
 from unittest.mock import patch
 
 import pytest
-from platform_mcp.runtime.context import current_auth_token
 
 from app.application.execution import (
     ExecuteState,
@@ -22,6 +21,7 @@ from app.services.retry_policy import (
     observe_tool_end,
 )
 from app.services.task_planner import parse_tool_result
+from contracts.context import current_auth_token
 
 
 class TestParseToolResult:
@@ -278,10 +278,10 @@ class TestHitlConfirmBypass:
     @pytest.mark.asyncio
     async def test_bypass_propagates_via_explicit_param(self):
         """hitl_confirm_bypass=True 时工具 invoke 不应再抛 confirm。"""
-        from platform_mcp.runtime.hitl import McpHitlSignal
+        from contracts.hitl import McpHitlSignal
 
         async def fake_invoke(tool_name: str, args: dict) -> str:
-            from platform_mcp.runtime.context import current_hitl_confirm_bypass
+            from contracts.context import current_hitl_confirm_bypass
 
             if not current_hitl_confirm_bypass.get():
                 raise McpHitlSignal({"type": "confirm", "tool": tool_name, "message": "需要确认"})
@@ -291,8 +291,8 @@ class TestHitlConfirmBypass:
             "app.services.agent_tool_retry.invoke_tool_async",
             side_effect=fake_invoke,
         ):
-            with patch("platform_mcp.runtime.tool_preflight.preflight_tool") as mock_preflight:
-                from platform_mcp.runtime.tool_preflight import PreflightResult
+            with patch("contracts.tool_preflight.preflight_tool") as mock_preflight:
+                from contracts.tool_preflight import PreflightResult
 
                 mock_preflight.return_value = PreflightResult(
                     args={"resource": "alarm_report"},

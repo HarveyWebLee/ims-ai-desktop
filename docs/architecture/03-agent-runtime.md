@@ -47,6 +47,14 @@ START → classify
 ```
 
 **禁止**：直绑业务 `@tool` 实现；Platform MCP 不可达时不回退本机工具。
+**禁止**：Agent 生产代码 / 测试 `import platform_mcp`（含 `from platform_mcp...`）；共享 HITL / preflight / catalog / 平台客户端走 `contracts`。
+
+## 3.1 与 contracts 边界
+
+| 包                           | Agent 可否依赖      | 内容                                                                     |
+| ---------------------------- | ------------------- | ------------------------------------------------------------------------ |
+| `contracts`                  | 是（path editable） | context / hitl / preflight / catalog / platform_client / 告警·设备纯函数 |
+| `platform_mcp`（MCP Server） | **否**              | 仅 MCP 进程内 `@tool` 执行面                                             |
 
 ## 4. 流式与持久化
 

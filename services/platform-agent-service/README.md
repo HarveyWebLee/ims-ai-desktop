@@ -2,10 +2,13 @@
 
 综合信息平台 **AI Agent 后端服务**，基于 **Python 3.14.4 + FastAPI + LangGraph**。
 
+共享运行时契约依赖同仓 **`services/platform-contracts`**（Python 包名 `contracts`）。工具执行面在 Platform MCP；本进程 **禁止** `import platform_mcp`。
+
 ## 快速启动
 
 ```bash
 # 安装依赖（推荐 uv；含开发工具：ruff / basedpyright / pytest）
+# 会以 editable 方式安装 ../platform-contracts
 uv sync --extra dev
 # 或 pip install -e ".[dev]"
 

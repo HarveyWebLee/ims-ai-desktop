@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-from platform_mcp.runtime.time_range import resolve_alarm_time_range
-from platform_mcp.runtime.tools.alarm import _resolve_or_prepare_alarm_times
+from contracts.alarm_params import resolve_or_prepare_alarm_times
+from contracts.time_range import resolve_alarm_time_range
 
 
 class TestResolveOrPrepareAlarmTimes:
     def test_empty_time_requires_hitl(self):
         """未提供时间范围时必须走 HITL，禁止默认近 7 天"""
-        start, end, needs_hitl = _resolve_or_prepare_alarm_times("", "")
+        start, end, needs_hitl = resolve_or_prepare_alarm_times("", "")
         assert needs_hitl is True
         assert start == ""
         assert end == ""
 
     def test_relative_time_parsed(self):
-        start, end, needs_hitl = _resolve_or_prepare_alarm_times("近三天", "")
+        start, end, needs_hitl = resolve_or_prepare_alarm_times("近三天", "")
         assert needs_hitl is False
         assert start
         assert end
@@ -24,7 +24,7 @@ class TestResolveOrPrepareAlarmTimes:
         """「近半年」应解析为约 6 个自然月，而非近一个月"""
         resolved = resolve_alarm_time_range("近半年", "")
         assert resolved is not None
-        start, end, needs_hitl = _resolve_or_prepare_alarm_times("近半年", "")
+        start, end, needs_hitl = resolve_or_prepare_alarm_times("近半年", "")
         assert needs_hitl is False
         assert start == resolved[0]
         assert end == resolved[1]
@@ -32,7 +32,7 @@ class TestResolveOrPrepareAlarmTimes:
         assert start[:10] < end[:10]
 
     def test_unparseable_time_requires_hitl(self):
-        start, end, needs_hitl = _resolve_or_prepare_alarm_times("abc123", "")
+        start, end, needs_hitl = resolve_or_prepare_alarm_times("abc123", "")
         assert needs_hitl is True
         assert start == "abc123"
         assert end == ""
@@ -46,5 +46,5 @@ class TestResolveOrPrepareAlarmTimes:
         assert resolved[0] == start
         assert resolved[1] == end
 
-        _, _, needs_hitl = _resolve_or_prepare_alarm_times(start, end)
+        _, _, needs_hitl = resolve_or_prepare_alarm_times(start, end)
         assert needs_hitl is False

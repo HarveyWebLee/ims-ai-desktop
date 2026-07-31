@@ -24,7 +24,7 @@ def _resolve_thread_id(thread_id: str | None) -> str:
     if tid:
         return tid
     try:
-        from platform_mcp.runtime.context import current_thread_id
+        from contracts.context import current_thread_id
 
         return str(current_thread_id.get() or "").strip()
     except Exception:
@@ -36,9 +36,8 @@ def _resolve_user_id(user_id: str | None) -> str:
     if uid:
         return uid
     try:
-        from platform_mcp.runtime.context import current_auth_token
-
         from app.middleware.auth import resolve_user_id_from_token
+        from contracts.context import current_auth_token
 
         token = current_auth_token.get()
         if token:

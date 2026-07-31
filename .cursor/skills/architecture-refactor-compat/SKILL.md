@@ -15,10 +15,10 @@ description: >-
 
 ## 2) 手法
 
-1. 内聚迁移到目标模块（注意 `services/` 与 `apps/desktop` 边界）
-2. 更新全部 import / 脚本路径
+1. 内聚迁移到目标模块（注意 `services/` 与 `apps/desktop` 边界；共享逻辑进 `platform-contracts`/`contracts`，工具 handler 留 MCP `runtime/tools`）
+2. 更新全部 import / 脚本路径（Agent **不得**再 `import platform_mcp`）
 3. 可选：旧入口仅转发并标注 deprecate
-4. 确认无引用后再删除
+4. 确认无引用后再删除；守卫测试：`tests/test_no_platform_mcp_import.py`
 
 ## 3) 必测
 

@@ -47,7 +47,7 @@ def prepare_device_control_hitl_gate(
     - 通用「下发指令」：action 留空，HITL 选设备 + 变量/写入值
     - 三要素已齐时返回 None，交由 ReAct 正常下发
     """
-    from platform_mcp.runtime.device_command_resolver import resolve_device_command
+    from contracts.device_command_resolver import resolve_device_command
 
     message = (ctx.message or "").strip()
     action = parse_device_control_action(message)

@@ -1,0 +1,184 @@
+/**
+ * 左侧历史会话侧栏
+ */
+import { useEffect } from "react";
+import { DeleteOutlined, MenuFoldOutlined, PlusOutlined } from "@ant-design/icons";
+import { Button, Empty, Layout, Popconfirm, Space, Tooltip, Typography } from "antd";
+import { message } from "@/antd/feedback";
+import { useIntl } from "react-intl";
+import dayjs from "dayjs";
+import * as AgentController from "@/services/AgentController";
+import { useAiAssistantStore } from "./store";
+import { useAgentStream } from "./hooks/useAgentStream";
+import styles from "./index.module.less";
+
+const { Sider } = Layout;
+const { Text } = Typography;
+
+function formatSessionTime(iso?: string): string {
+  if (!iso) return "";
+  const d = dayjs(iso);
+  if (!d.isValid()) return "";
+  const now = dayjs();
+  if (now.diff(d, "day") < 1) {
+    return d.format("HH:mm");
+  }
+  if (now.diff(d, "day") < 7) {
+    return d.format("ddd HH:mm");
+  }
+  return d.format("MM-DD HH:mm");
+}
+
+export default function SessionSidebar({
+  collapsed,
+  onCollapse,
+}: {
+  collapsed: boolean;
+  onCollapse: (collapsed: boolean) => void;
+}) {
+  const intl = useIntl();
+  const { sessions, currentThreadId, switchSession, createNewSession, setMessages, setSessions } =
+    useAiAssistantStore();
+  const { loadSessions, loadThreadHistory } = useAgentStream();
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
+  const handleSwitch = (threadId: string) => {
+    if (threadId === currentThreadId) return;
+    switchSession(threadId);
+    void loadThreadHistory(threadId);
+  };
+
+  const handleDelete = async (threadId: string) => {
+    try {
+      await AgentController.deleteSession(threadId);
+      const nextSessions = sessions.filter((s) => s.thread_id !== threadId);
+      setSessions(nextSessions);
+
+      if (threadId === currentThreadId) {
+        if (nextSessions.length > 0) {
+          const nextId = nextSessions[0].thread_id;
+          switchSession(nextId);
+          await loadThreadHistory(nextId);
+        } else {
+          createNewSession();
+          setMessages([]);
+        }
+      }
+      message.success(intl.formatMessage({ id: "aiAssistant.session.deleted" }));
+    } catch (err) {
+      message.error(
+        err instanceof Error
+          ? err.message
+          : intl.formatMessage({ id: "aiAssistant.session.deleteFailed" }),
+      );
+    }
+  };
+
+  return (
+    <Sider
+      className={styles.sessionSider}
+      width={268}
+      collapsedWidth={0}
+      collapsible
+      collapsed={collapsed}
+      onCollapse={onCollapse}
+      trigger={null}
+      theme="light"
+    >
+      <div className={styles.sessionSiderInner}>
+        <div className={styles.sessionSiderHeader}>
+          <Text strong className={styles.sessionSiderTitle}>
+            {intl.formatMessage({ id: "aiAssistant.session.historyTitle" })}
+          </Text>
+          <Space size={4}>
+            <Tooltip title={intl.formatMessage({ id: "aiAssistant.session.collapseSidebar" })}>
+              <Button
+                type="text"
+                size="small"
+                className={styles.sessionSiderIconBtn}
+                icon={<MenuFoldOutlined />}
+                onClick={() => onCollapse(true)}
+                aria-label={intl.formatMessage({ id: "aiAssistant.session.collapseSidebar" })}
+              />
+            </Tooltip>
+          </Space>
+        </div>
+
+        <div className={styles.sessionSiderActions}>
+          <Button type="primary" block icon={<PlusOutlined />} onClick={() => createNewSession()}>
+            {intl.formatMessage({ id: "aiAssistant.newChat" })}
+          </Button>
+        </div>
+
+        <div className={styles.sessionSiderList}>
+          {sessions.length === 0 ? (
+            <div className={styles.sessionSiderEmpty}>
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <span className={styles.sessionSiderEmptyDesc}>
+                    {intl.formatMessage({ id: "aiAssistant.noSessions" })}
+                    <br />
+                    <Text type="secondary" className={styles.sessionSiderEmptyHint}>
+                      {intl.formatMessage({ id: "aiAssistant.session.emptyHint" })}
+                    </Text>
+                  </span>
+                }
+              />
+            </div>
+          ) : (
+            <ul className={styles.sessionDrawerList}>
+              {sessions.map((item) => {
+                const active = item.thread_id === currentThreadId;
+                return (
+                  <li
+                    key={item.thread_id}
+                    className={active ? styles.sessionDrawerItemActive : styles.sessionDrawerItem}
+                  >
+                    <button
+                      type="button"
+                      className={styles.sessionDrawerItemMain}
+                      onClick={() => handleSwitch(item.thread_id)}
+                    >
+                      <Text ellipsis className={styles.sessionDrawerTitle}>
+                        {item.title}
+                      </Text>
+                      <Text type="secondary" className={styles.sessionDrawerTime}>
+                        {formatSessionTime(item.updated_at)}
+                      </Text>
+                    </button>
+                    <Popconfirm
+                      title={intl.formatMessage({
+                        id: "aiAssistant.session.deleteConfirm",
+                      })}
+                      okText={intl.formatMessage({ id: "aiAssistant.session.deleteOk" })}
+                      cancelText={intl.formatMessage({
+                        id: "aiAssistant.session.deleteCancel",
+                      })}
+                      onConfirm={() => void handleDelete(item.thread_id)}
+                    >
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        className={styles.sessionDrawerDelete}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={intl.formatMessage({
+                          id: "aiAssistant.session.deleteAria",
+                        })}
+                      />
+                    </Popconfirm>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </Sider>
+  );
+}

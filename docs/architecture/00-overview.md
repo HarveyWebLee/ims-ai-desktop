@@ -61,18 +61,18 @@
 
 ## 6. 技术选型（固定）
 
-| 层                | 选型                                                                    |
-| ----------------- | ----------------------------------------------------------------------- |
-| Platform MCP      | Python `mcp` + Streamable HTTP（FastMCP）；**无 langgraph**             |
-| Agent Client      | `langchain-mcp-adapters` → `MultiServerMCPClient`                       |
-| Agent 图          | 父 `StateGraph` + 节点内 `create_agent`                                 |
-| HITL              | `interrupt()` + `Command(resume=...)` + checkpointer                    |
-| 流                | `astream_events(version="v3")`                                          |
-| 对话 API          | FastAPI SSE，端口 **8008**                                              |
-| Platform MCP 进程 | 端口 **8010**，路径 `/mcp`                                              |
-| Checkpointer      | `AsyncPostgresSaver`                                                    |
-| 向量库            | Qdrant，宿主机 REST `http://127.0.0.1:16333`                            |
-| Embedding         | DashScope，维度 **1024**                                                |
-| 契约源            | `packages/agent-core`、`packages/shared-types`                          |
-| 桌面端            | `apps/desktop`（Electron）                                              |
-| 平台业务库        | 达梦；智能化侧 **仅 SELECT**（见 [`09`](./09-platform-db-readonly.md)） |
+| 层                | 选型                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| Platform MCP      | Python `mcp` + Streamable HTTP（FastMCP）；**无 langgraph**                                                   |
+| Agent Client      | `langchain-mcp-adapters` → `MultiServerMCPClient`                                                             |
+| Agent 图          | 父 `StateGraph` + 节点内 `create_agent`                                                                       |
+| HITL              | `interrupt()` + `Command(resume=...)` + checkpointer                                                          |
+| 流                | `astream_events(version="v3")`                                                                                |
+| 对话 API          | FastAPI SSE，端口 **8008**                                                                                    |
+| Platform MCP 进程 | 端口 **8010**，路径 `/mcp`                                                                                    |
+| Checkpointer      | `AsyncPostgresSaver`                                                                                          |
+| 向量库            | Qdrant，宿主机 REST `http://127.0.0.1:16333`                                                                  |
+| Embedding         | DashScope，维度 **1024**                                                                                      |
+| 契约源            | TS：`packages/agent-core`、`packages/shared-types`；Python：`services/platform-contracts`（包名 `contracts`） |
+| 桌面端            | `apps/desktop`（Electron）                                                                                    |
+| 平台业务库        | 达梦；智能化侧 **仅 SELECT**（见 [`09`](./09-platform-db-readonly.md)）                                       |

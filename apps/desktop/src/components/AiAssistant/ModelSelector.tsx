@@ -4,7 +4,7 @@
  */
 import { Select } from "antd";
 import { CaretDownOutlined, RobotOutlined } from "@ant-design/icons";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import { AGENT_MODEL_CATALOG, DEFAULT_AGENT_MODEL_ID } from "@ims/agent-core/model-catalog";
 import type { AgentModelId } from "@ims/shared-types";
 import { useAiAssistantStore } from "./store";

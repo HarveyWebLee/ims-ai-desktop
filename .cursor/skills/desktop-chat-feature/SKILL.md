@@ -24,6 +24,7 @@ description: >-
 - 状态：`streaming` / `pendingInterrupt` / `planSteps` 必须成对清理
 - 登录 token：`@ims/desktop-api`；失效回登录页
 - i18n：`locales/ai_assistant` 中英文同步
+- UI：遵守 `.cursor/rules/desktop-ui-antd.mdc`（主题 Token、`App.useApp` / `@/antd/feedback`）
 - M1：Plan 仅步骤条；不引入 BPMN 画布
 - `client_action` navigate 等：跳过 + 用户可读提示
 

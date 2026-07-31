@@ -184,7 +184,7 @@ def extract_condition_field_name(left: str) -> str | None:
 
 
 def _allowed_tool_names() -> frozenset[str]:
-    from platform_mcp.runtime.tool_catalog_loader import load_tool_catalog
+    from contracts.tool_catalog_loader import load_tool_catalog
 
     return frozenset(str(t["name"]) for t in load_tool_catalog() if t.get("name"))
 

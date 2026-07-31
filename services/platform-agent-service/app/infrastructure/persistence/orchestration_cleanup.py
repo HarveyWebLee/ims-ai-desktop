@@ -7,7 +7,7 @@ from app.infrastructure.persistence.bpmn_repository import clear_thread_bpmn_sna
 
 def clear_thread_orchestration(thread_id: str) -> None:
     """清除本线程编排暂存（BPMN 快照与 bpmn_execution_state）。"""
-    from platform_mcp.runtime.agent_debug import agent_debug, orchestration_snapshot
+    from contracts.agent_debug import agent_debug, orchestration_snapshot
 
     before = orchestration_snapshot(thread_id)
     clear_thread_bpmn_snapshot(thread_id)

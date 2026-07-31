@@ -26,18 +26,17 @@ async def stream_parent_graph(
 
     支持初始 state dict 与 ``Command(resume=...)`` 续跑。
     """
-    from platform_mcp.runtime.agent_debug import agent_debug
-    from platform_mcp.runtime.context import (
+    from app.graph.agent_stream_adapter import iter_agent_sse_events_async
+    from app.graph.checkpoint_utils import checkpoint_message_count
+    from app.graph.parent_graph import build_parent_graph
+    from contracts.agent_debug import agent_debug
+    from contracts.context import (
         current_auth_token,
         current_model_id,
         current_stream_message_skip,
         current_thread_id,
         safe_reset_contextvar,
     )
-
-    from app.graph.agent_stream_adapter import iter_agent_sse_events_async
-    from app.graph.checkpoint_utils import checkpoint_message_count
-    from app.graph.parent_graph import build_parent_graph
 
     config = thread_runnable_config(thread_id)
     graph = build_parent_graph(model_id=model_id)

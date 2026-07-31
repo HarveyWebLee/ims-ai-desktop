@@ -23,7 +23,8 @@ ims-ai-desktop/
 │   ├── shared-types/
 │   └── desktop-api/
 ├── services/
-│   ├── platform-mcp-server/           # :8010
+│   ├── platform-contracts/            # 目录；Python 包名 contracts
+│   ├── platform-mcp-server/           # :8010 执行面
 │   └── platform-agent-service/        # :8008
 ├── apps/
 │   └── desktop/                       # Electron
@@ -35,17 +36,19 @@ ims-ai-desktop/
 
 ## 子工程职责
 
-| 工程                               | 技术栈                              | 端口     | 职责                         |
-| ---------------------------------- | ----------------------------------- | -------- | ---------------------------- |
-| `packages/`                        | TypeScript                          | —        | catalog / 协议 / desktop-api |
-| `services/platform-mcp-server/`    | Python + MCP                        | **8010** | 平台工具执行面               |
-| `services/platform-agent-service/` | FastAPI + StateGraph + create_agent | **8008** | SSE、父图、RAG、Gateway      |
-| `apps/desktop/`                    | Electron + React                    | 渲染进程 | 登录、对话、HITL、Plan       |
+| 工程                               | 技术栈                              | 端口     | 职责                           |
+| ---------------------------------- | ----------------------------------- | -------- | ------------------------------ |
+| `packages/`                        | TypeScript                          | —        | catalog / 协议 / desktop-api   |
+| `services/platform-contracts/`     | Python                              | —        | 共享契约（import `contracts`） |
+| `services/platform-mcp-server/`    | Python + MCP                        | **8010** | 平台工具执行面                 |
+| `services/platform-agent-service/` | FastAPI + StateGraph + create_agent | **8008** | SSE、父图、RAG、Gateway        |
+| `apps/desktop/`                    | Electron + React 19 + antd 6        | 渲染进程 | 登录、对话、HITL、Plan         |
 
 **约束**：
 
 - Agent / MCP Python 代码不得放入 `apps/desktop/`
 - 图内工具只来自 `MultiServerMCPClient.get_tools()` + 本地 `retrieve_knowledge`
+- Agent **禁止** `import platform_mcp`；共享逻辑走 `contracts`
 - M1 不引入 BPMN 编排 UI
 - 包管理：根目录 **pnpm**
 
@@ -65,8 +68,11 @@ bash scripts/all.sh
 关键环境变量：
 
 ```bash
-PLATFORM_MCP_URL=http://127.0.0.1:8010/mcp
+# 仓根 .env.shared（跨端）
 PLATFORM_API_BASE=http://192.168.x.x:18001/api/app
+
+# Agent / MCP / 桌面各自 .env 另有专有项，见 .env.example
+PLATFORM_MCP_URL=http://127.0.0.1:8010/mcp
 AGENT_SERVICE_URL=http://127.0.0.1:8008
 QDRANT_URL=http://127.0.0.1:16333
 REDIS_URL=redis://127.0.0.1:13386/0
@@ -81,11 +87,11 @@ DEEPSEEK_API_KEY=...
 ## 代码质量
 
 ```bash
-pnpm format   # 文档 + 桌面 + Agent fix + MCP fix
-pnpm check    # 文档 + 桌面 + Agent all + MCP all
+pnpm format   # 文档 + 桌面 + contracts fix + Agent fix + MCP fix
+pnpm check    # 文档 + 桌面 + contracts all + Agent all + MCP all
 ```
 
-提交：`.husky/pre-commit` 先 `format` 再 `check`。IDE：`.vscode/`（扩展 / settings / tasks）。分服务入口：`uv run check`、`uv run mcp-check`。详见 [`08-dev-guide.md`](docs/architecture/08-dev-guide.md) §6–7。
+提交：`.husky/pre-commit` 先 `format` 再 `check`。IDE：`.vscode/`（扩展 / settings / tasks）。分服务入口：`uv run check`（contracts / Agent）、`uv run mcp-check`。详见 [`08-dev-guide.md`](docs/architecture/08-dev-guide.md) §6–7。
 
 ---
 
@@ -119,10 +125,11 @@ pnpm check    # 文档 + 桌面 + Agent all + MCP all
 1. LangChain / LangGraph：动手前用 MCP `docs-langchain` 核对 API（[`.cursor/rules/langchain-langgraph-docs-first.mdc`](.cursor/rules/langchain-langgraph-docs-first.mdc)）
 2. 架构基准：`docs/architecture/`（`00` / `02` / `03` / `06`）
 3. i18n：`aiAssistant.*`（`apps/desktop/src/locales/`）
-4. JSON：`{ code, data, message }`，`code === 0` 成功
-5. 工具：只经 Platform MCP；catalog 唯一说明书
-6. 对称路径：改一条须同步 chat / resume / reject / 新会话
-7. 平台达梦只读：仅 `SELECT`；业务写走平台 API（[`09-platform-db-readonly.md`](docs/architecture/09-platform-db-readonly.md)）
+4. 桌面 UI：React 19 + antd 6；主题/反馈见 [`.cursor/rules/desktop-ui-antd.mdc`](.cursor/rules/desktop-ui-antd.mdc)
+5. JSON：`{ code, data, message }`，`code === 0` 成功
+6. 工具：只经 Platform MCP；catalog 唯一说明书
+7. 对称路径：改一条须同步 chat / resume / reject / 新会话
+8. 平台达梦只读：仅 `SELECT`；业务写走平台 API（[`09-platform-db-readonly.md`](docs/architecture/09-platform-db-readonly.md)）
 
 详细：[`.cursor/rules/ai-agent-dev.mdc`](.cursor/rules/ai-agent-dev.mdc)。
 
@@ -130,12 +137,12 @@ pnpm check    # 文档 + 桌面 + Agent all + MCP all
 
 ## Cursor 辅助
 
-| 类型   | 路径                                                                 |
-| ------ | -------------------------------------------------------------------- |
-| Rules  | `.cursor/rules/`                                                     |
-| Skills | `.cursor/skills/`                                                    |
-| Hooks  | `.cursor/hooks.json` + `.cursor/hooks/`                              |
-| MCP    | `.cursor/mcp.json`（[`.cursor/MCP_USAGE.md`](.cursor/MCP_USAGE.md)） |
+| 类型   | 路径                                                                                    |
+| ------ | --------------------------------------------------------------------------------------- |
+| Rules  | `.cursor/rules/`（含 `desktop-ui-antd` / `desktop-electron`）                           |
+| Skills | `.cursor/skills/`                                                                       |
+| Hooks  | `.cursor/hooks.json` + `.cursor/hooks/`                                                 |
+| MCP    | `.cursor/mcp.json`（含 `antd`、`docs-langchain`；见 [MCP_USAGE](.cursor/MCP_USAGE.md)） |
 
 ---
 

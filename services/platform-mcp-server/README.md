@@ -4,9 +4,12 @@
 
 要求：**Python 3.14.4**（与 Agent 对齐）。
 
+**边界**：本进程仅 `platform_mcp.runtime.tools` 执行面；HITL / preflight / catalog / 平台客户端等共享逻辑在邻仓 [`../platform-contracts`](../platform-contracts)（import `contracts`）。
+
 ## 启动
 
 ```bash
+# editable 安装 ../platform-contracts
 uv sync --extra dev
 uv run mcp
 # 等价：uv run platform-mcp
@@ -15,6 +18,8 @@ uv run mcp
 ```
 
 联调也可从仓库根：`bash scripts/mcp.sh`。
+
+工具单测：`uv run pytest tests`（告警/设备/导出等 handler 测试在本仓 `tests/`）。
 
 ## 代码质量
 

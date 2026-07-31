@@ -65,7 +65,7 @@ def format_registered_tools_bindings() -> str:
 
     数据来源: app/tools/catalog.json（export 自 tool-catalog.ts）。
     """
-    from platform_mcp.runtime.tool_catalog_loader import (
+    from contracts.tool_catalog_loader import (
         format_registered_tools_bindings as _from_catalog,
     )
 
@@ -84,7 +84,7 @@ def format_alarm_api_compact() -> str:
         Markdown 摘要块；无数据时返回空字符串
     """
     # 延迟导入：仅在需要时才加载 platform_api_catalog，减少模块启动开销
-    from platform_mcp.runtime.platform_api_catalog import format_api_for_prompt, list_apis_by_tag
+    from contracts.platform_api_catalog import format_api_for_prompt, list_apis_by_tag
 
     # 优先精确 path，避免 tag 下列出过多无关接口
     preferred_paths = (
@@ -92,7 +92,7 @@ def format_alarm_api_compact() -> str:
         ("/alarm/exportAlarm", "GET"),
         ("/alarm/confirmAlarm", "POST"),
     )
-    from platform_mcp.runtime.platform_api_catalog import get_api
+    from contracts.platform_api_catalog import get_api
 
     apis: list[dict[str, Any]] = []  # 类型注解：元素为 dict 的列表
     for path, method in preferred_paths:
@@ -406,11 +406,11 @@ def build_system_prompt(
     返回:
         拼接后的 system prompt 全文
     """
-    from platform_mcp.runtime.navigation_routes import (
+    from contracts.navigation_routes import (
         format_navigation_hints_for_prompt,
         get_navigation_rules_for_prompt,
     )
-    from platform_mcp.runtime.time_range import format_reference_hint
+    from contracts.time_range import format_reference_hint
 
     base = _read_prompt_file("system.md", "你是综合信息平台智能助手。")
     intent = _read_prompt_file("intent_and_tools.md", "")
@@ -461,8 +461,8 @@ def build_chat_direct_system_prompt() -> str:
     不含工具绑定与 intent_and_tools，避免模型误触发 tool call。
     仍注入当前时间与常用路由，便于回答「你能做什么」类问题。
     """
-    from platform_mcp.runtime.navigation_routes import format_navigation_hints_for_prompt
-    from platform_mcp.runtime.time_range import format_reference_hint
+    from contracts.navigation_routes import format_navigation_hints_for_prompt
+    from contracts.time_range import format_reference_hint
 
     base = _read_prompt_file("chat_direct.md", "你是综合信息平台智能助手。")
     now_hint = format_reference_hint()

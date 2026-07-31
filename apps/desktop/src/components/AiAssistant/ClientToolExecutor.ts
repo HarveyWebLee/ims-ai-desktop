@@ -2,9 +2,9 @@
  * Client Tool 执行器（桌面端）
  * navigate / 告警详情等平台动作 skip，后续由 Agent WS 推送 App
  */
-import { message } from "antd";
 import type { ClientAction } from "@ims/shared-types";
 import qs from "qs";
+import { message } from "@/antd/feedback";
 import { requestTo } from "@/utils";
 import { download } from "@/utils/tools";
 import { dispatchAlarmDataChanged } from "./utils/alarmDataSync";

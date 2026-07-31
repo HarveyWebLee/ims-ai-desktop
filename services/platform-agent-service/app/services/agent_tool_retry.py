@@ -61,7 +61,8 @@ async def invoke_tool_async(tool_name: str, args: dict[str, Any] | None) -> str:
         return raw if isinstance(raw, str) else str(raw)
     except Exception as exc:
         from langgraph.errors import GraphInterrupt
-        from platform_mcp.runtime.hitl import McpHitlSignal
+
+        from contracts.hitl import McpHitlSignal
 
         if isinstance(exc, (GraphInterrupt, McpHitlSignal)):
             raise
@@ -78,7 +79,8 @@ def invoke_tool_sync(tool_name: str, args: dict[str, Any] | None) -> str:
         return tool.invoke(args or {})
     except Exception as exc:
         from langgraph.errors import GraphInterrupt
-        from platform_mcp.runtime.hitl import McpHitlSignal
+
+        from contracts.hitl import McpHitlSignal
 
         if isinstance(exc, (GraphInterrupt, McpHitlSignal)):
             raise

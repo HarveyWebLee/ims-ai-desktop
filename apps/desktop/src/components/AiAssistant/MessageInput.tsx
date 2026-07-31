@@ -1,15 +1,14 @@
 /**
  * 文本输入与发送：卡片式输入区，底部左侧模型选择、右侧语音与发送
  */
-import { Button, Input, Select, Space, Tooltip } from "antd";
-import { SendOutlined, SettingOutlined } from "@ant-design/icons";
-import { useIntl } from "@umijs/max";
+import { Button, Input, Select, Tooltip } from "antd";
+import { SendOutlined } from "@ant-design/icons";
+import { useIntl } from "react-intl";
 import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
 import * as AgentController from "@/services/AgentController";
 import type { VoiceprintProfile } from "@/services/AgentController";
 import ModelSelector from "./ModelSelector";
 import VoiceInput, { type VoiceCorrectionMeta } from "./VoiceInput";
-import VoiceprintManagerModal from "./VoiceprintManagerModal";
 import { useAiAssistantStore } from "./store";
 import styles from "./index.module.less";
 
@@ -54,7 +53,6 @@ export default function MessageInput({
     null,
   );
   const [voiceprints, setVoiceprints] = useState<VoiceprintProfile[]>([]);
-  const [managerOpen, setManagerOpen] = useState(false);
   const textRef = useRef(text);
   textRef.current = text;
   /** 开始录音时锁定的已有文案；中间结果 / 终稿拼在其后 */
@@ -145,64 +143,56 @@ export default function MessageInput({
     <div className={styles.inputArea}>
       <div className={styles.inputAreaInner}>
         <div className={styles.inputComposer}>
-          <TextArea
-            className={styles.inputTextarea}
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              if (correction) setCorrection(null);
-            }}
-            onKeyDown={onKeyDown}
-            placeholder={intl.formatMessage({
-              id: "aiAssistant.inputPlaceholder",
-            })}
-            autoSize={{ minRows: 2, maxRows: 6 }}
-            disabled={disabled}
-            variant="borderless"
-          />
-          <div className={styles.inputActions}>
-            <Space size={8} wrap className={styles.inputActionsLeft}>
+          <div className={styles.inputComposerBody}>
+            <TextArea
+              className={styles.inputTextarea}
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                if (correction) setCorrection(null);
+              }}
+              onKeyDown={onKeyDown}
+              placeholder={intl.formatMessage({
+                id: "aiAssistant.inputPlaceholder",
+              })}
+              autoSize={{ minRows: 3, maxRows: 8 }}
+              disabled={disabled}
+              variant="borderless"
+            />
+          </div>
+          <div className={styles.inputToolbar}>
+            <div className={styles.inputActionsLeft}>
               <ModelSelector />
-              <Select
-                className={styles.voiceprintSelect}
-                placeholder={intl.formatMessage({
-                  id: "aiAssistant.voiceprint.selectPlaceholder",
-                })}
-                value={selectedVoiceprintId ?? undefined}
-                onChange={(id) => setSelectedVoiceprintId(id)}
-                options={enrolledOptions}
-                allowClear
-                disabled={disabled}
-                popupMatchSelectWidth={false}
-                style={{ minWidth: 140 }}
-              />
-              <Tooltip
-                title={intl.formatMessage({
-                  id: "aiAssistant.voiceprint.manageTip",
-                })}
-              >
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<SettingOutlined />}
-                  onClick={() => setManagerOpen(true)}
-                  aria-label={intl.formatMessage({
-                    id: "aiAssistant.voiceprint.manage",
-                  })}
-                />
-              </Tooltip>
-            </Space>
+            </div>
             <div className={styles.inputActionsRight}>
-              <VoiceInput
-                onRecordingStart={handleRecordingStart}
-                onInterim={handleInterim}
-                onTranscribed={handleTranscribed}
-                disabled={disabled}
-              />
+              <div className={styles.voiceControlGroup}>
+                <Select
+                  className={styles.voiceprintSelect}
+                  size="small"
+                  variant="borderless"
+                  placeholder={intl.formatMessage({
+                    id: "aiAssistant.voiceprint.selectPlaceholder",
+                  })}
+                  value={selectedVoiceprintId ?? undefined}
+                  onChange={(id) => setSelectedVoiceprintId(id)}
+                  options={enrolledOptions}
+                  allowClear
+                  disabled={disabled}
+                  popupMatchSelectWidth={false}
+                  style={{ minWidth: 132 }}
+                />
+                <VoiceInput
+                  onRecordingStart={handleRecordingStart}
+                  onInterim={handleInterim}
+                  onTranscribed={handleTranscribed}
+                  disabled={disabled}
+                />
+              </div>
               <Tooltip title={intl.formatMessage({ id: "aiAssistant.send" })}>
                 <Button
                   type="primary"
                   shape="circle"
+                  size="large"
                   className={styles.sendBtn}
                   icon={<SendOutlined />}
                   onClick={handleSend}
@@ -235,12 +225,6 @@ export default function MessageInput({
           </p>
         )}
       </div>
-
-      <VoiceprintManagerModal
-        open={managerOpen}
-        onClose={() => setManagerOpen(false)}
-        onChanged={refreshVoiceprints}
-      />
     </div>
   );
 }

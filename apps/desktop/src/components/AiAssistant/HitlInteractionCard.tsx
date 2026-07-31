@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Button, Descriptions, Form, Space, Typography } from "antd";
 import { InteractionOutlined } from "@ant-design/icons";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import type { HitlPayload, PlanGraph, PlanStep } from "@ims/shared-types";
 import HitlFormField, { buildHitlFieldRules } from "./HitlFormField";
 import PlanFlowChart from "./PlanFlowChart";

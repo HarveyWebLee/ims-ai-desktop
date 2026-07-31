@@ -3,7 +3,7 @@
  */
 import { RobotOutlined, UserOutlined } from "@ant-design/icons";
 import { Avatar, Spin } from "antd";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import MarkdownContent from "@/components/MarkdownContent";
 import type { AiMessage } from "./types";
 import { filterPlanStepsForMessage, partitionAssistantBlocks } from "./chatCardUtils";

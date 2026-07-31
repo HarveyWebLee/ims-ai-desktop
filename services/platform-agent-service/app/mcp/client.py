@@ -50,7 +50,7 @@ class AuthHeaderInterceptor:
         request: MCPToolCallRequest,
         handler: Callable[[MCPToolCallRequest], Awaitable[Any]],
     ) -> Any:
-        from platform_mcp.runtime.context import (
+        from contracts.context import (
             current_auth_token,
             current_hitl_confirm_bypass,
             current_thread_id,
@@ -139,10 +139,9 @@ def _resolve_mcp_hitl_text(
     if payload is None:
         return text
 
-    from platform_mcp.runtime.context import current_hitl_confirm_bypass
-    from platform_mcp.runtime.hitl import is_hitl_reject, merge_hitl_resume_args
-
     from app.graph.hitl_interrupt import interrupt_or_raise
+    from contracts.context import current_hitl_confirm_bypass
+    from contracts.hitl import is_hitl_reject, merge_hitl_resume_args
 
     resume_value = interrupt_or_raise(payload)
     if is_hitl_reject(resume_value):
@@ -171,7 +170,7 @@ def _resolve_mcp_hitl_text(
             return invoke_again(merged3)
         return text3
     finally:
-        from platform_mcp.runtime.context import safe_reset_contextvar
+        from contracts.context import safe_reset_contextvar
 
         safe_reset_contextvar(
             current_hitl_confirm_bypass,
@@ -298,13 +297,12 @@ def _wrap_mcp_tool(tool: BaseTool, *, authorize: bool) -> BaseTool:
 
         # 异步路径：与 sync 相同的 HITL 还原；重调经线程安全桥接会丢失 contextvar，
         # 故在同协程内完成 interrupt + bypass 重调。
-        from platform_mcp.runtime.context import (
+        from app.graph.hitl_interrupt import interrupt_or_raise
+        from contracts.context import (
             current_hitl_confirm_bypass,
             safe_reset_contextvar,
         )
-        from platform_mcp.runtime.hitl import is_hitl_reject, merge_hitl_resume_args
-
-        from app.graph.hitl_interrupt import interrupt_or_raise
+        from contracts.hitl import is_hitl_reject, merge_hitl_resume_args
 
         resume_value = interrupt_or_raise(payload)
         if is_hitl_reject(resume_value):
@@ -399,7 +397,7 @@ async def call_platform_mcp_tool(
     if tool is None:
         raise KeyError(f"MCP 无此工具: {tool_name}")
     if auth_token:
-        from platform_mcp.runtime.context import current_auth_token
+        from contracts.context import current_auth_token
 
         current_auth_token.set(
             auth_token if auth_token.lower().startswith("bearer ") else f"Bearer {auth_token}"

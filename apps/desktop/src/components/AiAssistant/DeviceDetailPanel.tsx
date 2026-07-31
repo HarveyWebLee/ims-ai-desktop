@@ -4,7 +4,7 @@
  */
 import type { ReactNode } from "react";
 import { Typography } from "antd";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import type { DeviceDetailRecord, DeviceDetailWorkspace } from "./types";
 import styles from "./index.module.less";
 

@@ -19,7 +19,7 @@ alwaysApply: true
    先明确官方推荐路径（Graph API / `create_agent` / `interrupt`+`Command` / `astream_events` / checkpointer 等），再映射到当前架构：
    - 基准：`docs/architecture/00-overview.md`、`03-agent-runtime.md`、`02-mcp-platform-server.md`、`06-contracts.md`
    - 运行时：**父 `StateGraph` + 节点内 `create_agent`**；HITL **仅** `interrupt()` + `Command(resume=...)` + checkpointer
-   - 工具：**仅** Platform MCP；Agent 进程内禁止业务 `@tool` 旁路与图外 `pending_*` HITL
+   - 工具：**仅** Platform MCP HTTP；Agent 禁止 `import platform_mcp` / 业务 `@tool` 旁路与图外 `pending_*` HITL；共享逻辑走 `contracts`
    - UI：**`apps/desktop`** SSE 消费；M1 无 BPMN 编排抽屉
 
 3. **在回复中显式交代（编码前）**

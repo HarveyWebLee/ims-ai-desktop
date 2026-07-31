@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from platform_mcp.runtime.device_action_catalog import (
+from contracts.device_action_catalog import (
     find_device_action_hint,
     infer_value_from_action,
     load_device_action_catalog,
 )
-from platform_mcp.runtime.device_command_resolver import (
+from contracts.device_command_resolver import (
     _pick_device_by_score,
     _score_device_match,
     pick_alternate_writable_variable,
@@ -69,8 +69,8 @@ class TestDoorControlBinding:
     def setup_method(self):
         load_device_action_catalog.cache_clear()
 
-    @patch("platform_mcp.runtime.device_command_resolver._fetch_device_variable_records")
-    @patch("platform_mcp.runtime.device_command_resolver._resolve_device_with_auto_select")
+    @patch("contracts.device_command_resolver.fetch_device_variable_records")
+    @patch("contracts.device_command_resolver._resolve_device_with_auto_select")
     def test_full_resolution_binds_status_door_control(
         self,
         mock_resolve_device,
@@ -100,8 +100,8 @@ class TestDoorControlBinding:
         assert "variable" in res.auto_resolved
         assert "value" in res.auto_resolved
 
-    @patch("platform_mcp.runtime.device_command_resolver._fetch_device_variable_records")
-    @patch("platform_mcp.runtime.device_command_resolver._resolve_device_with_auto_select")
+    @patch("contracts.device_command_resolver.fetch_device_variable_records")
+    @patch("contracts.device_command_resolver._resolve_device_with_auto_select")
     def test_close_door_writes_zero(
         self,
         mock_resolve_device,
@@ -122,8 +122,8 @@ class TestDoorControlBinding:
         assert res.variable_name == "status_door_control"
         assert res.variable_value == "0"
 
-    @patch("platform_mcp.runtime.device_command_resolver._fetch_device_variable_records")
-    @patch("platform_mcp.runtime.device_command_resolver._resolve_device_with_auto_select")
+    @patch("contracts.device_command_resolver.fetch_device_variable_records")
+    @patch("contracts.device_command_resolver._resolve_device_with_auto_select")
     def test_missing_door_control_hard_fail(
         self,
         mock_resolve_device,
@@ -148,8 +148,8 @@ class TestDoorControlBinding:
         assert res.interrupt.get("fields") == []
         assert "status_door_control" in str(res.interrupt.get("message") or "")
 
-    @patch("platform_mcp.runtime.device_command_resolver._fetch_device_variable_records")
-    @patch("platform_mcp.runtime.device_command_resolver._resolve_device_with_auto_select")
+    @patch("contracts.device_command_resolver.fetch_device_variable_records")
+    @patch("contracts.device_command_resolver._resolve_device_with_auto_select")
     def test_ignores_other_variable_name_when_door_action(
         self,
         mock_resolve_device,
@@ -174,7 +174,7 @@ class TestDoorControlBinding:
         assert res.is_complete()
         assert res.variable_name == "status_door_control"
 
-    @patch("platform_mcp.runtime.device_command_resolver._fetch_device_variable_records")
+    @patch("contracts.device_command_resolver.fetch_device_variable_records")
     def test_no_alternate_retry_for_door_action(self, mock_fetch_vars):
         mock_fetch_vars.return_value = [
             {"varName": "status_door_control", "showName": "门控制状态", "isWrite": 1},
@@ -205,15 +205,15 @@ class TestBroadcastPlayBinding:
         assert hint2.get("action") == "播报"
 
     def test_extract_content_from_utterance(self):
-        from platform_mcp.runtime.device_action_catalog import extract_user_value_from_text
+        from contracts.device_action_catalog import extract_user_value_from_text
 
         assert extract_user_value_from_text("播报", user_text="播报请注意安全") == "请注意安全"
         assert extract_user_value_from_text("播报紧急疏散") == "紧急疏散"
         assert extract_user_value_from_text("广播", user_text="广播火灾疏散内容") == "火灾疏散"
         assert extract_user_value_from_text("播报") is None
 
-    @patch("platform_mcp.runtime.device_command_resolver._fetch_device_variable_records")
-    @patch("platform_mcp.runtime.device_command_resolver._resolve_device_with_auto_select")
+    @patch("contracts.device_command_resolver.fetch_device_variable_records")
+    @patch("contracts.device_command_resolver._resolve_device_with_auto_select")
     def test_broadcast_with_content(
         self,
         mock_resolve_device,
@@ -239,8 +239,8 @@ class TestBroadcastPlayBinding:
         assert res.variable_name == "play"
         assert res.variable_value == "请注意安全"
 
-    @patch("platform_mcp.runtime.device_command_resolver._fetch_device_variable_records")
-    @patch("platform_mcp.runtime.device_command_resolver._resolve_device_with_auto_select")
+    @patch("contracts.device_command_resolver.fetch_device_variable_records")
+    @patch("contracts.device_command_resolver._resolve_device_with_auto_select")
     def test_broadcast_extracts_content_from_action(
         self,
         mock_resolve_device,
@@ -264,8 +264,8 @@ class TestBroadcastPlayBinding:
         assert res.variable_name == "play"
         assert res.variable_value == "请疏散"
 
-    @patch("platform_mcp.runtime.device_command_resolver._fetch_device_variable_records")
-    @patch("platform_mcp.runtime.device_command_resolver._resolve_device_with_auto_select")
+    @patch("contracts.device_command_resolver.fetch_device_variable_records")
+    @patch("contracts.device_command_resolver._resolve_device_with_auto_select")
     def test_broadcast_missing_content_hitl(
         self,
         mock_resolve_device,
@@ -290,8 +290,8 @@ class TestBroadcastPlayBinding:
         assert any(f.get("label") == "播报内容" for f in fields)
         assert "播报" in str(res.interrupt.get("message") or "")
 
-    @patch("platform_mcp.runtime.device_command_resolver._fetch_device_variable_records")
-    @patch("platform_mcp.runtime.device_command_resolver._resolve_device_with_auto_select")
+    @patch("contracts.device_command_resolver.fetch_device_variable_records")
+    @patch("contracts.device_command_resolver._resolve_device_with_auto_select")
     def test_missing_play_hard_fail(
         self,
         mock_resolve_device,
@@ -317,7 +317,7 @@ class TestBroadcastPlayBinding:
         assert res.interrupt.get("fields") == []
         assert "play" in str(res.interrupt.get("message") or "")
 
-    @patch("platform_mcp.runtime.device_command_resolver._fetch_device_variable_records")
+    @patch("contracts.device_command_resolver.fetch_device_variable_records")
     def test_no_alternate_retry_for_broadcast(self, mock_fetch_vars):
         mock_fetch_vars.return_value = [
             {"varName": "play", "showName": "播报", "isWrite": 1},
@@ -335,7 +335,7 @@ class TestResolveDeviceCommand:
     def setup_method(self):
         load_device_action_catalog.cache_clear()
 
-    @patch("platform_mcp.runtime.device_command_resolver.call_platform_api")
+    @patch("contracts.device_command_resolver.call_platform_api")
     def test_missing_device_interrupt(self, mock_api):
         res = resolve_device_command(action="开门")
         assert "device" in res.missing
@@ -345,7 +345,7 @@ class TestResolveDeviceCommand:
         assert any(f.get("type") == "device_picker" for f in fields)
         assert any(f.get("name") == "device_code" for f in fields)
 
-    @patch("platform_mcp.runtime.device_command_resolver.call_platform_api")
+    @patch("contracts.device_command_resolver.call_platform_api")
     def test_missing_device_generic_uses_variable_picker(self, mock_api):
         """通用下发：同屏设备表格 + 变量下拉（不再用手填动作文本）。"""
         res = resolve_device_command()
@@ -357,7 +357,7 @@ class TestResolveDeviceCommand:
         assert any(f.get("name") == "variable_name" for f in fields)
         assert not any(f.get("name") == "action" for f in fields)
 
-    @patch("platform_mcp.runtime.device_command_resolver.call_platform_api")
+    @patch("contracts.device_command_resolver.call_platform_api")
     def test_missing_device_broadcast_message(self, mock_api):
         res = resolve_device_command(action="播报")
         assert res.interrupt is not None

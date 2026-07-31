@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from platform_mcp.runtime.time_range import extract_time_phrase
-
 from app.graph.context import assemble_context
 from app.services.plan_confirm import (
     PLAN_CONFIRM_TOOL,
@@ -21,6 +19,7 @@ from app.services.session_store import (
     get_thread_bpmn_snapshot,
     set_thread_bpmn_snapshot,
 )
+from contracts.time_range import extract_time_phrase
 
 
 class TestPlanConfirmHelpers:

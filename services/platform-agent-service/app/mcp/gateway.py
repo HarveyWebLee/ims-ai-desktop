@@ -136,9 +136,8 @@ async def _call_readonly_platform_tool(
         raise PermissionError(f"工具不在只读白名单: {name}")
 
     if name == "retrieve_knowledge":
-        from platform_mcp.runtime.context import current_auth_token
-
         from app.mcp.local_tools import build_retrieve_knowledge_tool
+        from contracts.context import current_auth_token
 
         if auth:
             current_auth_token.set(auth)
@@ -345,7 +344,7 @@ def create_gateway_http_app():
 def _set_auth_context(request: Request) -> None:
     auth = request.headers.get("authorization")
     if auth:
-        from platform_mcp.runtime.context import current_auth_token
+        from contracts.context import current_auth_token
 
         current_auth_token.set(auth)
 

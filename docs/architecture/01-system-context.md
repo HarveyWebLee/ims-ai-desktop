@@ -36,14 +36,15 @@
 
 ## 2. 进程与端口
 
-| 进程         | 目录                               | 端口       | 职责                                     |
-| ------------ | ---------------------------------- | ---------- | ---------------------------------------- |
-| 桌面端       | `apps/desktop/`                    | Electron   | 登录、SSE、HITL、Plan 步骤条             |
-| Agent 服务   | `services/platform-agent-service/` | **8008**   | SSE、LangGraph、MCP Client、Gateway、RAG |
-| Platform MCP | `services/platform-mcp-server/`    | **8010**   | 平台工具 MCP Server                      |
-| Postgres     | docker compose                     | 16543→5432 | Checkpointer / 会话                      |
-| Qdrant       | docker compose                     | 16333→6333 | 向量检索                                 |
-| Redis        | docker compose                     | 13386→6379 | 缓存                                     |
+| 进程         | 目录                               | 端口       | 职责                                                    |
+| ------------ | ---------------------------------- | ---------- | ------------------------------------------------------- |
+| 桌面端       | `apps/desktop/`                    | Electron   | 登录、SSE、HITL、Plan 步骤条                            |
+| Agent 服务   | `services/platform-agent-service/` | **8008**   | SSE、LangGraph、MCP Client、Gateway、RAG                |
+| 共享契约     | `services/platform-contracts/`     | —          | 包名 `contracts`（HITL/preflight/catalog；无 MCP 执行） |
+| Platform MCP | `services/platform-mcp-server/`    | **8010**   | 平台工具 MCP Server（`runtime/tools`）                  |
+| Postgres     | docker compose                     | 16543→5432 | Checkpointer / 会话                                     |
+| Qdrant       | docker compose                     | 16333→6333 | 向量检索                                                |
+| Redis        | docker compose                     | 13386→6379 | 缓存                                                    |
 
 ## 3. 目录结构
 
@@ -55,6 +56,7 @@ ims-ai-desktop/
 │   ├── shared-types/
 │   └── desktop-api/
 ├── services/
+│   ├── platform-contracts/      # 目录；Python 包名 contracts
 │   ├── platform-mcp-server/     # Python 3.14.4，uv / mcp-check
 │   └── platform-agent-service/  # Python 3.14.4，uv / check
 ├── deploy/

@@ -464,7 +464,7 @@ def _write_audit(
 
 def _tool_sse_suppressed(tool: str) -> bool:
     """本轮 chat 标记为 stale 的工具（不向 SSE / Plan 透传）。"""
-    from platform_mcp.runtime.context import current_turn_suppressed_tools
+    from contracts.context import current_turn_suppressed_tools
 
     return tool in (current_turn_suppressed_tools.get() or frozenset())
 
@@ -516,7 +516,7 @@ async def wrap_stream_with_plan_trace(
 
     # 已有预生成 Plan（如 plan_confirm 批准后）时流首即下发，供 TaskProgress 立即展示
     if tracker.has_plan:
-        from platform_mcp.runtime.agent_debug import agent_debug, summarize_plan_steps
+        from contracts.agent_debug import agent_debug, summarize_plan_steps
 
         agent_debug(
             "flow.plan.tracker_initial",
@@ -537,7 +537,7 @@ async def wrap_stream_with_plan_trace(
             if event_name in ("tool_start", "tool_end") and isinstance(payload, dict):
                 suppressed_tool = str(payload.get("tool", ""))
                 if suppressed_tool and _tool_sse_suppressed(suppressed_tool):
-                    from platform_mcp.runtime.agent_debug import agent_debug
+                    from contracts.agent_debug import agent_debug
 
                     agent_debug(
                         "flow.sse.suppress_stale_tool",

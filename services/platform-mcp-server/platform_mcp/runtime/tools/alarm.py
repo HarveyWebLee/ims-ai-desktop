@@ -37,18 +37,26 @@
 
 from __future__ import annotations
 
-import re  # 正则：检测日期时间字符串格式
-from datetime import datetime  # 解析与格式化时间
 from typing import Any
 
 from langchain_core.tools import tool  # LangChain Tool 装饰器
 
-from platform_mcp.runtime.auth_util import get_username_from_token
-from platform_mcp.runtime.context import current_auth_token
-from platform_mcp.runtime.hitl import ask_user_confirm  # 人在回路：补参/确认
-from platform_mcp.runtime.platform_client import PlatformApiError, call_platform_api
-from platform_mcp.runtime.result import tool_result
-from platform_mcp.runtime.time_range import resolve_alarm_time_range  # 解析「近三天」等相对时间
+from contracts.alarm_params import (
+    QUERY_ALARM_FIELDS,
+    build_alarm_list_filter_payload,
+    resolve_or_prepare_alarm_times,
+    to_platform_time,
+)
+from contracts.auth_util import get_username_from_token
+from contracts.context import current_auth_token
+from contracts.hitl import ask_user_confirm  # 人在回路：补参/确认
+from contracts.platform_client import PlatformApiError, call_platform_api
+from contracts.result import tool_result
+
+# 本地别名：保留既有私有名，避免大范围改 handler 内部调用
+_QUERY_ALARM_FIELDS = QUERY_ALARM_FIELDS
+_to_platform_time = to_platform_time
+_resolve_or_prepare_alarm_times = resolve_or_prepare_alarm_times
 
 # query_alarms 分页大小（平台 getAlarmList；前端 Workspace 翻页复用 queryContext）
 QUERY_ALARM_PAGE_SIZE = 20
@@ -69,62 +77,6 @@ _STATUS_SCOPE_UNPROCESSED = "unprocessed"
 _ALARM_API_LIST = "getAlarmList"
 _ALARM_API_UNPROCESSED = "getAlarmUnprocessList"
 
-# query_alarms / download_file 缺参时，HITL 表单字段定义（前端据此渲染）
-_QUERY_ALARM_FIELDS = [
-    {
-        "name": "time_range",
-        "label": "时间范围",
-        "type": "datetime_range",
-        "required": True,
-        "description": "选择开始与结束的日期时间（精确到秒）",
-    },
-    {
-        "name": "alarm_category_id",
-        "label": "报警类型",
-        "type": "async_select",
-        "asyncSource": "alarm_category",
-        "required": False,
-        "description": "可选，按报警类型筛选",
-        "mode": "multiple",
-    },
-    {
-        "name": "alarm_rank_id",
-        "label": "报警级别",
-        "type": "async_select",
-        "asyncSource": "alarm_rank",
-        "required": False,
-        "description": "可选，按报警级别筛选",
-        "mode": "multiple",
-    },
-    {
-        "name": "status",
-        "label": "告警状态",
-        "type": "select",
-        "required": False,
-        "description": "可选，按告警状态筛选",
-        "mode": "multiple",
-        "options": [
-            {"label": "未处理（待确认+已确认）", "value": "unprocessed"},
-            {"label": "待确认", "value": "1"},
-            {"label": "已确认", "value": "2"},
-            {"label": "已处理", "value": "3"},
-        ],
-    },
-    {
-        "name": "device_code",
-        "label": "设备编码",
-        "type": "text",
-        "required": False,
-        "description": "可选，按设备编码筛选（与设备名称二选一）",
-    },
-    {
-        "name": "device_name",
-        "label": "设备名称",
-        "type": "text",
-        "required": False,
-        "description": "可选，按设备名称筛选（与设备编码二选一，模糊匹配）",
-    },
-]
 
 # get_alarm_detail 缺 alarm_id 时的 HITL 表单
 _GET_DETAIL_FIELDS = [
@@ -179,32 +131,6 @@ def _format_alarm_status(item: dict[str, Any]) -> str:
         return str(raw)
 
 
-def _to_platform_time(value: str) -> str:
-    """
-    将 ISO8601 或常见 datetime 字符串转为平台要求的格式：YYYY-MM-DD HH:mm:ss。
-
-    平台接口不接受带 T/Z 的 ISO 格式，需统一转换。
-    """
-    value = value.strip()
-    # ISO8601：2024-01-01T12:00:00 或带 Z 时区
-    if "T" in value:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return dt.strftime("%Y-%m-%d %H:%M:%S")
-    # 已是「YYYY-MM-DD HH:mm:ss」或「YYYY-MM-DD HH:mm」
-    if re.search(r"\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}", value):
-        try:
-            dt = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-            return dt.strftime("%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            try:
-                dt = datetime.strptime(value, "%Y-%m-%d %H:%M")
-                return dt.strftime("%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                pass
-    # 无法识别则原样返回，由平台侧校验
-    return value
-
-
 def _map_alarm_brief_item(item: dict[str, Any]) -> dict[str, Any]:
     """单条告警 → Workspace / LLM 摘要字段。"""
     return {
@@ -216,42 +142,6 @@ def _map_alarm_brief_item(item: dict[str, Any]) -> dict[str, Any]:
         "statusName": _format_alarm_status(item),
         "alarmRankName": item.get("alarmRankName"),
     }
-
-
-def build_alarm_list_filter_payload(
-    *,
-    start_time: str,
-    end_time: str,
-    filter_params: dict[str, Any] | None = None,
-    status_fallback: str = "",
-    alarm_level: str = "",
-    page: int = 1,
-    size: int = 20,
-) -> dict[str, Any]:
-    """
-    构造 getAlarmList / exportAlarm 共用的筛选请求体（不含 ids）。
-
-    供 query_alarms、导出前计数、分批导出复用，保证筛选条件一致。
-    """
-    params = filter_params or {}
-    payload: dict[str, Any] = {
-        "startTime": _to_platform_time(start_time),
-        "endTime": _to_platform_time(end_time),
-        "page": page,
-        "size": size,
-        "deviceCodes": [],
-        "variableNames": [],
-        "alarmCategoryId": [],
-        "alarmRankId": [],
-        "status": [],
-    }
-    _apply_alarm_filter_fields(
-        payload,
-        params,
-        status_fallback=status_fallback,
-        alarm_level=alarm_level,
-    )
-    return payload
 
 
 def resolve_alarm_filter_scope(
@@ -590,9 +480,9 @@ def resolve_alarm_device_filter(
     if not code and not name:
         return [], None
 
-    from platform_mcp.runtime.tools.device import _resolve_device_code
+    from contracts.device_lookup import resolve_device_code
 
-    resolved, _record, err = _resolve_device_code(
+    resolved, _record, err = resolve_device_code(
         device_code=code,
         device_name=name,
         hitl_tool=hitl_tool,
@@ -604,30 +494,6 @@ def resolve_alarm_device_filter(
     filter_params.pop("device_name", None)
     filter_params.pop("deviceName", None)
     return [resolved], None
-
-
-def _resolve_or_prepare_alarm_times(
-    start_time: str,
-    end_time: str,
-) -> tuple[str, str, bool]:
-    """
-    解析告警查询/导出所需的时间范围。
-
-    返回三元组 (start_iso, end_iso, needs_hitl)：
-        - needs_hitl=False：已成功解析 start/end
-        - needs_hitl=True：未提供时间或无法解析，需 HITL 表单由使用者补选
-    """
-    resolved = resolve_alarm_time_range(start_time, end_time)
-    if resolved:
-        return resolved[0], resolved[1], False
-
-    has_any = bool(str(start_time or "").strip() or str(end_time or "").strip())
-    if not has_any:
-        # 使用者未明确时间范围 → 必须 HITL 补参，禁止静默默认区间
-        return "", "", True
-
-    # 有输入但解析失败 → 需要 HITL
-    return str(start_time or ""), str(end_time or ""), True
 
 
 @tool
@@ -671,7 +537,7 @@ def query_alarms(
 
     LLM 注意：使用者未明确时间仍须立即调用本工具，禁止先用自然语言追问时间。
     """
-    from platform_mcp.runtime.tool_preflight import ensure_tool_args
+    from contracts.tool_preflight import ensure_tool_args
 
     try:
         params = ensure_tool_args(
@@ -783,7 +649,7 @@ def get_alarm_detail(alarm_id: str = "") -> str:
     成功：summary 一行摘要；data=完整记录；client_action=openModal(alarmDetail)。
     未找到：ok=False。
     """
-    from platform_mcp.runtime.tool_preflight import ensure_tool_args
+    from contracts.tool_preflight import ensure_tool_args
 
     try:
         params = ensure_tool_args("get_alarm_detail", {"alarm_id": alarm_id})
@@ -1284,7 +1150,7 @@ def batch_confirm_alarms(
     filter_params: dict[str, Any] = {}
 
     if not parsed_ids:
-        from platform_mcp.runtime.tool_preflight import ensure_tool_args
+        from contracts.tool_preflight import ensure_tool_args
 
         try:
             params = ensure_tool_args(
@@ -1405,7 +1271,7 @@ def batch_process_alarms(
     filter_params: dict[str, Any] = {}
 
     if not parsed_ids:
-        from platform_mcp.runtime.tool_preflight import ensure_tool_args
+        from contracts.tool_preflight import ensure_tool_args
 
         try:
             params = ensure_tool_args(

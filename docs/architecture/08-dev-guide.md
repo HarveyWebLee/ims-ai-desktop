@@ -2,13 +2,14 @@
 
 ## 1. 环境要求
 
-| 项     | 要求                                        |
-| ------ | ------------------------------------------- |
-| Node   | `>=20`（根 `package.json` `engines`）       |
-| 包管理 | **pnpm** `9.15.0`（`packageManager` 字段）  |
-| Python | **3.14.4**（Agent / MCP `requires-python`） |
-| uv     | Agent、MCP 依赖安装与脚本入口               |
-| Docker | 可选；Postgres / Qdrant / Redis             |
+| 项     | 要求                                                    |
+| ------ | ------------------------------------------------------- |
+| Node   | `>=20`（根 `package.json` `engines`）                   |
+| 包管理 | **pnpm** `9.15.0`（`packageManager` 字段）              |
+| 桌面端 | **React 19** + **antd 6**（`apps/desktop`）             |
+| Python | **3.14.4**（Agent / MCP / contracts `requires-python`） |
+| uv     | Agent、MCP、contracts 依赖安装与脚本入口                |
+| Docker | 可选；Postgres / Qdrant / Redis                         |
 
 ## 2. 一键依赖
 
@@ -34,6 +35,20 @@ Compose 定义：[`deploy/docker-compose.yml`](../../deploy/docker-compose.yml)�
 bash scripts/all.sh
 ```
 
+`all.sh` 经 `scripts/dev_supervisor.py` 监督三个进程：**任一服务热更新 / 崩溃不会终止其他服务**（自动重启）。日志带 `[mcp]` / `[agent]` / `[desktop]` 前缀。
+
+后台启动（不占用当前终端 / Cursor tab）：
+
+```bash
+bash scripts/all.sh --bg
+# 日志：scripts/.all-dev.log
+# 停止：python scripts/all_stop.py
+```
+
+前台停止：Unix 下 `Ctrl+C`；**Windows 下请 2 秒内连按两次 `Ctrl+C`**（uvicorn 热重载会向控制台误广播一次中断，单次按键会被忽略以防误杀），或使用 `Ctrl+Break`。
+
+关闭热重载示例：`AGENT_RELOAD=0 MCP_RELOAD=0 bash scripts/all.sh`
+
 或分终端：
 
 | 服务         | 命令                      | 端口 / 形态 |
@@ -46,17 +61,20 @@ bash scripts/all.sh
 
 ```bash
 pnpm install
-cd services/platform-mcp-server && uv sync --extra dev
+cd services/platform-contracts && uv sync --extra dev
+cd ../platform-mcp-server && uv sync --extra dev
 cd ../platform-agent-service && uv sync --extra dev
 ```
 
-环境变量（从示例复制后按环境修改，**勿提交 `.env`**）：
+> Agent / MCP 均 path editable 依赖 `../platform-contracts`（Python 包名 `contracts`）。
+> 环境变量（从示例复制后按环境修改，**勿提交 `.env` / `.env.shared`**）：
 
-| 路径                                   | 示例文件       |
-| -------------------------------------- | -------------- |
-| `services/platform-agent-service/.env` | `.env.example` |
-| `services/platform-mcp-server/.env`    | `.env.example` |
-| `apps/desktop/.env`                    | `.env.example` |
+| 路径                                   | 示例文件              | 说明                                    |
+| -------------------------------------- | --------------------- | --------------------------------------- |
+| 仓根 `.env.shared`                     | `.env.shared.example` | 跨端公共项（目前：`PLATFORM_API_BASE`） |
+| `services/platform-agent-service/.env` | `.env.example`        | Agent 专有；同名键覆盖 shared           |
+| `services/platform-mcp-server/.env`    | `.env.example`        | MCP 专有；同名键覆盖 shared             |
+| `apps/desktop/.env`                    | `.env.example`        | 桌面专有；默认读仓根 shared             |
 
 `pnpm install` 会通过 `prepare` 安装 Husky 钩子。
 
@@ -75,13 +93,20 @@ uv run kb --count
 
 ## 5. 环境变量（摘要）
 
-完整键以各服务 `.env.example` 为准；此处仅列联调常用项。
+完整键以各服务 `.env.example` 与仓根 `.env.shared.example` 为准；此处仅列联调常用项。
+
+加载顺序：仓根 `.env.shared` → 各工程 `.env`（后者覆盖同名键）。`contracts` 不读任何 `.env` 文件。
+
+### 仓根 `.env.shared`
+
+```bash
+PLATFORM_API_BASE=http://127.0.0.1:18001/api/app
+```
 
 ### services/platform-mcp-server/.env
 
 ```bash
 PORT=8010
-PLATFORM_API_BASE=http://127.0.0.1:18001/api/app
 ```
 
 ### services/platform-agent-service/.env
@@ -90,7 +115,6 @@ PLATFORM_API_BASE=http://127.0.0.1:18001/api/app
 PORT=8008
 PLATFORM_MCP_URL=http://127.0.0.1:8010/mcp
 AGENT_MCP_REQUIRED=true
-PLATFORM_API_BASE=http://127.0.0.1:18001/api/app
 QDRANT_URL=http://127.0.0.1:16333
 QDRANT_COLLECTION=platform_knowledge
 DASHSCOPE_API_KEY=...
@@ -108,7 +132,7 @@ AGENT_INTENT_AI_FIRST=true
 
 ```bash
 AGENT_SERVICE_URL=http://127.0.0.1:8008
-PLATFORM_API_BASE=http://192.168.x.x:18001/api/app
+# PLATFORM_API_BASE 默认读仓根 .env.shared
 ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
 ```
 
@@ -119,10 +143,10 @@ Agent Gateway：`http://127.0.0.1:8008/mcp`
 根目录统一入口（与 [`.husky/pre-commit`](../../.husky/pre-commit) 一致）：
 
 ```bash
-# 格式化：文档 Prettier + 桌面 Prettier + Agent fix + MCP fix
+# 格式化：文档 Prettier + 桌面 Prettier + contracts fix + Agent fix + MCP fix
 pnpm format
 
-# 检查：文档 Prettier check + 桌面 check + Agent all + MCP all
+# 检查：文档 Prettier check + 桌面 check + contracts all + Agent all + MCP all
 pnpm check
 ```
 
@@ -130,6 +154,7 @@ pnpm check
 | --------------------------------------------- | ----------------------------------------------------- |
 | `pnpm format:docs` / `check:docs`             | Prettier 对 `**/*.{md,mdc,json,yml,yaml}`             |
 | `pnpm --filter @ims/desktop format` / `check` | 桌面 Prettier + ESLint + `tsc --noEmit`               |
+| `pnpm format:contracts` / `check:contracts`   | `uv run … python -m contracts.quality fix` / `all`    |
 | `pnpm format:agent` / `check:agent`           | `uv run … python -m app.quality fix` / `all`          |
 | `pnpm format:mcp` / `check:mcp`               | `uv run … python -m platform_mcp.quality fix` / `all` |
 
@@ -141,15 +166,17 @@ pnpm check
 
 ### 分服务入口（等价）
 
-| 服务   | 写回修复                                     | 全量门禁                                       |
-| ------ | -------------------------------------------- | ---------------------------------------------- |
-| Agent  | `uv run check fix`                           | `uv run check all`                             |
-|        | 或 `uv run python -m app.quality …`          | （含 format --check、lint、typecheck、pytest） |
-| MCP    | `uv run mcp-check fix`                       | `uv run mcp-check all`                         |
-|        | 或 `uv run python -m platform_mcp.quality …` | （format --check、lint、typecheck）            |
-| 桌面端 | `pnpm --filter @ims/desktop format`          | `pnpm --filter @ims/desktop check`             |
+| 服务      | 写回修复                                     | 全量门禁                                       |
+| --------- | -------------------------------------------- | ---------------------------------------------- |
+| contracts | `uv run check fix`                           | `uv run check all`                             |
+|           | 或 `uv run python -m contracts.quality …`    | （format --check、lint、typecheck、pytest）    |
+| Agent     | `uv run check fix`                           | `uv run check all`                             |
+|           | 或 `uv run python -m app.quality …`          | （含 format --check、lint、typecheck、pytest） |
+| MCP       | `uv run mcp-check fix`                       | `uv run mcp-check all`                         |
+|           | 或 `uv run python -m platform_mcp.quality …` | （format --check、lint、typecheck）            |
+| 桌面端    | `pnpm --filter @ims/desktop format`          | `pnpm --filter @ims/desktop check`             |
 
-Agent 子命令：`format` / `lint` / `typecheck` / `test` / `fix` / `all`（`pyproject.toml` → `check = app.quality:main`）。
+contracts / Agent 子命令：`format` / `lint` / `typecheck` / `fix` / `all`（Agent 另有 `test`；`pyproject.toml` → `check = …quality:main`）。
 
 catalog 导出：
 
@@ -167,8 +194,8 @@ cd services/platform-agent-service && python scripts/export_catalog.py
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `extensions.json` | 推荐：Cursor Pyright、Python、Ruff、Prettier、ESLint；**不推荐** Pylance                                                                   |
 | `settings.json`   | Python Language Server = None；`cursorpyright` basic + `extraPaths` 指向两服务；Ruff / Prettier 保存格式化；ESLint 工作目录 `apps/desktop` |
-| `tasks.json`      | 运行任务：`mcp:*`、`agent:fix` / `agent:all`、`desktop:check`（默认测试任务）                                                              |
+| `tasks.json`      | 运行任务：`mcp:*`、`contracts:fix` / `contracts:all`、`agent:fix` / `agent:all`、`desktop:check`（默认测试任务）                           |
 
-Agent / MCP 的 Ruff、basedpyright 规则以**各自** `pyproject.toml` 为准；IDE 的 `cursorpyright` 与命令行 `basedpyright` 均使用 **basic** 模式对齐。
+Agent / MCP / contracts 的 Ruff、basedpyright 规则以**各自** `pyproject.toml` 为准；IDE 的 `cursorpyright` 与命令行 `basedpyright` 均使用 **basic** 模式对齐。
 
 若 `uv run check` / `mcp-check` 因正在运行的 `uv run agent` / `mcp` 锁住环境，可先停进程，或临时用 `.venv` 内 `python -m app.quality` / `python -m platform_mcp.quality`。

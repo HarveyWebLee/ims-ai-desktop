@@ -1,7 +1,7 @@
 # platform-mcp-server — 平台工具 MCP Server（v2）
 #
 # 端口默认 8010，Streamable HTTP：http://127.0.0.1:8010/mcp
-# 工具执行面：platform_mcp.runtime（不再依赖 Agent 包实现）
+# 工具执行面：platform_mcp.runtime.tools；共享逻辑：contracts
 
 [project]
 name = "platform-mcp-server"
@@ -17,12 +17,15 @@ dependencies = [
     "uvicorn[standard]>=0.32.0",
     # 工具 @tool（无 langgraph；HITL 仅 hitl_required JSON）
     "langchain-core>=0.3.0",
+    "contracts",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.9.0",
     "basedpyright>=1.28.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
 ]
 
 [project.scripts]
@@ -37,10 +40,20 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["platform_mcp"]
 
+[tool.uv.sources]
+contracts = { path = "../platform-contracts", editable = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = ["-ra", "--tb=short"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py314"
-src = ["platform_mcp", "scripts"]
+src = ["platform_mcp", "tests"]
 exclude = [
     ".venv",
     ".git",
@@ -59,13 +72,14 @@ select = ["E", "W", "F", "I", "UP", "B"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["platform_mcp"]
+known-first-party = ["platform_mcp", "contracts"]
 
 [tool.pyright]
-include = ["platform_mcp", "scripts"]
+include = ["platform_mcp", "tests"]
 exclude = ["**/__pycache__", ".venv", ".ruff_cache", ".pytest_cache"]
 pythonVersion = "3.14"
 typeCheckingMode = "basic"
 venvPath = "."
 venv = ".venv"
+extraPaths = ["../platform-contracts"]
 reportMissingImports = false

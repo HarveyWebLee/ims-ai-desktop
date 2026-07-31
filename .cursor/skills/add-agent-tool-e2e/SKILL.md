@@ -26,9 +26,10 @@ python scripts/export_catalog.py
 
 ## 2. MCP 实现
 
-- 实现落在 `services/platform-mcp-server/`
+- 实现落在 `services/platform-mcp-server/platform_mcp/runtime/tools/`
+- 缺参/确认纯逻辑与 preflight 字段优先复用 `contracts`（`services/platform-contracts`）
 - 统一 `ToolResult`（`@ims/shared-types`）：`ok` / `summary` / `data` / `client_action?` / `client_actions?`
-- 禁止在 Agent 进程内新增业务 `@tool` 旁路
+- **禁止**在 Agent 进程内新增业务 `@tool` 旁路；**禁止** Agent `import platform_mcp`
 
 ## 3. preflight / HITL
 

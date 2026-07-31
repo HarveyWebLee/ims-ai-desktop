@@ -31,57 +31,31 @@ HITL
 
 from __future__ import annotations
 
-import re
 from typing import Any
 from urllib.parse import urlencode  # 将 dict 编码为 URL 查询字符串
 
 from langchain_core.tools import tool
 
-from platform_mcp.runtime.hitl import ask_user_confirm
-from platform_mcp.runtime.platform_client import PlatformApiError, call_platform_api
-from platform_mcp.runtime.result import tool_result
-from platform_mcp.runtime.time_range import resolve_alarm_time_range
+from contracts.alarm_params import to_platform_time
+from contracts.export_infer import (
+    EXPORT_ALARM_BATCH_MAX,
+)
+from contracts.hitl import ask_user_confirm
+from contracts.platform_client import PlatformApiError, call_platform_api
+from contracts.result import tool_result
+from contracts.time_range import resolve_alarm_time_range
 from platform_mcp.runtime.tools.alarm import (
     _ALARM_API_UNPROCESSED,
     _apply_alarm_filter_fields,
-    _to_platform_time,
     count_alarms_matching_filters,
     export_status_codes_for_scope,
     resolve_alarm_filter_scope,
 )
 
-# 与告警查询页 TransferModal 一致：平台 exportAlarm 单次 size 上限
-EXPORT_ALARM_BATCH_MAX = 30000
-
 # 已落地的导出 resource（扩展新类型时同步 catalog enum 与本集合）
 SUPPORTED_EXPORT_RESOURCES = frozenset(
     {"alarm_report", "sentry_handover", "duty_info", "duty_manage", "acs_record"}
 )
-
-# 仅时间范围筛选的非告警导出（preflight 共用时间 HITL）
-TIME_ONLY_EXPORT_RESOURCES = frozenset(
-    {"sentry_handover", "duty_info", "duty_manage", "acs_record"}
-)
-
-# 从用户原话推断 download_file.resource（专名优先于默认告警）
-_SENTRY_HANDOVER_RE = re.compile(r"岗哨交接|哨位交接|岗哨.{0,8}交接|交接.{0,8}岗哨")
-_DUTY_INFO_RE = re.compile(r"值班信息")
-_DUTY_MANAGE_RE = re.compile(r"值班管理")
-_ACS_RECORD_RE = re.compile(r"出入信息|出入记录|门禁.{0,6}记录|通行记录")
-
-
-def infer_download_resource(message: str) -> str:
-    """根据用户原话推断导出 resource；默认 alarm_report。"""
-    text = message or ""
-    if _SENTRY_HANDOVER_RE.search(text):
-        return "sentry_handover"
-    if _DUTY_INFO_RE.search(text):
-        return "duty_info"
-    if _DUTY_MANAGE_RE.search(text):
-        return "duty_manage"
-    if _ACS_RECORD_RE.search(text):
-        return "acs_record"
-    return "alarm_report"
 
 
 def _build_app_download_url(path: str, params: dict[str, Any]) -> str:
@@ -192,8 +166,8 @@ def execute_alarm_export(
     if resolved:
         start_time, end_time = resolved
 
-    start_fmt = _to_platform_time(str(start_time))
-    end_fmt = _to_platform_time(str(end_time))
+    start_fmt = to_platform_time(str(start_time))
+    end_fmt = to_platform_time(str(end_time))
     filters = filter_params or {}
     alarm_level = str(filters.get("alarm_rank_id") or "")
 
@@ -335,8 +309,8 @@ def execute_time_range_duty_export(
     if resolved:
         start_time, end_time = resolved
 
-    start_fmt = _to_platform_time(str(start_time))
-    end_fmt = _to_platform_time(str(end_time))
+    start_fmt = to_platform_time(str(start_time))
+    end_fmt = to_platform_time(str(end_time))
     extras = extra_params or {}
 
     count_payload: dict[str, Any] = {
@@ -555,7 +529,7 @@ def download_file(
             summary=f"暂不支持导出类型「{resource_key}」，当前支持：{supported}。",
         )
 
-    from platform_mcp.runtime.context import current_turn_suppressed_tools
+    from contracts.context import current_turn_suppressed_tools
 
     if "download_file" in (current_turn_suppressed_tools.get() or frozenset()):
         return tool_result(
@@ -563,7 +537,7 @@ def download_file(
             summary="上一轮导出已取消，本轮为新的导航请求，请勿重复导出。",
         )
 
-    from platform_mcp.runtime.tool_preflight import ensure_tool_args
+    from contracts.tool_preflight import ensure_tool_args
 
     try:
         params = ensure_tool_args(

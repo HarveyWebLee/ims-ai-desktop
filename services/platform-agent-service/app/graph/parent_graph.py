@@ -19,11 +19,11 @@ from typing import Annotated, Any, Literal
 from langchain_core.messages import AIMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
-from platform_mcp.runtime.hitl import is_hitl_approve, is_hitl_reject, merge_hitl_resume_args
 from typing_extensions import TypedDict
 
 from app.graph.context import AgentContext
 from app.graph.router import TaskRoute, classify_task
+from contracts.hitl import is_hitl_approve, is_hitl_reject, merge_hitl_resume_args
 
 logger = logging.getLogger(__name__)
 
@@ -300,10 +300,10 @@ async def plan_execute_node(state: ParentState) -> dict[str, Any]:
     ``retry_policy`` / ``build_replan_after_failure``，禁止图外 pending。
     """
     from langgraph.config import get_stream_writer
-    from platform_mcp.runtime.context import current_auth_token, current_thread_id
 
     from app.application.execution.plan_runner import execute_plan_steps
     from app.mcp.client import get_mcp_pipeline_tools_sync
+    from contracts.context import current_auth_token, current_thread_id
 
     writer = get_stream_writer()
     steps = list(state.get("plan_steps") or [])
@@ -352,7 +352,8 @@ async def plan_execute_node(state: ParentState) -> dict[str, Any]:
             result = raw if isinstance(raw, str) else str(raw)
         except Exception as exc:  # noqa: BLE001
             from langgraph.errors import GraphInterrupt
-            from platform_mcp.runtime.hitl import McpHitlSignal
+
+            from contracts.hitl import McpHitlSignal
 
             if isinstance(exc, (GraphInterrupt, McpHitlSignal)):
                 raise
@@ -435,8 +436,6 @@ async def bpmn_execute_node(state: ParentState) -> dict[str, Any]:
     import json
 
     from langgraph.config import get_stream_writer
-    from platform_mcp.runtime.context import current_auth_token, current_thread_id
-    from platform_mcp.runtime.hitl import is_hitl_reject, merge_hitl_resume_args
 
     from app.application.execution.bpmn_graph import build_execution_graph
     from app.application.execution.bpmn_plan_runner import (
@@ -450,6 +449,8 @@ async def bpmn_execute_node(state: ParentState) -> dict[str, Any]:
         clear_bpmn_execution_state,
         get_bpmn_execution_state,
     )
+    from contracts.context import current_auth_token, current_thread_id
+    from contracts.hitl import is_hitl_reject, merge_hitl_resume_args
 
     writer = get_stream_writer()
     flow_document = state.get("flow_document")

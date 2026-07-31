@@ -8,9 +8,10 @@ alwaysApply: false
 
 ## 范围
 
-- 入口：`apps/desktop`（electron-vite + React + antd）
+- 入口：`apps/desktop`（electron-vite + React 19 + antd 6）
 - 共享：`@ims/desktop-api`、`@ims/shared-types`、`@ims/agent-core`
 - M1：聊天 + Plan 步骤条 + 基础 HITL；不含 BPMN 编排画布
+- UI 规范：[desktop-ui-antd.mdc](desktop-ui-antd.mdc)（主题 Token、App 反馈、弃用 API）
 
 ## 必须
 
@@ -19,12 +20,14 @@ alwaysApply: false
 - i18n：`apps/desktop/src/locales/ai_assistant/` 中英文同步
 - token 仅本地存储，不提交仓库
 - `client_action`（如 navigate）无宿主页面时：跳过并给出可理解降级，不抛未捕获异常
+- 组件开发遵循 antd 6：主题用官方默认 Token；toast 走 `App.useApp` 或 `@/antd/feedback`
 
 ## 禁止
 
 - 在桌面端实现 Agent 业务图逻辑或直连平台达梦
 - 擅自引入 BPMN 编排画布（须单独立项）
 - 硬编码 Agent 服务 URL
+- `import { message } from "antd"` 静态反馈（见 UI 规则）
 
 ## 联调
 

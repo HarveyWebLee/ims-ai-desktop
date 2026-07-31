@@ -1,6 +1,6 @@
 ---
 description: Agent 后端架构优先与兼容演进规范
-globs: "services/platform-agent-service/app/**/*.py,services/platform-agent-service/tests/**/*.py,services/platform-agent-service/scripts/**/*.py,services/platform-agent-service/pyproject.toml"
+globs: "services/platform-agent-service/app/**/*.py,services/platform-agent-service/tests/**/*.py,services/platform-agent-service/scripts/**/*.py,services/platform-agent-service/pyproject.toml,services/platform-contracts/**/*.py,services/platform-contracts/pyproject.toml"
 alwaysApply: false
 ---
 
@@ -16,9 +16,10 @@ alwaysApply: false
 
 0. **官方文档优先**：涉及 LangChain/LangGraph 的新功能或新 API，动手前用 MCP `docs-langchain` 核对最新设计与签名；按官方理念选型后再落入本仓父图 / MCP / SSE 架构（见 monorepo `.cursor/rules/langchain-langgraph-docs-first.mdc`）。
 1. 先读调用链再编码：`api -> graph -> services/tools -> persistence -> SSE`。
-2. 先复用现有模式：优先沿用已有 `parent_graph` / `create_agent` / checkpointer interrupt / `session_store` 元数据 / tool preflight 约定。
+2. 先复用现有模式：优先沿用已有 `parent_graph` / `create_agent` / checkpointer interrupt / `session_store` 元数据 / `contracts` preflight 约定。
 3. 最小改动不等于单点改动：若存在对称路径影响，必须同步覆盖。
 4. 禁止临时补丁：避免在多处散落 `if/else` 特判；优先抽象为可复用策略/适配层。
+5. **禁止** Agent `import platform_mcp`；共享逻辑只改 `contracts`，工具 handler 只改 MCP `runtime/tools`。
 
 ## 2. 新需求落地顺序（强制）
 

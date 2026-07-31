@@ -11,10 +11,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
-    "baseUrl": ".",
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
     "paths": {
-      "@/*": ["src/*"],
-      "@umijs/max": ["src/shims/umijs-max.tsx"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src", "electron"],

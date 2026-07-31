@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from platform_mcp.runtime.tool_catalog_loader import (
+from contracts.tool_catalog_loader import (
     format_registered_tools_bindings,
     get_preflight_config,
     get_tool_platform_api,
     parse_platform_api_ref,
 )
-from platform_mcp.runtime.tool_preflight import preflight_tool
+from contracts.tool_preflight import preflight_tool
 
 
 class TestToolCatalogLoader:

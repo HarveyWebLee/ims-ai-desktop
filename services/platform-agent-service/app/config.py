@@ -20,7 +20,8 @@ StateGraph、各厂商 API Key、平台 API 地址、Postgres、Qdrant、语音�
 
 【配置从哪来？】
 1. 环境变量（操作系统或 Docker 注入）
-2. platform-agent-service/.env 文件（本地开发常用）
+2. 仓根 ``.env.shared``（跨端公共项，如 PLATFORM_API_BASE）
+3. platform-agent-service/.env（本服务项；同名键覆盖 shared）
 
 【为什么用 pydantic_settings？】
 Pydantic 的 BaseSettings 会自动：
@@ -40,7 +41,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # app/config.py → parent 是 app → parent.parent 是 platform-agent-service
 _SERVICE_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = _SERVICE_ROOT.parent.parent
+_ENV_SHARED = _REPO_ROOT / ".env.shared"
 _ENV_FILE = _SERVICE_ROOT / ".env"
+
+
+def _env_files() -> tuple[str, ...]:
+    """shared 在前、本服务在后（后者覆盖同名键）。"""
+    files: list[str] = []
+    if _ENV_SHARED.is_file():
+        files.append(str(_ENV_SHARED))
+    if _ENV_FILE.is_file():
+        files.append(str(_ENV_FILE))
+    return tuple(files)
 
 
 class Settings(BaseSettings):
@@ -51,7 +64,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=str(_ENV_FILE),  # 自动加载 .env
+        env_file=_env_files() or None,
         env_file_encoding="utf-8",
         extra="ignore",  # .env 里有多余字段时不报错
     )
@@ -95,6 +108,10 @@ class Settings(BaseSettings):
 
     # 综合信息平台后端 API 根地址（Agent 调告警等 Server Tool 时用）
     platform_api_base: str = "http://127.0.0.1:18001/api/app"
+
+    # 共享 JSON / 平台 API 索引目录（contracts.platform_api_catalog 等）
+    agent_data_dir: str = str((_SERVICE_ROOT / "app" / "data").resolve())
+    agent_service_root: str = str(_SERVICE_ROOT.resolve())
 
     # 语音转写（DashScope qwen3-asr-flash）
     transcribe_model: str = "qwen3-asr-flash"
@@ -205,3 +222,8 @@ class Settings(BaseSettings):
 
 # 模块级单例：整个进程共用一份 settings（别处 from app.config import settings）
 settings = Settings()
+
+# 将 Agent 能力注入 contracts（禁止 contracts 反向 import app）
+from app.contracts_runtime import wire_contracts_runtime  # noqa: E402
+
+wire_contracts_runtime()

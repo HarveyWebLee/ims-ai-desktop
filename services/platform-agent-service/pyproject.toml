@@ -30,8 +30,8 @@ dependencies = [
     "xlrd==1.2.0",  # 仅用于旧版 .xls；2.x 已移除 xls 支持
     # Agent MCP Gateway 可选（与 platform-mcp-server 对齐）
     "fastmcp>=2.3.0",
-    # 平台工具执行实现（唯一源在 platform_mcp.runtime；本仓再导出）
-    "platform-mcp-server",
+    # 共享运行时契约（HITL / preflight / catalog；工具执行面仅经 MCP Client）
+    "contracts",
 ]
 
 [project.optional-dependencies]
@@ -103,7 +103,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["app"]
+known-first-party = ["app", "contracts"]
 
 # ── basedpyright / Cursor Pyright：静态类型检查 ─────────────────────────────
 # CLI：uv run check typecheck（读取本节；与 IDE basic 模式对齐）
@@ -119,11 +119,11 @@ pythonVersion = "3.14"
 typeCheckingMode = "basic"
 venvPath = "."
 venv = ".venv"
-# editable 依赖 platform-mcp-server：IDE/部分 LS 不读 .pth，需显式源码路径
-extraPaths = ["../platform-mcp-server"]
+# editable 依赖 contracts：IDE/部分 LS 不读 .pth，需显式源码路径
+extraPaths = ["../platform-contracts"]
 # 报告缺失 stub，但不把第三方库噪声升为 error
 reportMissingImports = true
 reportMissingTypeStubs = false
 
 [tool.uv.sources]
-platform-mcp-server = { path = "../platform-mcp-server", editable = true }
+contracts = { path = "../platform-contracts", editable = true }

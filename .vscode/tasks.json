@@ -47,6 +47,24 @@
       "problemMatcher": []
     },
     {
+      "label": "contracts: fix",
+      "type": "shell",
+      "command": "uv run --extra dev python -m contracts.quality fix",
+      "options": { "cwd": "${workspaceFolder}/services/platform-contracts" },
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "contracts: all",
+      "type": "shell",
+      "command": "uv run --extra dev python -m contracts.quality all",
+      "options": { "cwd": "${workspaceFolder}/services/platform-contracts" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
       "label": "agent: fix",
       "type": "shell",
       "command": "uv run --extra dev python -m app.quality fix",

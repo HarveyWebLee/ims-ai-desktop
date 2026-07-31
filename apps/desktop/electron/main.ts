@@ -1,5 +1,12 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, Menu, shell } from "electron";
 import { join } from "node:path";
+
+/** 去掉原生 File / Edit / View 等菜单栏（Windows 必须对窗口再 setMenu(null)） */
+function stripNativeMenu(win: BrowserWindow): void {
+  Menu.setApplicationMenu(null);
+  win.setMenu(null);
+  win.setMenuBarVisibility(false);
+}
 
 /** 创建主窗口（全屏聊天） */
 function createWindow(): void {
@@ -9,6 +16,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 640,
     title: "IMS AI 助手",
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -16,6 +24,8 @@ function createWindow(): void {
       sandbox: false,
     },
   });
+
+  stripNativeMenu(win);
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -30,6 +40,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

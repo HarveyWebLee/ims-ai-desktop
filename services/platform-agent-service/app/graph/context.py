@@ -131,7 +131,7 @@ def assemble_context(
         except Exception:  # noqa: BLE001
             pass
 
-    from platform_mcp.runtime.agent_debug import agent_debug, preview_text
+    from contracts.agent_debug import agent_debug, preview_text
 
     agent_debug(
         "flow.context.assembled",

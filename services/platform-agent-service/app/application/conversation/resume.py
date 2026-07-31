@@ -7,7 +7,8 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from langgraph.types import Command
-from platform_mcp.runtime.context import (
+
+from contracts.context import (
     current_auth_token,
     current_hitl_confirm_bypass,
     current_thread_id,
@@ -25,7 +26,7 @@ def _unwrap_resume_args(resume_value: Any) -> Any:
 
 
 def _normalize_resume_payload(resume_value: Any) -> Any:
-    from platform_mcp.runtime.hitl import strip_hitl_meta_from_resume
+    from contracts.hitl import strip_hitl_meta_from_resume
 
     return strip_hitl_meta_from_resume(_unwrap_resume_args(resume_value))
 
@@ -48,7 +49,7 @@ async def stream_resume_core(
     if not user_id:
         user_id = await get_current_user_id(auth_token)
 
-    from platform_mcp.runtime.hitl import (
+    from contracts.hitl import (
         extract_expected_hitl_tool,
         is_hitl_approve,
         is_hitl_reject,
@@ -57,7 +58,7 @@ async def stream_resume_core(
     run_id = str(uuid.uuid4())
     token = current_auth_token.set(auth_token)
     tid = current_thread_id.set(thread_id)
-    from platform_mcp.runtime.agent_debug import agent_debug
+    from contracts.agent_debug import agent_debug
 
     agent_debug("resume.context.init", thread_id=thread_id, has_auth=bool(auth_token))
     expected_resume_tool = extract_expected_hitl_tool(resume_value)

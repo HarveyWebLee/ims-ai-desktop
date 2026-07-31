@@ -1,4 +1,4 @@
-"""将 platform_mcp.runtime 工具注册为 FastMCP Tools（本进程执行、对外 MCP）。"""
+"""将 platform_mcp.runtime.tools 注册为 FastMCP Tools（本进程执行、对外 MCP）。"""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def _serialize_result(value: Any) -> str:
 
 
 def _catalog_json_path() -> Path:
-    from platform_mcp.runtime.paths import mcp_catalog_path
+    from contracts.paths import mcp_catalog_path
 
     path = mcp_catalog_path()
     if path.is_file():
@@ -102,7 +102,7 @@ def _apply_request_auth_context() -> str | None:
     thread_id = lower.get("x-thread-id") or None
     bypass_raw = (lower.get("x-hitl-confirm-bypass") or "").strip().lower()
 
-    from platform_mcp.runtime.context import (
+    from contracts.context import (
         current_auth_token,
         current_hitl_confirm_bypass,
         current_thread_id,
@@ -118,7 +118,7 @@ def _apply_request_auth_context() -> str | None:
 
 
 def _wrap_tool_callable(bound_tool: Any):
-    from platform_mcp.runtime.hitl import McpHitlSignal
+    from contracts.hitl import McpHitlSignal
 
     base_fn = getattr(bound_tool, "func", None) or getattr(bound_tool, "coroutine", None)
     if base_fn is None:
@@ -263,7 +263,7 @@ async def health(_request: Request) -> JSONResponse:
             "service": "platform-mcp-server",
             "mcp": "/mcp",
             "port": settings.port,
-            "execution": "platform_mcp.runtime",
+            "execution": "platform_mcp.runtime.tools + contracts",
             "catalog": str(catalog_path),
             "catalog_exists": catalog_path.is_file(),
             "resources": ["catalog://tools", "catalog://write-tools"],

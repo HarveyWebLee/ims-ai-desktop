@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Form, Select, Typography } from "antd";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import { getVarListByCode } from "@/services/SystemController";
 import styles from "./index.module.less";
 

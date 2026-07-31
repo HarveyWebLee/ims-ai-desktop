@@ -5,7 +5,8 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-from platform_mcp.runtime.tool_preflight import ensure_tool_args, preflight_tool
+
+from contracts.tool_preflight import ensure_tool_args, preflight_tool
 
 
 class TestPreflightTool:
@@ -145,9 +146,7 @@ class TestPreflightTool:
         assert "device_code" in field_names
 
     def test_send_device_cmd_complete_args_skips_interrupt(self):
-        with patch(
-            "platform_mcp.runtime.device_command_resolver.resolve_device_command"
-        ) as mock_resolve:
+        with patch("contracts.device_command_resolver.resolve_device_command") as mock_resolve:
             mock_resolution = mock_resolve.return_value
             mock_resolution.is_complete.return_value = True
             mock_resolution.interrupt = None
@@ -169,13 +168,13 @@ class TestPreflightTool:
         assert result.args.get("device_code") == "D1"
 
     def test_hitl_fields_from_catalog(self):
-        from platform_mcp.runtime.tool_catalog_loader import get_hitl_fields
+        from contracts.tool_catalog_loader import get_hitl_fields
 
         fields = get_hitl_fields("query_alarms")
         assert fields
         assert fields[0]["type"] == "datetime_range"
 
-    @patch("platform_mcp.runtime.tool_preflight.settings")
+    @patch("contracts.tool_preflight.settings")
     def test_disabled(self, mock_settings):
         mock_settings.agent_preflight_enabled = False
         result = preflight_tool("query_alarms", {})
@@ -184,7 +183,7 @@ class TestPreflightTool:
 
 class TestEnsureToolArgsOutsideGraph:
     def test_raises_mcp_hitl_for_missing_time(self):
-        from platform_mcp.runtime.hitl import McpHitlSignal
+        from contracts.hitl import McpHitlSignal
 
         with pytest.raises(McpHitlSignal):
             ensure_tool_args("query_alarms", {"start_time": "", "end_time": ""})

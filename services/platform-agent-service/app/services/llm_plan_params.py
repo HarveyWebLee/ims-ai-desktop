@@ -34,10 +34,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from platform_mcp.runtime.time_range import format_reference_hint, resolve_alarm_time_range
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from contracts.time_range import format_reference_hint, resolve_alarm_time_range
 
 logger = logging.getLogger(__name__)
 
@@ -289,7 +289,7 @@ async def generate_llm_plan_params(
         )
         user_content = f"使用者原话：{msg}\n\n请为上述步骤中的每个工具输出 params JSON。"
 
-        from platform_mcp.runtime.agent_debug import agent_debug, preview_text, summarize_plan_steps
+        from contracts.agent_debug import agent_debug, preview_text, summarize_plan_steps
 
         agent_debug(
             "flow.ai.llm_plan_params.request",

@@ -1,12 +1,11 @@
 /**
- * 审计日志抽屉 — 只读展示当前会话的工具调用、HITL 确认等审计事件
- * 支持按 run_id / event_type 筛选；每条可展开查看完整 payload
+ * 审计日志面板 — 配置页内嵌展示当前会话的工具调用、HITL 等审计事件
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button, Collapse, Drawer, Empty, Select, Spin, Tag, Typography, message } from "antd";
+import { Button, Collapse, Empty, Select, Spin, Tag, Typography } from "antd";
+import { message } from "@/antd/feedback";
 import { ReloadOutlined } from "@ant-design/icons";
-import { useIntl } from "@umijs/max";
-import type { IntlShape } from "@umijs/max";
+import { useIntl, type IntlShape } from "react-intl";
 import dayjs from "dayjs";
 import * as AgentController from "@/services/AgentController";
 import type { AgentAuditLogEntry } from "@/services/AgentController";
@@ -207,7 +206,8 @@ function renderAuditDetail(entry: AgentAuditLogEntry, intl: IntlShape) {
   );
 }
 
-export default function AuditLogDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** 审计日志面板（配置页内嵌；不再以 Drawer 打开） */
+export default function AuditLogPanel() {
   const intl = useIntl();
   const { currentThreadId } = useAiAssistantStore();
   const [loading, setLoading] = useState(false);
@@ -245,16 +245,13 @@ export default function AuditLogDrawer({ open, onClose }: { open: boolean; onClo
   );
 
   useEffect(() => {
-    if (open) {
-      void loadAudit();
-    }
-  }, [open, currentThreadId, loadAudit]);
+    void loadAudit();
+  }, [currentThreadId, loadAudit]);
 
   const handleRefresh = useCallback(() => {
     void loadAudit({ notify: true });
   }, [loadAudit]);
 
-  /** 从全量记录提取 run_id 选项 */
   const runIdOptions = useMemo(() => {
     const ids = new Set<string>();
     for (const entry of allLogs) {
@@ -263,7 +260,6 @@ export default function AuditLogDrawer({ open, onClose }: { open: boolean; onClo
     return Array.from(ids);
   }, [allLogs]);
 
-  /** 客户端筛选（后端 API 亦支持 run_id / event_type 查询参数） */
   const logs = useMemo(() => {
     let rows = allLogs;
     if (filterRunId) {
@@ -313,27 +309,7 @@ export default function AuditLogDrawer({ open, onClose }: { open: boolean; onClo
   });
 
   return (
-    <Drawer
-      title={intl.formatMessage({ id: "aiAssistant.audit.title" })}
-      extra={
-        <Button
-          type="text"
-          size="small"
-          icon={<ReloadOutlined />}
-          loading={loading}
-          onClick={handleRefresh}
-          aria-label={intl.formatMessage({ id: "aiAssistant.audit.refresh" })}
-        >
-          {intl.formatMessage({ id: "aiAssistant.audit.refresh" })}
-        </Button>
-      }
-      placement="left"
-      width={Math.min(420, window.innerWidth * 0.92)}
-      open={open}
-      onClose={onClose}
-      className={styles.auditDrawer}
-      destroyOnClose={false}
-    >
+    <div className={styles.auditPanel}>
       <div className={styles.auditDrawerFilters}>
         <Text type="secondary" className={styles.auditDrawerCount}>
           {intl.formatMessage(
@@ -365,6 +341,15 @@ export default function AuditLogDrawer({ open, onClose }: { open: boolean; onClo
           }))}
           className={styles.auditDrawerFilterSelect}
         />
+        <Button
+          type="default"
+          size="small"
+          icon={<ReloadOutlined />}
+          loading={loading}
+          onClick={handleRefresh}
+        >
+          {intl.formatMessage({ id: "aiAssistant.audit.refresh" })}
+        </Button>
       </div>
 
       {loading && allLogs.length === 0 ? (
@@ -386,6 +371,6 @@ export default function AuditLogDrawer({ open, onClose }: { open: boolean; onClo
           />
         </div>
       )}
-    </Drawer>
+    </div>
   );
 }

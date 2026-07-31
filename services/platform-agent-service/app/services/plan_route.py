@@ -104,7 +104,7 @@ def evaluate_plan_route(
     else:
         mode = PlanExecutionMode.EXPLICIT_PLAN
 
-    from platform_mcp.runtime.agent_debug import agent_debug, summarize_plan_steps
+    from contracts.agent_debug import agent_debug, summarize_plan_steps
 
     agent_debug(
         "flow.plan.route_eval",

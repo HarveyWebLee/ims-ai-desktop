@@ -12,9 +12,9 @@ import pytest
 @pytest.mark.asyncio
 async def test_auth_header_interceptor_injects_bearer_and_thread():
     from langchain_mcp_adapters.interceptors import MCPToolCallRequest
-    from platform_mcp.runtime.context import current_auth_token, current_thread_id
 
     from app.mcp.client import AuthHeaderInterceptor
+    from contracts.context import current_auth_token, current_thread_id
 
     captured: dict[str, Any] = {}
 
@@ -175,9 +175,8 @@ def test_extract_hitl_payload_from_mcp_json():
 
 def test_resolve_mcp_hitl_reinvokes_after_approve(monkeypatch):
     """图内 resume 批准后应带 bypass 重调 MCP，而不是把 hitl 信封当结果。"""
-    from platform_mcp.runtime.context import current_hitl_confirm_bypass
-
     from app.mcp import client as mcp_client
+    from contracts.context import current_hitl_confirm_bypass
 
     calls: list[dict] = []
 
@@ -284,9 +283,9 @@ async def test_wrap_mcp_tool_sync_bridges_async_only_structured_tool():
 @pytest.mark.asyncio
 async def test_auth_interceptor_injects_hitl_bypass():
     from langchain_mcp_adapters.interceptors import MCPToolCallRequest
-    from platform_mcp.runtime.context import current_hitl_confirm_bypass
 
     from app.mcp.client import AuthHeaderInterceptor
+    from contracts.context import current_hitl_confirm_bypass
 
     captured: dict = {}
 

@@ -1,0 +1,67 @@
+/**
+ * 配置与管理页：向量库同步 / 审计日志 / 声纹库
+ */
+import { ArrowLeftOutlined } from "@ant-design/icons";
+import { Button, Layout, Tabs, Typography, theme } from "antd";
+import { useIntl } from "react-intl";
+import EntitySyncPanel from "@/components/AiAssistant/EntitySyncPanel";
+import AuditLogPanel from "@/components/AiAssistant/AuditLogDrawer";
+import VoiceprintManagerPanel from "@/components/AiAssistant/VoiceprintManagerModal";
+import styles from "@/components/AiAssistant/index.module.less";
+
+const { Header, Content } = Layout;
+const { Title, Text } = Typography;
+
+export default function SettingsPage({ onBack }: { onBack: () => void }) {
+  const intl = useIntl();
+  const { token } = theme.useToken();
+
+  return (
+    <Layout className={styles.settingsRoot}>
+      <Header className={styles.settingsHeader}>
+        <div className={styles.settingsHeaderLeft}>
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            onClick={onBack}
+            className={styles.desktopHeaderIconBtn}
+            aria-label={intl.formatMessage({ id: "aiAssistant.settings.back" })}
+          />
+          <div className={styles.desktopTitleText}>
+            <Title level={4} className={styles.settingsTitle}>
+              {intl.formatMessage({ id: "aiAssistant.settings.title" })}
+            </Title>
+            <Text type="secondary" className={styles.desktopTitleSub}>
+              {intl.formatMessage({ id: "aiAssistant.settings.subtitle" })}
+            </Text>
+          </div>
+        </div>
+      </Header>
+      <Content className={styles.settingsContent} style={{ background: token.colorBgLayout }}>
+        <div className={styles.settingsInner}>
+          <Tabs
+            defaultActiveKey="sync"
+            size="large"
+            items={[
+              {
+                key: "sync",
+                label: intl.formatMessage({ id: "aiAssistant.settings.tabSync" }),
+                children: <EntitySyncPanel />,
+              },
+              {
+                key: "audit",
+                label: intl.formatMessage({ id: "aiAssistant.settings.tabAudit" }),
+                children: <AuditLogPanel />,
+              },
+              {
+                key: "voiceprint",
+                label: intl.formatMessage({ id: "aiAssistant.settings.tabVoiceprint" }),
+                children: <VoiceprintManagerPanel />,
+              },
+            ]}
+          />
+        </div>
+      </Content>
+    </Layout>
+  );
+}

@@ -4,7 +4,7 @@
 import { useMemo } from "react";
 import { RobotOutlined } from "@ant-design/icons";
 import { Avatar, Button, Spin } from "antd";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import { useAiAssistantStore } from "./store";
 import { AssistantMessageCard, UserMessageCard } from "./ChatCards";
 import type { AiMessage } from "./types";
@@ -63,21 +63,23 @@ export default function MessageList({
     ];
     return (
       <div className={styles.emptyState}>
-        <div className={styles.emptyStateBadge} aria-hidden>
-          <RobotOutlined />
-        </div>
-        <h2 className={styles.emptyStateTitle}>
-          {intl.formatMessage({ id: "aiAssistant.emptyWelcome" })}
-        </h2>
-        <p className={styles.emptyStateDesc}>
-          {intl.formatMessage({ id: "aiAssistant.emptyHint" })}
-        </p>
-        <div className={styles.emptyStateSuggestions}>
-          {suggestions.map((text) => (
-            <Button key={text} className={styles.emptyStateChip} onClick={() => onSend?.(text)}>
-              {text}
-            </Button>
-          ))}
+        <div className={styles.emptyStateInner}>
+          <div className={styles.emptyStateBadge} aria-hidden>
+            <RobotOutlined />
+          </div>
+          <h2 className={styles.emptyStateTitle}>
+            {intl.formatMessage({ id: "aiAssistant.emptyWelcome" })}
+          </h2>
+          <p className={styles.emptyStateDesc}>
+            {intl.formatMessage({ id: "aiAssistant.emptyHint" })}
+          </p>
+          <div className={styles.emptyStateSuggestions}>
+            {suggestions.map((text) => (
+              <Button key={text} type="default" onClick={() => onSend?.(text)}>
+                {text}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
     );

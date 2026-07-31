@@ -4,10 +4,11 @@
 
 `platform-mcp-server` 是平台业务能力的 **唯一执行面**：
 
-- 工具实现位于 **`platform_mcp.runtime`**（告警/设备/导出/导航等）
+- **执行面**：`platform_mcp.runtime.tools`（告警/设备/导出/导航等 `@tool` handler）
+- **共享逻辑**：`services/platform-contracts`（包名 `contracts`）—— HITL 载荷、preflight、catalog 读取、平台 HTTP 客户端、告警/设备纯函数等
 - 以 MCP Tools 对外暴露；调用平台 HTTP API（JWT 透传）
 - **不**跑 LLM、**不**调用 LangGraph `interrupt()`、**不管** SSE / checkpointer
-- Agent **不**再保留业务工具实现；图内绑工具只经 MCP Client（+ 本机 `retrieve_knowledge`）
+- Agent **禁止** `import platform_mcp`；共享代码只依赖 `contracts`；图内绑工具只经 MCP Client（+ 本机 `retrieve_knowledge`）
 
 **禁止**本进程依赖 `langgraph`。运行时歧义通过 JSON `hitl_required` 上抛，由 **Agent 进程** 转为 `interrupt()`。
 

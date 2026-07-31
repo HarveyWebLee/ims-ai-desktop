@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from platform_mcp.runtime.hitl import (
+
+from contracts.hitl import (
     McpHitlSignal,
     ask_user_confirm,
     ask_user_params,
@@ -44,7 +45,7 @@ class TestAskUserParams:
 
 class TestAskUserConfirm:
     def test_raises_without_bypass(self):
-        from platform_mcp.runtime.context import current_hitl_confirm_bypass
+        from contracts.context import current_hitl_confirm_bypass
 
         token = current_hitl_confirm_bypass.set(False)
         try:
@@ -55,7 +56,7 @@ class TestAskUserConfirm:
             current_hitl_confirm_bypass.reset(token)
 
     def test_bypass_returns_true(self):
-        from platform_mcp.runtime.context import current_hitl_confirm_bypass
+        from contracts.context import current_hitl_confirm_bypass
 
         token = current_hitl_confirm_bypass.set(True)
         try:

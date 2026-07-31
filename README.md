@@ -6,7 +6,8 @@
 
 - `apps/desktop`：Electron 桌面聊天端（聊天 + Plan 步骤条 + HITL）
 - `services/platform-agent-service`：Agent Runtime（:8008）
-- `services/platform-mcp-server`：Platform MCP（:8010）
+- `services/platform-mcp-server`：Platform MCP 执行面（:8010）
+- `services/platform-contracts`：Agent/MCP 共享 Python 包（import `contracts`）
 - `packages/*`：共享协议与 catalog（`agent-core` / `shared-types` / `desktop-api`）
 - `docs` / `prj-docs` / `scripts`
 
@@ -20,9 +21,10 @@
 ## 开发环境
 
 1. 复制并配置环境变量：
+   - 仓根 `.env.shared`（从 `.env.shared.example`；目前主要为 `PLATFORM_API_BASE`）
    - `services/platform-agent-service/.env`
    - `services/platform-mcp-server/.env`
-   - `apps/desktop/.env`（可从 `.env.example` 复制）
+   - `apps/desktop/.env`（可选；`PLATFORM_API_BASE` 默认读仓根 shared）
 2. 安装依赖：
 
 ```bash
@@ -40,6 +42,8 @@ bash scripts/up.sh
 ```bash
 bash scripts/all.sh
 ```
+
+三个进程相互隔离：热更新 / 崩溃不会拖垮其他服务；`Ctrl+C` 统一停止。
 
 或分端启动：
 
@@ -60,19 +64,20 @@ bash scripts/kb.sh --dir e:/WORK/CODE/ims-ai-desktop/prj-docs
 ## 代码质量与提交门禁
 
 ```bash
-# 统一格式化（文档 + 前端 + 两个 Python 服务）
+# 统一格式化（文档 + 前端 + contracts + Agent + MCP）
 pnpm format
 
-# 统一检查（Prettier check + 桌面 ESLint/tsc + Agent/MCP quality all）
+# 统一检查（Prettier check + 桌面 ESLint/tsc + contracts/Agent/MCP quality all）
 pnpm check
 ```
 
-| 分项  | 命令                                                                     |
-| ----- | ------------------------------------------------------------------------ |
-| 文档  | `pnpm format:docs` / `pnpm check:docs`                                   |
-| 桌面  | `pnpm --filter @ims/desktop format` / `check`                            |
-| Agent | `pnpm format:agent` / `pnpm check:agent`（`python -m app.quality`）      |
-| MCP   | `pnpm format:mcp` / `pnpm check:mcp`（`python -m platform_mcp.quality`） |
+| 分项      | 命令                                                                              |
+| --------- | --------------------------------------------------------------------------------- |
+| 文档      | `pnpm format:docs` / `pnpm check:docs`                                            |
+| 桌面      | `pnpm --filter @ims/desktop format` / `check`                                     |
+| contracts | `pnpm format:contracts` / `pnpm check:contracts`（`python -m contracts.quality`） |
+| Agent     | `pnpm format:agent` / `pnpm check:agent`（`python -m app.quality`）               |
+| MCP       | `pnpm format:mcp` / `pnpm check:mcp`（`python -m platform_mcp.quality`）          |
 
 提交前会自动执行 `.husky/pre-commit`：
 

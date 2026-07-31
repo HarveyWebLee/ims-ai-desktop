@@ -4,7 +4,7 @@
  */
 import { CheckCircleFilled, CloseCircleFilled, StopOutlined } from "@ant-design/icons";
 import { Typography } from "antd";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import type { DeviceCommandWorkspace } from "./types";
 import styles from "./index.module.less";
 

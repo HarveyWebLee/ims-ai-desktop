@@ -2,7 +2,7 @@
  * 设备变量实时值 / 历史摘要 Workspace 面板
  */
 import { Button, Descriptions, Empty, Space, Table, Typography } from "antd";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import { executeClientAction } from "./ClientToolExecutor";
 import type { DeviceVariableHistoryWorkspace, DeviceVariableRealtimeWorkspace } from "./types";
 import styles from "./index.module.less";

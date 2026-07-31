@@ -150,9 +150,9 @@ async def abandon_stale_checkpoint_interrupt(
         return True
 
     from langgraph.types import Command
-    from platform_mcp.runtime.agent_debug import agent_debug
 
     from app.graph.parent_graph_stream import stream_parent_graph
+    from contracts.agent_debug import agent_debug
 
     agent_debug("checkpoint.abandon_start", thread_id=tid)
     reject_payload = {"type": "reject", "approved": False}
@@ -193,9 +193,9 @@ async def checkpoint_messages_summary(
         return []
     try:
         from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-        from platform_mcp.runtime.agent_debug import preview_text, summarize_tool_result
 
         from app.services.prompt_assembly import extract_user_display_message
+        from contracts.agent_debug import preview_text, summarize_tool_result
 
         snap = await _aget_parent_snap(tid, model_id)
     except Exception:
@@ -262,9 +262,9 @@ async def repair_dangling_tool_calls(thread_id: str, model_id: str) -> int:
         return 0
     try:
         from langchain_core.messages import AIMessage, ToolMessage
-        from platform_mcp.runtime.agent_debug import agent_debug
 
         from app.graph.agent_factory import get_parent_graph
+        from contracts.agent_debug import agent_debug
 
         agent = get_parent_graph(model_id)
         config = thread_runnable_config(tid)

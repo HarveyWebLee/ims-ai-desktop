@@ -9,11 +9,11 @@
 
 ### 0.1 必读架构（先于源码）
 
-| 顺序 | 文档                                                                                   | 读什么                           |
-| ---- | -------------------------------------------------------------------------------------- | -------------------------------- |
-| 1    | [`docs/architecture/00-overview.md`](../../docs/architecture/00-overview.md)           | 双层 MCP、零兼容、技术选型       |
-| 2    | [`docs/architecture/03-agent-runtime.md`](../../docs/architecture/03-agent-runtime.md) | 父图拓扑、HITL、SSE、Plan        |
-| 3    | [`docs/architecture/06-contracts.md`](../../docs/architecture/06-contracts.md)         | SSE / ToolResult / packages 契约 |
+| 顺序 | 文档                                                                                   | 读什么                                |
+| ---- | -------------------------------------------------------------------------------------- | ------------------------------------- |
+| 1    | [`docs/architecture/00-overview.md`](../../docs/architecture/00-overview.md)           | 双层 MCP、零兼容、技术选型            |
+| 2    | [`docs/architecture/03-agent-runtime.md`](../../docs/architecture/03-agent-runtime.md) | 父图拓扑、HITL、SSE、Plan             |
+| 3    | [`docs/architecture/06-contracts.md`](../../docs/architecture/06-contracts.md)         | TS packages + Python `contracts` 边界 |
 
 可选：[`02-mcp-platform-server.md`](../../docs/architecture/02-mcp-platform-server.md)、[`05-qdrant-rag.md`](../../docs/architecture/05-qdrant-rag.md)、[`08-dev-guide.md`](../../docs/architecture/08-dev-guide.md)。
 
@@ -33,11 +33,13 @@
   → SSE 事件经 agent_stream_adapter / stream_envelope 回前端
 ```
 
-**牢记三条红线**（代码里已删，读旧笔记时勿找）：
+**牢记红线**（代码里已删 / 禁止回潮）：
 
 - 无图外 `pending_plan` / `pending_tool_hitl`
 - 无手写 ReAct 与 `create_agent` 双轨
 - 业务工具不在 Agent 进程内用 `@tool` 直绑平台 API
+- Agent **禁止** `import platform_mcp`；共享 HITL / preflight / catalog 走 `contracts`（`services/platform-contracts`）
+- 工具执行只经 MCP Client（`app/mcp/client.py`）+ 本地 `retrieve_knowledge`
 
 ### 0.3 本地能跑再读更有效
 
@@ -55,20 +57,21 @@ curl -s localhost:8008/health
 
 ## 1. 目录地图（按层读，不要按字母序）
 
-| 层       | 路径                                              | 职责                                          | 建议精力 |
-| -------- | ------------------------------------------------- | --------------------------------------------- | -------- |
-| 入口     | `app/main.py`                                     | FastAPI 路由、lifespan、/health、挂载 Gateway | ★☆☆      |
-| API      | `app/api/`                                        | chat/resume/sessions/bpmn 等 HTTP 面          | ★★☆      |
-| 用例     | `app/application/conversation/`                   | `stream_chat` / `stream_resume`               | ★★★      |
-| 执行     | `app/application/execution/`                      | Plan / BPMN / ReAct 步进执行                  | ★★☆      |
-| 图       | `app/graph/`                                      | 父图、流适配、HITL、checkpoint                | ★★★      |
-| MCP      | `app/mcp/`                                        | Client、工具包装、Gateway B 面                | ★★★      |
-| 领域服务 | `app/services/`                                   | Plan 门控、意图、Prompt、会话元数据           | ★★☆      |
-| 持久化   | `app/persistence/`、`infrastructure/persistence/` | checkpointer、会话                            | ★★☆      |
-| RAG      | `app/rag/`、`infrastructure/vector/`              | 检索与向量                                    | ★☆☆      |
-| 提示词   | `app/prompts/`                                    | 系统 / 意图 / Plan 等 md                      | ★★☆      |
-| 配置     | `app/config.py`                                   | 环境变量与开关                                | ★★☆      |
-| 测试     | `tests/`                                          | 行为锚点，改功能时对照                        | ★★☆      |
+| 层       | 路径                                               | 职责                                          | 建议精力 |
+| -------- | -------------------------------------------------- | --------------------------------------------- | -------- |
+| 入口     | `app/main.py`                                      | FastAPI 路由、lifespan、/health、挂载 Gateway | ★☆☆      |
+| API      | `app/api/`                                         | chat/resume/sessions/bpmn 等 HTTP 面          | ★★☆      |
+| 用例     | `app/application/conversation/`                    | `stream_chat` / `stream_resume`               | ★★★      |
+| 执行     | `app/application/execution/`                       | Plan / BPMN / ReAct 步进执行                  | ★★☆      |
+| 图       | `app/graph/`                                       | 父图、流适配、HITL、checkpoint                | ★★★      |
+| MCP      | `app/mcp/`                                         | Client、工具包装、Gateway B 面                | ★★★      |
+| 共享契约 | `services/platform-contracts/contracts/`（邻仓包） | context / hitl / preflight / catalog / HTTP   | ★★★      |
+| 领域服务 | `app/services/`                                    | Plan 门控、意图、Prompt、会话元数据           | ★★☆      |
+| 持久化   | `app/persistence/`、`infrastructure/persistence/`  | checkpointer、会话                            | ★★☆      |
+| RAG      | `app/rag/`、`infrastructure/vector/`               | 检索与向量                                    | ★☆☆      |
+| 提示词   | `app/prompts/`                                     | 系统 / 意图 / Plan 等 md                      | ★★☆      |
+| 配置     | `app/config.py`                                    | 环境变量与开关                                | ★★☆      |
+| 测试     | `tests/`                                           | 行为锚点，改功能时对照                        | ★★☆      |
 
 **较少优先读**（除非任务点名）：`app/tools/` 历史目录、`app/cli/`、`app/quality.py`、大体积 `app/data/*.json`。
 

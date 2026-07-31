@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { Alert, Button, Collapse, Modal, Tag, Typography } from "antd";
 import { BugOutlined, TableOutlined } from "@ant-design/icons";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import dayjs from "dayjs";
 import type { PlanStep, TraceEvent, HitlPayload, TraceGraph, PlanGraph } from "@ims/shared-types";
 import type { FlowDocumentJSON } from "@/components/BpmnFlowgram";
@@ -235,7 +235,7 @@ export function MessagePlanSection({
           type="warning"
           showIcon
           className={styles.planReplanAlert}
-          message={intl.formatMessage({ id: "aiAssistant.plan.replanTitle" })}
+          title={intl.formatMessage({ id: "aiAssistant.plan.replanTitle" })}
           description={planReplanReason}
         />
       ) : null}
@@ -338,7 +338,7 @@ export function MessageWorkspaceSection({
         onCancel={() => setOpen(false)}
         footer={null}
         width={640}
-        destroyOnClose
+        destroyOnHidden
         className={styles.workspaceModal}
       >
         {timeLabel ? (

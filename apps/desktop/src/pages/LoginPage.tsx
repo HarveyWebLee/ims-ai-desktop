@@ -2,7 +2,7 @@
  * 桌面端登录页
  */
 import { useState } from "react";
-import { Button, Card, Form, Input, Typography, message } from "antd";
+import { App, Button, Card, Form, Input, Typography, theme } from "antd";
 import { RobotOutlined } from "@ant-design/icons";
 import { login } from "@ims/desktop-api";
 
@@ -10,6 +10,8 @@ const { Title, Text } = Typography;
 
 export default function LoginPage({ onSuccess }: { onSuccess: () => void }) {
   const [loading, setLoading] = useState(false);
+  const { message } = App.useApp();
+  const { token } = theme.useToken();
 
   const handleFinish = async (values: { username: string; password: string }) => {
     setLoading(true);
@@ -37,7 +39,7 @@ export default function LoginPage({ onSuccess }: { onSuccess: () => void }) {
     >
       <Card style={{ width: 400, maxWidth: "100%" }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <RobotOutlined style={{ fontSize: 40, color: "#479434" }} />
+          <RobotOutlined style={{ fontSize: 40, color: token.colorPrimary }} />
           <Title level={3} style={{ marginTop: 12, marginBottom: 4 }}>
             IMS AI 助手
           </Title>

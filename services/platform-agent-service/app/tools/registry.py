@@ -2,7 +2,7 @@
 平台工具注册表（v2）：Agent 图工具 **只** 来自 MCP Client + 本地 RAG。
 
 零兼容：Platform MCP 不可达时不回退本机工具。
-业务实现位于 ``platform_mcp.runtime``，由 Platform MCP Server 进程执行。
+业务实现位于 ``contracts``，由 Platform MCP Server 进程执行。
 """
 
 from __future__ import annotations

@@ -5,10 +5,10 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-from platform_mcp.runtime.context import current_auth_token
 
 from app.application.tool_execution import ToolExecutionPipeline
 from app.domain.tool_execution import ToolExecutionContext, ToolExecutionRequest
+from contracts.context import current_auth_token
 
 
 @pytest.mark.asyncio
@@ -18,7 +18,7 @@ async def test_prepare_sets_auth_contextvar_during_preflight():
 
     def _fake_preflight(tool_name: str, args: dict):
         seen["token"] = current_auth_token.get()
-        from platform_mcp.runtime.tool_preflight import PreflightResult
+        from contracts.tool_preflight import PreflightResult
 
         return PreflightResult(args=dict(args), interrupt=None)
 
@@ -27,7 +27,7 @@ async def test_prepare_sets_auth_contextvar_during_preflight():
     pipeline = ToolExecutionPipeline(policy)
 
     with patch(
-        "platform_mcp.runtime.tool_preflight.preflight_tool",
+        "contracts.tool_preflight.preflight_tool",
         side_effect=_fake_preflight,
     ):
         prepared = await pipeline.prepare(

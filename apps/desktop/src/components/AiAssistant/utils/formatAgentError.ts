@@ -1,7 +1,7 @@
 /**
  * 将 Agent SSE error 事件格式化为使用者可读文案
  */
-import type { IntlShape } from "@umijs/max";
+import type { IntlShape } from "react-intl";
 
 export interface AgentErrorData {
   kind?: string;

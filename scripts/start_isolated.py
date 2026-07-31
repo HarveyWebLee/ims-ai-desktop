@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-在独立进程组中启动子进程，供 scripts/all.sh 后台拉起 MCP / Agent。
+在独立进程组中启动子进程（供调试或旧入口复用）。
+
+联调请优先使用 ``scripts/all.sh`` → ``scripts/dev_supervisor.py``：
+监督器已内置进程隔离、日志前缀与崩溃自动重启。
 
 Windows 上 uvicorn WatchFiles 热重载可能向同一控制台广播 CTRL_C，
-导致 all.sh / App 一并退出。CREATE_NEW_PROCESS_GROUP 可隔离该广播。
+CREATE_NEW_PROCESS_GROUP 可隔离该广播。
 """
 
 from __future__ import annotations
@@ -27,14 +30,19 @@ def main() -> int:
         return 2
 
     creationflags = 0
+    popen_cmd: str | list[str] = command
+    shell = False
     if sys.platform == "win32":
-        # 禁用该进程组对控制台 CTRL+C 的接收，避免热重载拖垮联调脚本
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+        popen_cmd = subprocess.list2cmdline(command)
+        shell = True
 
     process = subprocess.Popen(
-        command,
+        popen_cmd,
         cwd=args.cwd,
+        shell=shell,
         creationflags=creationflags,
+        start_new_session=(sys.platform != "win32"),
     )
     return int(process.wait())
 

@@ -25,7 +25,7 @@
 - 桌面端: Electron / AiAssistant UI
 - Agent: platform-agent-service
 - mcp: platform-mcp-server
-- 契约: packages/agent-core、shared-types、desktop-api
+- 契约: packages/agent-core、shared-types、desktop-api；Python `platform-contracts`（`contracts`）
 - 知识库: Qdrant RAG / kb 脚本
 - 工具: scripts / 本地联调
 - 规则: .cursor rules/skills/hooks
@@ -41,16 +41,18 @@
 - 不解释显而易见的代码
 
 ## 本仓约束摘要
-- monorepo：`apps/desktop` + `services/*` + `packages/*`
+- monorepo：`apps/desktop` + `services/{platform-agent-service,platform-mcp-server,platform-contracts}` + `packages/*`
 - 联调：`bash scripts/all.sh`（MCP :8010 → Agent :8008 → Electron）
-- 工具只经 Platform MCP；HITL 仅 `interrupt` / `Command(resume)`
+- 工具只经 Platform MCP；共享逻辑走 `contracts`；Agent 禁止 `import platform_mcp`
+- HITL 仅 `interrupt` / `Command(resume)`
 - 平台达梦只读（仅 SELECT）；业务写走平台 API
 - 桌面端 M1 不含 BPMN 编排画布；`client_action` navigate 等可跳过降级
+- 桌面端：**React 19 + antd 6**；UI 规范见 `.cursor/rules/desktop-ui-antd.mdc`
 
 ## 桌面端联调
 - Agent：`http://127.0.0.1:8008`
 - Platform MCP：`http://127.0.0.1:8010/mcp`
-- 环境变量示例：`apps/desktop/.env.example`
+- 环境变量：仓根 `.env.shared.example`（`PLATFORM_API_BASE`）+ 各端 `.env.example`
 - 包管理：`pnpm`（Node >= 20）
 
 ## YApi MCP 配置

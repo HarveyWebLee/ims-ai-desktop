@@ -33,14 +33,40 @@
 from __future__ import annotations
 
 import json
-import uuid
 from typing import Any
 
 from langchain_core.tools import tool
 
-from platform_mcp.runtime.hitl import ask_user_confirm, ask_user_params
-from platform_mcp.runtime.platform_client import PlatformApiError, call_platform_api
-from platform_mcp.runtime.result import tool_result
+from contracts.device_lookup import (
+    build_device_list_payload,
+    build_send_cmd_payload,
+    build_var_list_request,
+    extract_device_records,
+    extract_variable_records,
+    fetch_device_variable_records,
+    filter_exact_label_match,
+    looks_like_show_name,
+    map_online_status_token,
+    normalize_name_token,
+    resolve_device_code,
+    resolve_writable_variable_name,
+)
+from contracts.hitl import ask_user_confirm, ask_user_params
+from contracts.platform_client import PlatformApiError, call_platform_api
+from contracts.result import tool_result
+
+# 本地别名：保留既有私有名，避免大范围改 handler 内部调用
+_normalize_name_token = normalize_name_token
+_looks_like_show_name = looks_like_show_name
+_map_online_status_token = map_online_status_token
+_extract_device_records = extract_device_records
+_extract_variable_records = extract_variable_records
+_build_var_list_request = build_var_list_request
+_build_send_cmd_payload = build_send_cmd_payload
+_filter_exact_label_match = filter_exact_label_match
+_fetch_device_variable_records = fetch_device_variable_records
+_resolve_writable_variable_name = resolve_writable_variable_name
+_resolve_device_code = resolve_device_code
 
 # 返回给 LLM 的摘要条数上限
 QUERY_DEVICE_PAGE_SIZE = 20
@@ -49,15 +75,6 @@ QUERY_DEVICE_VAR_PAGE_SIZE = 30
 # 设备管理页 originPath（与 navigation_routes.json 对齐）
 DEVICE_MANAGE_PATH = "/config_management/config/equipment_manage"
 
-# 口语 → 平台 onlineStatus（0 离线 / 1 在线 / 2 异常）
-_ONLINE_STATUS_MAP: dict[str, int] = {
-    "在线": 1,
-    "online": 1,
-    "离线": 0,
-    "offline": 0,
-    "异常": 2,
-    "abnormal": 2,
-}
 
 _ONLINE_STATUS_LABELS: dict[int, str] = {
     0: "离线",
@@ -101,42 +118,6 @@ def _map_enable_status(item: dict[str, Any]) -> tuple[int | None, str | None]:
         code = _coerce_status_int(item.get("enableStatus"))
     label = _DEVICE_ENABLE_STATUS_LABELS.get(code) if code is not None else None
     return code, label
-
-
-def _map_online_status_token(value: str) -> int | None:
-    """将 LLM 传入的在线状态口语映射为平台整型码。"""
-    text = (value or "").strip()
-    if not text:
-        return None
-    if text.isdigit():
-        code = int(text)
-        return code if code in _ONLINE_STATUS_LABELS else None
-    return _ONLINE_STATUS_MAP.get(text) or _ONLINE_STATUS_MAP.get(text.lower())
-
-
-def _extract_device_records(data: Any) -> tuple[int, list[dict[str, Any]]]:
-    """从平台分页响应提取 total 与 records。"""
-    if isinstance(data, dict):
-        records = data.get("records") or data.get("list") or data.get("rows") or []
-        total = int(data.get("total") or data.get("totalCount") or len(records))
-    elif isinstance(data, list):
-        records = data
-        total = len(records)
-    else:
-        records = []
-        total = 0
-    return total, [item for item in records if isinstance(item, dict)]
-
-
-def _extract_variable_records(data: Any) -> list[dict[str, Any]]:
-    """从 getVarListByCode 响应提取变量列表。"""
-    if isinstance(data, list):
-        return [item for item in data if isinstance(item, dict)]
-    if isinstance(data, dict):
-        records = data.get("records") or data.get("list") or data.get("rows") or []
-        if isinstance(records, list):
-            return [item for item in records if isinstance(item, dict)]
-    return []
 
 
 def _map_device_brief(item: dict[str, Any]) -> dict[str, Any]:
@@ -193,109 +174,6 @@ def _map_variable_brief(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _normalize_name_token(text: str) -> str:
-    """变量名/showName 比较前归一化：去首尾空白、合并连续空白。"""
-    import re
-
-    return re.sub(r"\s+", "", (text or "").strip())
-
-
-def _looks_like_show_name(text: str) -> bool:
-    """启发式：含 CJK 字符时优先用 showName 走平台服务端筛选。"""
-    for ch in text:
-        if "\u4e00" <= ch <= "\u9fff":
-            return True
-    return False
-
-
-def _build_var_list_request(device_code: str, keyword: str = "") -> dict[str, Any]:
-    """构造 getVarListByCode 请求体（对齐 Swagger CreateDeviceGetVarListByCodeRequest）。"""
-    payload: dict[str, Any] = {"deviceCode": device_code}
-    kw = (keyword or "").strip()
-    if kw:
-        if _looks_like_show_name(kw):
-            payload["showName"] = kw
-        else:
-            payload["varName"] = kw
-    return payload
-
-
-def _filter_exact_label_match(
-    records: list[dict[str, Any]],
-    token: str,
-) -> list[dict[str, Any]]:
-    """按 varName / showName 精确匹配（归一化空白），过滤平台模糊筛选的噪声。"""
-    token_norm = _normalize_name_token(token)
-    exact: list[dict[str, Any]] = []
-    for item in records:
-        vn = str(item.get("varName") or item.get("var_name") or "").strip()
-        sn = str(item.get("showName") or item.get("show_name") or "").strip()
-        if vn and (vn == token or _normalize_name_token(vn) == token_norm):
-            exact.append(item)
-        elif sn and (sn == token or _normalize_name_token(sn) == token_norm):
-            exact.append(item)
-    return exact
-
-
-def _fetch_device_variable_records(
-    device_code: str,
-    keyword: str = "",
-) -> list[dict[str, Any]]:
-    """
-    拉取设备变量列表；有关键词时优先服务端 varName/showName 筛选，
-    中文 showName 筛选无结果时回退全量列表再客户端过滤。
-    """
-    kw = (keyword or "").strip()
-    try:
-        data = call_platform_api(
-            method="post",
-            path="/device/getVarListByCode",
-            data=_build_var_list_request(device_code, kw),
-        )
-    except PlatformApiError:
-        raise
-
-    records = _extract_variable_records(data)
-    if kw and not records and _looks_like_show_name(kw):
-        data = call_platform_api(
-            method="post",
-            path="/device/getVarListByCode",
-            data={"deviceCode": device_code},
-        )
-        records = _extract_variable_records(data)
-        token_norm = _normalize_name_token(kw)
-        records = [
-            item
-            for item in records
-            if _normalize_name_token(str(item.get("showName") or item.get("show_name") or ""))
-            == token_norm
-            or str(item.get("varName") or item.get("var_name") or "").strip() == kw
-        ]
-    return records
-
-
-def _build_send_cmd_payload(
-    *,
-    device_code: str,
-    var_name: str,
-    variable_value: Any,
-    operate_name: str,
-) -> dict[str, Any]:
-    """
-    构造 sendCmd 请求体（对齐 Swagger + 平台前端 CommonController.sendCmd）。
-
-    vs[].vv 强制 string；附带 willPostTs、taskNo 便于平台追踪。
-    """
-    vv_str = str(variable_value).strip()
-    return {
-        "dn": device_code,
-        "operateName": operate_name,
-        "vs": [{"vn": var_name, "vv": vv_str}],
-        "willPostTs": True,
-        "taskNo": uuid.uuid4().hex,
-    }
-
-
 def _is_writable_variable(item: dict[str, Any]) -> bool:
     """判断变量是否可写（平台 isWrite：1/true 为可写）。供展示/摘要用，下发不再据此拦截。"""
     iw = item.get("isWrite")
@@ -307,90 +185,6 @@ def _is_writable_variable(item: dict[str, Any]) -> bool:
         return int(iw) == 1
     text = str(iw).strip().lower()
     return text in ("1", "true", "yes")
-
-
-def _resolve_writable_variable_name(
-    device_code: str,
-    variable_name: str,
-) -> tuple[str | None, str | None]:
-    """
-    将 LLM/用户输入的变量名（可能是 showName 中文名）解析为平台 varName。
-
-    优先走 getVarListByCode 做 showName→varName 映射；**不校验 isWrite**。
-    列表未命中、接口失败或设备无变量列表时：直接采用用户输入的 token
-    （HITL 下拉已是 varName），是否可写交由平台 sendCmd 决定，本地不再拦截。
-    仅在「同名多项歧义」时返回 error。
-    """
-    token = (variable_name or "").strip()
-    if not token:
-        return None, "变量名不能为空。"
-
-    token_norm = _normalize_name_token(token)
-
-    def _var_name_of(item: dict[str, Any]) -> str:
-        return str(item.get("varName") or item.get("var_name") or "").strip()
-
-    def _show_name_of(item: dict[str, Any]) -> str:
-        return str(item.get("showName") or item.get("show_name") or "").strip()
-
-    def _unique_var_name(items: list[dict[str, Any]]) -> str | None:
-        names: list[str] = []
-        for item in items:
-            vn = _var_name_of(item)
-            if vn and vn not in names:
-                names.append(vn)
-        return names[0] if len(names) == 1 else None
-
-    try:
-        # 1. 服务端筛选；多条时精确收窄；唯一命中则映射为 varName
-        filtered = _fetch_device_variable_records(device_code, token)
-        if len(filtered) > 1:
-            narrowed = _filter_exact_label_match(filtered, token)
-            if narrowed:
-                filtered = narrowed
-        if filtered:
-            unique = _unique_var_name(filtered)
-            if unique:
-                return unique, None
-            if len({_var_name_of(i) for i in filtered if _var_name_of(i)}) > 1:
-                labels = "、".join(
-                    f"{_show_name_of(i) or _var_name_of(i)}({_var_name_of(i)})"
-                    for i in filtered[:5]
-                    if _var_name_of(i)
-                )
-                if labels:
-                    return None, f"变量「{token}」匹配到多项：{labels}，请指定 varName。"
-
-        # 2. 全量列表精确匹配 varName / showName
-        records = _fetch_device_variable_records(device_code)
-    except PlatformApiError:
-        # 拉变量失败不阻断下发：信任 HITL / 用户已填名
-        return token, None
-
-    exact_var: list[dict[str, Any]] = []
-    exact_show: list[dict[str, Any]] = []
-    for item in records or []:
-        vn = _var_name_of(item)
-        sn = _show_name_of(item)
-        if vn and (_normalize_name_token(vn) == token_norm or vn == token):
-            exact_var.append(item)
-        elif sn and (_normalize_name_token(sn) == token_norm or sn == token):
-            exact_show.append(item)
-
-    unique = _unique_var_name(exact_var) or _unique_var_name(exact_show)
-    if unique:
-        return unique, None
-
-    if len(exact_show) > 1:
-        labels = "、".join(
-            f"{_show_name_of(i) or _var_name_of(i)}({_var_name_of(i)})"
-            for i in exact_show[:5]
-            if _var_name_of(i)
-        )
-        return None, f"变量「{token}」对应多个 showName：{labels}，请指定 varName。"
-
-    # 未在列表中命中：仍采用用户输入（不因 isWrite / 未收录而失败）
-    return token, None
 
 
 def _check_device_cmd_preconditions(device_record: dict[str, Any]) -> str | None:
@@ -522,8 +316,8 @@ def _send_cmd_with_auto_retry(
     """
     下发设备指令；失败时若可推断备选变量则底层自动重试一次（无需二次 HITL）。
     """
-    from platform_mcp.runtime.agent_debug import agent_debug
-    from platform_mcp.runtime.device_command_resolver import pick_alternate_writable_variable
+    from contracts.agent_debug import agent_debug
+    from contracts.device_command_resolver import pick_alternate_writable_variable
 
     try:
         _post_send_cmd(payload)
@@ -608,115 +402,6 @@ def _send_cmd_with_auto_retry(
             var_name=var_name,
         )
         return tool_result(ok=False, summary=summary, data=first_error)
-
-
-def build_device_list_payload(
-    *,
-    search: str = "",
-    device_name: str = "",
-    device_code: str = "",
-    online_status: int | None = None,
-    page: int = 1,
-    size: int = QUERY_DEVICE_PAGE_SIZE,
-) -> dict[str, Any]:
-    """
-    构造 POST /device/getDeviceList 请求体。
-
-    仅填入非空筛选字段，避免把空串带给平台造成误过滤。
-    """
-    payload: dict[str, Any] = {"page": page, "size": size}
-    if search.strip():
-        payload["search"] = search.strip()
-    if device_name.strip():
-        payload["deviceName"] = device_name.strip()
-    if device_code.strip():
-        payload["deviceCode"] = device_code.strip()
-    if online_status is not None:
-        payload["onlineStatus"] = online_status
-    return payload
-
-
-def _resolve_device_code(
-    device_code: str = "",
-    device_name: str = "",
-    *,
-    hitl_tool: str = "get_device_detail",
-) -> tuple[str | None, dict[str, Any] | None, str | None]:
-    """
-    解析设备编码：优先 device_code；仅有名称时查列表取首条或 HITL 消歧。
-    返回 (device_code, device_record, error_message)。
-
-    hitl_tool：多台设备需消歧时，ask_user_params 挂靠的工具名（告警查询传 query_alarms）。
-    """
-    code = (device_code or "").strip()
-    name = (device_name or "").strip()
-
-    if code:
-        try:
-            data = call_platform_api(
-                method="get",
-                path=f"/device/getDeviceByCode/{code}",
-            )
-        except PlatformApiError as exc:
-            return None, None, str(exc)
-        if isinstance(data, dict) and data.get("deviceCode"):
-            return str(data["deviceCode"]), data, None
-        return None, None, f"未找到编码为「{code}」的设备。"
-
-    if not name:
-        return None, None, "请提供设备编码或设备名称。"
-
-    payload = build_device_list_payload(device_name=name, size=10)
-    try:
-        data = call_platform_api(
-            method="post",
-            path="/device/getDeviceList",
-            data=payload,
-        )
-    except PlatformApiError as exc:
-        return None, None, str(exc)
-
-    _, records = _extract_device_records(data)
-    if not records:
-        return None, None, f"未找到名称含「{name}」的设备。"
-
-    if len(records) == 1:
-        item = records[0]
-        return str(item.get("deviceCode") or ""), item, None
-
-    # 多台匹配：HITL 让用户选择
-    options = [
-        {
-            "label": f"{item.get('deviceName', '-')} ({item.get('deviceCode', '-')})",
-            "value": str(item.get("deviceCode") or ""),
-        }
-        for item in records[:10]
-        if item.get("deviceCode")
-    ]
-    if not options:
-        return None, None, f"找到 {len(records)} 台设备，但缺少有效编码。"
-
-    merged = ask_user_params(
-        tool=hitl_tool,
-        message=f"找到 {len(records)} 台与「{name}」匹配的设备，请选择目标：",
-        fields=[
-            {
-                "name": "device_code",
-                "label": "目标设备",
-                "type": "select",
-                "required": True,
-                "options": options,
-            }
-        ],
-        current={},
-    )
-    selected = str(merged.get("device_code") or "").strip()
-    if not selected:
-        return None, None, "未选择目标设备。"
-    matched = next((r for r in records if str(r.get("deviceCode")) == selected), None)
-    if matched:
-        return selected, matched, None
-    return _resolve_device_code(device_code=selected, hitl_tool=hitl_tool)
 
 
 def _build_send_cmd_confirm_message(
@@ -904,7 +589,7 @@ def query_device_variable_realtime(
     variable_name 留空或「所有/全部」时返回该设备全部变量实时列表。
     平台 API：POST ``/realData/getRealDataList``；变量清单联 ``getVarListByCode``。
     """
-    from platform_mcp.runtime.tool_preflight import ensure_tool_args
+    from contracts.tool_preflight import ensure_tool_args
 
     try:
         merged = ensure_tool_args(
@@ -1092,9 +777,9 @@ def query_device_variable_history(
 
     平台 API：POST ``/sysMonitor/getDevVarDataList``。
     """
-    from platform_mcp.runtime.time_range import resolve_alarm_time_range
-    from platform_mcp.runtime.tool_preflight import ensure_tool_args
-    from platform_mcp.runtime.tools.alarm import _to_platform_time
+    from contracts.alarm_params import to_platform_time
+    from contracts.time_range import resolve_alarm_time_range
+    from contracts.tool_preflight import ensure_tool_args
 
     try:
         merged = ensure_tool_args(
@@ -1167,8 +852,8 @@ def query_device_variable_history(
             return tool_result(ok=False, summary="时间范围无效，请重新选择。")
 
     start_iso, end_iso = resolved
-    platform_start = _to_platform_time(start_iso)
-    platform_end = _to_platform_time(end_iso)
+    platform_start = to_platform_time(start_iso)
+    platform_end = to_platform_time(end_iso)
 
     try:
         data = call_platform_api(
@@ -1363,7 +1048,7 @@ def get_device_detail(device_code: str = "", device_name: str = "") -> str:
     ----------------------
     data.device：脱敏后的详情（password 等打码）。
     """
-    from platform_mcp.runtime.tool_preflight import ensure_tool_args
+    from contracts.tool_preflight import ensure_tool_args
 
     try:
         merged = ensure_tool_args(
@@ -1441,7 +1126,7 @@ def query_device_variables(
     ----------------------
     data.items：变量摘要（含 isRead/isWrite）；供后续 send_device_cmd 选可写变量。
     """
-    from platform_mcp.runtime.tool_preflight import ensure_tool_args
+    from contracts.tool_preflight import ensure_tool_args
 
     try:
         merged = ensure_tool_args(
@@ -1530,8 +1215,8 @@ def send_device_cmd(
     ----------------------
     成功含 taskNo；失败含 platform_code / failure_kind。
     """
-    from platform_mcp.runtime.device_command_resolver import resolve_device_command
-    from platform_mcp.runtime.tool_preflight import ensure_tool_args
+    from contracts.device_command_resolver import resolve_device_command
+    from contracts.tool_preflight import ensure_tool_args
 
     initial_args = {
         "device_code": device_code,
@@ -1591,7 +1276,7 @@ def send_device_cmd(
             force_vn = str(merged.get("variable_name") or "").strip()
             force_vv = str(merged.get("variable_value") or "").strip()
             if force_dc and force_vn and force_vv:
-                from platform_mcp.runtime.agent_debug import agent_debug
+                from contracts.agent_debug import agent_debug
 
                 agent_debug(
                     "flow.device.explicit_var_passthrough",
@@ -1623,7 +1308,7 @@ def send_device_cmd(
         force_vn = str(merged.get("variable_name") or resolution.variable_name or "").strip()
         force_vv = str(merged.get("variable_value") or resolution.variable_value or "").strip()
         if force_dc and force_vn and force_vv:
-            from platform_mcp.runtime.agent_debug import agent_debug
+            from contracts.agent_debug import agent_debug
 
             agent_debug(
                 "flow.device.explicit_var_passthrough",
@@ -1695,7 +1380,7 @@ def send_device_cmd(
         operate_name=op_name,
     )
 
-    from platform_mcp.runtime.agent_debug import agent_debug, summarize_tool_args
+    from contracts.agent_debug import agent_debug, summarize_tool_args
 
     agent_debug(
         "flow.device.send_cmd",

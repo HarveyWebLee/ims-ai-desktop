@@ -6,18 +6,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from langgraph.errors import GraphInterrupt
-from platform_mcp.runtime.agent_debug import (
-    agent_debug,
-    summarize_tool_args,
-    summarize_tool_result,
-)
-from platform_mcp.runtime.context import (
-    current_auth_token,
-    current_hitl_confirm_bypass,
-    current_thread_id,
-    safe_reset_contextvar,
-)
-from platform_mcp.runtime.result import tool_result
 
 from app.domain.tool_authorization import CatalogRequiredPermissionsPolicy
 from app.domain.tool_execution import (
@@ -30,6 +18,18 @@ from app.middleware.auth import (
     resolve_permissions_from_token,
     resolve_user_id_from_token,
 )
+from contracts.agent_debug import (
+    agent_debug,
+    summarize_tool_args,
+    summarize_tool_result,
+)
+from contracts.context import (
+    current_auth_token,
+    current_hitl_confirm_bypass,
+    current_thread_id,
+    safe_reset_contextvar,
+)
+from contracts.result import tool_result
 
 
 @dataclass(frozen=True)
@@ -125,7 +125,7 @@ class ToolExecutionPipeline:
 
     async def prepare(self, request: ToolExecutionRequest) -> PreparedToolExecution:
         """归一化参数并执行授权；不会调用实际工具。"""
-        from platform_mcp.runtime.tool_preflight import preflight_tool
+        from contracts.tool_preflight import preflight_tool
 
         enriched = ToolExecutionRequest(
             tool_name=request.tool_name,

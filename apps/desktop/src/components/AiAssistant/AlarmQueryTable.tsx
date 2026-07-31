@@ -2,9 +2,10 @@
  * 告警查询结果表格（供消息内弹窗复用）
  * 支持服务端分页：有 queryContext 时翻页调用平台 getAlarmList
  */
-import { Empty, Space, Table, Tag, Typography, Button, message } from "antd";
+import { Empty, Space, Table, Tag, Typography, Button } from "antd";
+import { message } from "@/antd/feedback";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AlarmQueryWorkspace } from "./types";
 import { useAiAssistantStore } from "./store";
@@ -24,7 +25,7 @@ function statusTagColor(statusName?: string): string {
   return "default";
 }
 
-/** 生成表格行唯一键（antd 5.x 起 rowKey 回调的 index 参数已弃用） */
+/** 生成表格行唯一键（antd 起 rowKey 回调的 index 参数已弃用） */
 function rowKeyOf(row: AlarmQueryWorkspace["items"][0]): string {
   if (row.id != null && row.id !== "") {
     return String(row.id);

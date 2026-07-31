@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Empty, Input, Select, Space, Table, Tag, TreeSelect, Typography } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import {
   getDeviceCategoryTree,
   getDeviceGroupTree,
@@ -266,7 +266,7 @@ export default function HitlDevicePicker({ value, onChange, description }: HitlD
         dataIndex: "onlineStatus",
         width: 72,
         render: (status: number) => (
-          <Tag color={onlineTagColor(status)} bordered={false}>
+          <Tag color={onlineTagColor(status)} variant="filled">
             {onlineLabel(status, intl)}
           </Tag>
         ),

@@ -2,8 +2,8 @@
  * Agent SSE 流式对话 Hook
  */
 import { useCallback, useRef } from "react";
-import { useIntl, useLocation } from "@umijs/max";
-import { message } from "antd";
+import { useIntl } from "react-intl";
+import { message } from "@/antd/feedback";
 import { v4 as uuidv4 } from "uuid";
 import * as AgentController from "@/services/AgentController";
 import { executeClientAction } from "../ClientToolExecutor";
@@ -33,7 +33,6 @@ import { enrichPlanStepCatalogMeta } from "@/components/BpmnFlowgram/utils/plan-
 
 export function useAgentStream() {
   const intl = useIntl();
-  const location = useLocation();
   const abortRef = useRef<AbortController | null>(null);
   const pendingToolArgsRef = useRef<Record<string, Record<string, unknown>>>({});
   /** 本轮 download_file 已触发的浏览器下载次数（多文件导出进度提示） */
@@ -558,7 +557,8 @@ export function useAgentStream() {
             thread_id: currentThreadId,
             message: content.trim(),
             model_id: selectedModelId,
-            metadata: { current_path: location.pathname },
+            // 桌面端无宿主路由，固定根路径供后端 client_action 等上下文使用
+            metadata: { current_path: "/" },
             recent_user_messages: priorUserMessages,
           },
           createStreamHandlers(assistantId),
@@ -593,7 +593,6 @@ export function useAgentStream() {
       createStreamHandlers,
       currentThreadId,
       finalizeAssistantMessage,
-      location.pathname,
       selectedModelId,
       setStreaming,
       intl,

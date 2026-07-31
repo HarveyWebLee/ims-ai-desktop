@@ -75,7 +75,7 @@ def classify_task(ctx: AgentContext) -> TaskRoute:
     else:
         route = TaskRoute.LLM
 
-    from platform_mcp.runtime.agent_debug import agent_debug
+    from contracts.agent_debug import agent_debug
 
     agent_debug(
         "flow.route.decision",

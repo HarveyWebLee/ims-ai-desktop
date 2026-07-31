@@ -29,17 +29,17 @@ from typing import Any
 # 第三方：从 values 增量识别工具调用与结果
 # ---------------------------------------------------------------------------
 from langchain_core.messages import AIMessage, ToolMessage
-from platform_mcp.runtime.agent_debug import (
-    agent_debug,
-    preview_text,
-    summarize_tool_args,
-    summarize_tool_result,
-)
 
 # ---------------------------------------------------------------------------
 # 本项目
 # ---------------------------------------------------------------------------
 from app.application.execution.common import _tool_output_to_str, emit_tool_events
+from contracts.agent_debug import (
+    agent_debug,
+    preview_text,
+    summarize_tool_args,
+    summarize_tool_result,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -481,9 +481,8 @@ async def _ayield_interrupt_from_checkpoint(
     emitted: set[str] | None = None,
 ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
     """stream 标志未同步时，从 checkpoint 异步补发 interrupt SSE。"""
-    from platform_mcp.runtime.context import current_thread_id
-
     from app.graph.checkpoint_utils import collect_pending_interrupt_payloads
+    from contracts.context import current_thread_id
 
     tid = (current_thread_id.get() or "").strip()
     mid = (model_id or "").strip()
@@ -852,7 +851,7 @@ def iter_state_graph_sse_events(
     emitted_custom_keys: set[str] = set()
     # 父图 messages 投影通常不含 create_agent 子图 token；有则优先生效，避免 values 回填重复
     streamed_message_tokens = False
-    from platform_mcp.runtime.context import current_stream_message_skip
+    from contracts.context import current_stream_message_skip
 
     skip = max(0, int(current_stream_message_skip.get() or 0))
     message_count = skip
@@ -1073,7 +1072,7 @@ async def _async_iter_state_graph_sse_events(
     open_tool_calls: dict[str, str] = {}
     emitted_custom_keys: set[str] = set()
     streamed_message_tokens = False
-    from platform_mcp.runtime.context import current_stream_message_skip
+    from contracts.context import current_stream_message_skip
 
     skip = max(0, int(current_stream_message_skip.get() or 0))
     message_count = skip

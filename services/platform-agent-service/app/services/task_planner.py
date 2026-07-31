@@ -100,7 +100,7 @@ def _resolve_download_resource(
     failed_args: dict[str, Any] | None = None,
 ) -> str:
     """从 failed_args、原计划步骤或用户原话推断 download_file.resource。"""
-    from platform_mcp.runtime.tools.export import infer_download_resource
+    from contracts.export_infer import infer_download_resource
 
     if failed_args:
         resource = failed_args.get("resource")

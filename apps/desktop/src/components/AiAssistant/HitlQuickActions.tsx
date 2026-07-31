@@ -3,7 +3,7 @@
  */
 import { Alert } from "antd";
 import { InteractionOutlined } from "@ant-design/icons";
-import { useIntl } from "@umijs/max";
+import { useIntl } from "react-intl";
 import type { HitlPayload } from "@ims/shared-types";
 import { shouldShowHitlQuickActions } from "./utils/hitlInterruptUtils";
 import styles from "./index.module.less";
@@ -32,7 +32,7 @@ export default function HitlQuickActions({ payload }: HitlQuickActionsProps) {
         type="info"
         showIcon
         className={styles.hitlQuickActionsAlert}
-        message={intl.formatMessage({ id: "aiAssistant.hitl.scrollToForm" })}
+        title={intl.formatMessage({ id: "aiAssistant.hitl.scrollToForm" })}
       />
     </div>
   );

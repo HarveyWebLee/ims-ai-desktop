@@ -1,0 +1,58 @@
+---
+description: 桌面端 React 19 + antd 6 组件/UI 开发规范（设计原则、主题、反馈、弃用 API）
+globs: "apps/desktop/src/**/*.{ts,tsx,less,css}"
+alwaysApply: false
+---
+
+# 桌面端 UI（React 19 + antd 6）
+
+对齐 Ant Design：**自然、确定、意义、生长**；实现优先官方组件与 Design Token，禁止另起一套视觉体系。
+
+查证：MCP **`antd`**（`@ant-design/cli mcp`）→ 主题/组件 API；勿凭记忆写弃用 props。
+
+## 架构落点
+
+| 项 | 路径 |
+| ---- | ---- |
+| 主题 | **antd 6 默认**（`ConfigProvider` 不传自定义 `theme`） |
+| 反馈桥 | `src/antd/feedback.ts` + `AntdAppBridge`（在 `<App>` 内） |
+| 入口 | `src/App.tsx`：`ConfigProvider` → `App` → 业务树 |
+
+## 必须
+
+1. **默认主题优先**：不另起品牌 `ThemeConfig`；业务样式用 `theme.useToken()` 或 `var(--ant-*)`，禁止散落硬编码主色。确需定制时再经 `ConfigProvider theme` 改 Token，禁止平行 CSS 变量体系。
+2. **反馈走 App 上下文**  
+   - 组件内优先：`const { message, modal, notification } = App.useApp()`  
+   - 工具类 / 不便用 Hook：`import { message } from "@/antd/feedback"`  
+   - **禁止** `import { message } from "antd"` 静态方法（丢失主题与 cssVar 上下文）。
+3. **antd 6 API**：`Alert.title`（非 `message`）；遮罩层 `destroyOnHidden`；Drawer `size`（非 `width`）；`Tag variant="filled"`（非 `bordered={false}`）；弹出层用 `styles` / `classNames` / `popupRender`。
+4. **布局与反馈**：列表空态用 `Empty`；表单校验用 `Form` rules；异步操作用 loading + 成功/失败 toast；复杂确认用 `Modal`/`Popconfirm`，勿用 `window.alert`。
+5. **i18n**：用户可见文案进 `locales/ai_assistant` 中英文。
+6. **M1**：Plan 仅步骤条；不引入 BPMN 编排画布；`client_action` navigate 可跳过降级。
+
+## 禁止
+
+- 为「好看」覆盖 antd 内部 DOM 深层选择器（易碎）；确需定制用组件 `classNames`/`styles` 或 Token
+- 新建平行 UI 库、平行品牌色变量体系，或复制 antd 组件逻辑
+- 在桌面端实现 Agent 图逻辑 / 直连达梦
+
+## 示例
+
+```tsx
+// ✅
+const { message } = App.useApp();
+const { token } = theme.useToken();
+<Tag variant="filled" color="success" />
+<Alert type="info" title="请确认参数" />
+
+// ❌
+import { message } from "antd";
+message.success("ok");
+<Tag bordered={false} />
+<Alert message="请确认参数" />
+```
+
+## 参考
+
+- [设计价值观](https://ant.design/docs/spec/values) / [定制主题](https://ant.design/docs/react/customize-theme) / [App](https://ant.design/components/app) / [v5→v6](https://ant.design/docs/react/migration-v6)
+- 联调与验收：`desktop-electron.mdc`、`docs/desktop-m1-acceptance.md`
