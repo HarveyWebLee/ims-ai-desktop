@@ -163,7 +163,8 @@ def checkpoint_messages_to_ui(messages: list[Any]) -> list[dict[str, Any]]:
         UI 消息列表
 
     说明:
-        自最近一条 HumanMessage 起的 assistant 气泡共享该 Human 的 mid（方案 B 多卡同 mid）。
+        与实时 SSE 一致：同一用户 turn（同 mid）的多条 AIMessage / ToolMessage
+        合并为**一张**助手卡；无 mid 的旧数据则合并相邻助手气泡直至下一条用户消息。
     """
     ui: list[dict[str, Any]] = []
     i = 0
@@ -235,16 +236,38 @@ def checkpoint_messages_to_ui(messages: list[Any]) -> list[dict[str, Any]]:
                 i += 1
 
             if blocks:
-                entry = {"role": "assistant", "blocks": blocks}
-                if current_mid:
-                    entry["mid"] = current_mid
-                ui.append(entry)
+                _append_or_merge_assistant_ui(ui, blocks, current_mid)
             continue
 
         # 孤立的 ToolMessage（无对应 AIMessage）跳过
         i += 1
 
     return ui
+
+
+def _append_or_merge_assistant_ui(
+    ui: list[dict[str, Any]],
+    blocks: list[dict[str, Any]],
+    mid: str | None,
+) -> None:
+    """同 mid（或无 mid 的相邻助手）合并 blocks，对齐实时单卡。"""
+    if (
+        ui
+        and ui[-1].get("role") == "assistant"
+        and ((mid and ui[-1].get("mid") == mid) or (not mid and not ui[-1].get("mid")))
+    ):
+        existing = list(ui[-1].get("blocks") or [])
+        existing.extend(blocks)
+        merged = {**ui[-1], "blocks": existing}
+        if mid and not merged.get("mid"):
+            merged["mid"] = mid
+        ui[-1] = merged
+        return
+
+    entry: dict[str, Any] = {"role": "assistant", "blocks": blocks}
+    if mid:
+        entry["mid"] = mid
+    ui.append(entry)
 
 
 def attach_pending_interrupt_to_ui(

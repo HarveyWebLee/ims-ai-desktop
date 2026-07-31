@@ -26,6 +26,12 @@ const VOLUME_GAIN = 9;
 const TARGET_SAMPLE_RATE = 16000;
 /** 连续无有效语音（音量/识别文本）超时后自动结束并纠错 */
 const SILENCE_TIMEOUT_MS = 10_000;
+/** 录音中声纹实时核验间隔 */
+const VOICEPRINT_LIVE_CHECK_MS = 1000;
+/** 实时核验最少有效 PCM（秒） */
+const VOICEPRINT_LIVE_MIN_SEC = 0.8;
+/** 实时核验滑动窗（秒），取最近一段比对 */
+const VOICEPRINT_LIVE_WINDOW_SEC = 2.0;
 /**
  * 视为「有效说话」的 RMS 阈值（经 VOLUME_GAIN 后）。
  * 过低会被环境底噪一直刷新计时，导致 10s 永不触发；偏高只影响静音判定，不影响动效曲线。
@@ -146,6 +152,15 @@ export default function VoiceInput({
     source: MediaStreamAudioSourceNode;
     processor: ScriptProcessorNode;
   } | null>(null);
+  /** 录音中已至少一次声纹匹配（通过前不回显 interim） */
+  const voiceprintLiveOkRef = useRef(false);
+  /** 因声纹不匹配已中止，避免重复提示 / 走停录终验 */
+  const voiceprintRejectedRef = useRef(false);
+  const voiceprintVerifyInflightRef = useRef(false);
+  const liveVoiceprintTimerRef = useRef<number | null>(null);
+  const abortDueToVoiceprintRef = useRef<
+    (result: { score: number; threshold: number; display_name?: string }) => void
+  >(() => undefined);
 
   const clearElapsedTimer = useCallback(() => {
     if (elapsedTimerRef.current) {
@@ -158,6 +173,13 @@ export default function VoiceInput({
     if (silenceWatchRef.current) {
       window.clearInterval(silenceWatchRef.current);
       silenceWatchRef.current = null;
+    }
+  }, []);
+
+  const clearLiveVoiceprintWatch = useCallback(() => {
+    if (liveVoiceprintTimerRef.current) {
+      window.clearInterval(liveVoiceprintTimerRef.current);
+      liveVoiceprintTimerRef.current = null;
     }
   }, []);
 
@@ -248,19 +270,30 @@ export default function VoiceInput({
     }
   }, []);
 
-  const buildVerifyPcmBlob = useCallback((): Blob | null => {
-    const chunks = pcmVerifyChunksRef.current;
-    if (!chunks.length) return null;
-    const total = chunks.reduce((n, c) => n + c.length, 0);
-    if (total < TARGET_SAMPLE_RATE * 0.6) return null;
-    const merged = new Int16Array(total);
-    let offset = 0;
-    for (const c of chunks) {
-      merged.set(c, offset);
-      offset += c.length;
-    }
-    return new Blob([merged.buffer], { type: "application/octet-stream" });
-  }, []);
+  const buildVerifyPcmBlob = useCallback(
+    (opts?: { windowSec?: number; minSec?: number }): Blob | null => {
+      const chunks = pcmVerifyChunksRef.current;
+      if (!chunks.length) return null;
+      const total = chunks.reduce((n, c) => n + c.length, 0);
+      const minSec = opts?.minSec ?? 0.6;
+      if (total < TARGET_SAMPLE_RATE * minSec) return null;
+      let merged = new Int16Array(total);
+      let offset = 0;
+      for (const c of chunks) {
+        merged.set(c, offset);
+        offset += c.length;
+      }
+      const windowSec = opts?.windowSec;
+      if (windowSec && windowSec > 0) {
+        const maxSamples = Math.floor(TARGET_SAMPLE_RATE * windowSec);
+        if (merged.length > maxSamples) {
+          merged = merged.subarray(merged.length - maxSamples);
+        }
+      }
+      return new Blob([merged.buffer], { type: "application/octet-stream" });
+    },
+    [],
+  );
 
   const startPcmCaptureForVerify = useCallback(
     async (stream: MediaStream) => {

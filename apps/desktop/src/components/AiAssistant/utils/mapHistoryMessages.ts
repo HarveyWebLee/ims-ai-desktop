@@ -65,7 +65,7 @@ function normalizeBlock(raw: Record<string, unknown>): AiMessageBlock | null {
   return null;
 }
 
-/** 历史消息 → 聊天卡片列表 */
+/** 历史消息 → 聊天卡片列表（同 mid 助手合并为一张，对齐实时 SSE） */
 export function mapHistoryToMessages(history: ThreadHistoryMessage[]): AiMessage[] {
   const result: AiMessage[] = [];
 
@@ -85,7 +85,13 @@ export function mapHistoryToMessages(history: ThreadHistoryMessage[]): AiMessage
               }
               return block;
             })
-          : item.blocks;
+          : item.blocks.map((block) => {
+              // 兼容后端 snake_case tool_call_id
+              if (block.type === "tool_call") {
+                return normalizeBlock(block as unknown as Record<string, unknown>) ?? block;
+              }
+              return block;
+            });
     } else if (item.content) {
       blocks = [
         {
@@ -101,12 +107,28 @@ export function mapHistoryToMessages(history: ThreadHistoryMessage[]): AiMessage
 
     if (!blocks.length) continue;
 
+    const mid = typeof item.mid === "string" && item.mid.trim() ? item.mid.trim() : undefined;
+
+    // 同 mid 连续助手卡合并（后端已合时幂等；旧投影兜底）
+    if (role === "assistant" && result.length > 0) {
+      const last = result[result.length - 1];
+      if (last.role === "assistant" && ((mid && last.mid === mid) || (!mid && !last.mid))) {
+        last.blocks = [...last.blocks, ...blocks];
+        if (mid && !last.mid) last.mid = mid;
+        const workspaceContent = resolveWorkspaceFromMessage(last);
+        if (workspaceContent) {
+          last.workspaceContent = workspaceContent;
+        }
+        continue;
+      }
+    }
+
     const message: AiMessage = {
       id: uuidv4(),
       role,
       blocks,
       createdAt: Date.now(),
-      mid: typeof item.mid === "string" && item.mid.trim() ? item.mid.trim() : undefined,
+      mid,
     };
 
     if (role === "assistant") {

@@ -154,7 +154,9 @@ export function applyBpmnSnapshotToMessages(
 }
 
 /**
- * 按时间正序将 trace runs 与助手消息对齐（每轮用户发言后第一条助手消息对应一个 run）
+ * 按用户轮次将 trace runs 与助手消息对齐（每轮用户后的**第一张**助手卡对应一个 run）。
+ * 与实时单卡一致：同 turn 不应因 ReAct 多 AIMessage 消耗多个 run。
+ * 无前置 user 的孤立助手卡仍按剩余 run 顺序回填（兼容单测与残缺历史）。
  */
 export function enrichMessagesWithTraceRuns(
   messages: AiMessage[],
@@ -163,17 +165,11 @@ export function enrichMessagesWithTraceRuns(
   if (!runs.length) return messages;
 
   const chronologicalRuns = [...runs].reverse();
-  const assistantIndices = messages
-    .map((m, i) => (m.role === "assistant" ? i : -1))
-    .filter((i) => i >= 0);
-
   const next = messages.map((m) => ({ ...m }));
   let runIdx = 0;
+  const boundAssistants = new Set<number>();
 
-  for (const msgIdx of assistantIndices) {
-    const run = chronologicalRuns[runIdx];
-    if (!run) break;
-
+  const applyRun = (msgIdx: number, run: TraceRunSnapshot) => {
     const plan = extractPlanFromRun(run);
     const patch: Partial<AiMessage> = {};
 
@@ -194,7 +190,34 @@ export function enrichMessagesWithTraceRuns(
     if (Object.keys(patch).length) {
       next[msgIdx] = { ...next[msgIdx], ...patch };
     }
+  };
+
+  for (let i = 0; i < messages.length; i += 1) {
+    if (messages[i].role !== "user") continue;
+
+    let assistantIdx = -1;
+    for (let j = i + 1; j < messages.length; j += 1) {
+      if (messages[j].role === "user") break;
+      if (messages[j].role === "assistant") {
+        assistantIdx = j;
+        break;
+      }
+    }
+    if (assistantIdx < 0) continue;
+
+    const run = chronologicalRuns[runIdx];
+    if (!run) break;
     runIdx += 1;
+    boundAssistants.add(assistantIdx);
+    applyRun(assistantIdx, run);
+  }
+
+  for (let i = 0; i < messages.length; i += 1) {
+    if (messages[i].role !== "assistant" || boundAssistants.has(i)) continue;
+    const run = chronologicalRuns[runIdx];
+    if (!run) break;
+    runIdx += 1;
+    applyRun(i, run);
   }
 
   return next;
