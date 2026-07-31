@@ -1,0 +1,66 @@
+# --- 环境变量与密钥（.env.example 可提交）---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 虚拟环境（uv / venv / pip）
+.venv/
+venv/
+ENV/
+env/
+
+# 打包与构建产物
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+*.whl
+
+# 测试与覆盖率
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# 类型检查 / Lint 缓存
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.basedpyright/
+
+# --- uv ---
+# uv.lock 建议提交以锁定依赖；仅忽略本地虚拟环境
+
+# --- Node / pnpm（若本地调试 packages 时产生）---
+node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- IDE 与系统 ---
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- 日志与运行时 ---
+*.log
+*.pid
+
+# --- 本地数据 / 临时文件 ---
+*.tmp
+*.bak
+.cache/

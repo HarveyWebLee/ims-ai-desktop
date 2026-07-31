@@ -1,0 +1,41 @@
+[
+  {
+    "action": "开门",
+    "aliases": ["打开门", "远程开门", "开锁", "开启门禁", "开闸"],
+    "variableHints": ["status_door_control", "门控制状态"],
+    "requiredVarName": "status_door_control",
+    "requiredVarLabel": "门控制状态",
+    "subSystemHints": ["门禁", "门控"],
+    "valueHints": { "default": "1", "open": "1", "close": "0" }
+  },
+  {
+    "action": "关门",
+    "aliases": ["关闭门", "锁门", "关闸", "关闭门禁"],
+    "variableHints": ["status_door_control", "门控制状态"],
+    "requiredVarName": "status_door_control",
+    "requiredVarLabel": "门控制状态",
+    "subSystemHints": ["门禁", "门控"],
+    "valueHints": { "default": "0", "open": "1", "close": "0" }
+  },
+  {
+    "action": "开启",
+    "aliases": ["打开", "启动", "开"],
+    "variableHints": ["开关", "控制", "启停", "switch", "status"],
+    "valueHints": { "default": "1", "open": "1", "close": "0" }
+  },
+  {
+    "action": "关闭",
+    "aliases": ["关掉", "停止", "关"],
+    "variableHints": ["开关", "控制", "启停", "switch", "status"],
+    "valueHints": { "default": "0", "open": "1", "close": "0" }
+  },
+  {
+    "action": "播报",
+    "aliases": ["下发广播", "广播播报", "语音播报", "播放广播", "广播通知", "广播"],
+    "variableHints": ["play", "播报"],
+    "requiredVarName": "play",
+    "requiredVarLabel": "播报",
+    "requireUserValue": true,
+    "subSystemHints": ["广播"]
+  }
+]

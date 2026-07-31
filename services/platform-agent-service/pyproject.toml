@@ -1,0 +1,129 @@
+[project]
+name = "platform-agent-service"
+version = "0.1.0"
+description = "综合信息平台 AI Agent 后端服务（LangGraph + FastAPI）"
+requires-python = "==3.14.4"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "python-multipart>=0.0.12",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "httpx>=0.28.0",
+    # LangChain / LangGraph 1.x（create_agent + stream_events v3）
+    "langchain>=1.3.11",
+    "langchain-openai>=1.3.3",
+    "langchain-mcp-adapters>=0.1.0",
+    "langgraph>=1.2.7",
+    "langgraph-checkpoint-postgres>=3.1.0",
+    "psycopg[binary,pool]>=3.2.0",
+    "python-dotenv>=1.0.0",
+    # Qdrant 向量库客户端（语义检索 / RAG 入库）
+    "qdrant-client>=1.14.0",
+    # Redis（语音纠错 Cache 等；docker-compose 宿主机 13386）
+    "redis>=5.0.0",
+    # 知识库多格式抽取：Word / PPT / PDF / Excel
+    "python-docx>=1.1.0",
+    "python-pptx>=1.0.0",
+    "pypdf>=5.0.0",
+    "openpyxl>=3.1.0",
+    "xlrd==1.2.0",  # 仅用于旧版 .xls；2.x 已移除 xls 支持
+    # Agent MCP Gateway 可选（与 platform-mcp-server 对齐）
+    "fastmcp>=2.3.0",
+    # 平台工具执行实现（唯一源在 platform_mcp.runtime；本仓再导出）
+    "platform-mcp-server",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.9.0",
+    "basedpyright>=1.28.0",
+]
+# 达梦 JDBC 回退驱动（无 dmPython 时）；需同时配置 DM_JDBC_JAR
+entity-sync = [
+    "JayDeBeApi>=1.2.3",
+    "JPype1>=1.5.0",
+]
+
+[project.scripts]
+# 本地开发：uv run agent
+agent = "app.dev:main"
+# 知识库：uv run kb --dir D:/知识库
+kb = "app.cli.kb:main"
+# 代码质量：uv run check format|lint|typecheck|test|fix|all
+check = "app.quality:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = ["-ra", "--tb=short"]
+
+# ── Ruff：格式化 + Lint（替代 Black / isort / Flake8）────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+# 项目源码与测试目录
+src = ["app", "tests", "scripts"]
+exclude = [
+    ".venv",
+    ".git",
+    ".ruff_cache",
+    ".pytest_cache",
+    "__pycache__",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle 错误
+    "W",   # pycodestyle 警告
+    "F",   # Pyflakes（未使用变量、未定义名等）
+    "I",   # isort（import 排序）
+    "UP",  # pyupgrade（现代化语法）
+    "B",   # flake8-bugbear（常见 bug 模式）
+]
+ignore = [
+    "E501",  # 行宽由 formatter 处理，lint 不重复报
+    "B008",  # FastAPI 常见参数默认工厂写法，允许在路由参数默认值中调用
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+# ── basedpyright / Cursor Pyright：静态类型检查 ─────────────────────────────
+# CLI：uv run check typecheck（读取本节；与 IDE basic 模式对齐）
+[tool.pyright]
+include = ["app", "tests", "scripts"]
+exclude = [
+    "**/__pycache__",
+    ".venv",
+    ".ruff_cache",
+    ".pytest_cache",
+]
+pythonVersion = "3.14"
+typeCheckingMode = "basic"
+venvPath = "."
+venv = ".venv"
+# editable 依赖 platform-mcp-server：IDE/部分 LS 不读 .pth，需显式源码路径
+extraPaths = ["../platform-mcp-server"]
+# 报告缺失 stub，但不把第三方库噪声升为 error
+reportMissingImports = true
+reportMissingTypeStubs = false
+
+[tool.uv.sources]
+platform-mcp-server = { path = "../platform-mcp-server", editable = true }

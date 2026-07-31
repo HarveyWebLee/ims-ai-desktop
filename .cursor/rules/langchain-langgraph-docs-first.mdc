@@ -1,0 +1,46 @@
+---
+description: Agent 新功能/需求必须先查 LangChain/LangGraph 官方文档，再按官方理念与本仓架构实现
+alwaysApply: true
+---
+
+# LangChain / LangGraph 文档优先（强制）
+
+适用于本仓 **Agent 后端、MCP 工具链、HITL/Plan/流式/checkpointer、共享契约与 AI 侧栏** 的任何新功能或需求开发（含重构与 Bug 修复中引入新 API 的场景）。
+
+## 改前必须做（动手写代码前）
+
+1. **先查官方文档，禁止凭记忆写 API**  
+   使用 MCP **`docs-langchain`**（或等价 `user-docs-langchain`）：
+   - `search_docs_by_lang_chain`：按主题检索
+   - `query_docs_filesystem_docs_by_lang_chain`：读全文 / 核对签名  
+     涉及第三方库版本行为时，可用 Context7 作补充，**不得**替代 LangChain/LangGraph 主文档。
+
+2. **按官方设计理念选型，再落到本仓架构**  
+   先明确官方推荐路径（Graph API / `create_agent` / `interrupt`+`Command` / `astream_events` / checkpointer 等），再映射到当前架构：
+   - 基准：`docs/architecture/00-overview.md`、`03-agent-runtime.md`、`02-mcp-platform-server.md`、`06-contracts.md`
+   - 运行时：**父 `StateGraph` + 节点内 `create_agent`**；HITL **仅** `interrupt()` + `Command(resume=...)` + checkpointer
+   - 工具：**仅** Platform MCP；Agent 进程内禁止业务 `@tool` 旁路与图外 `pending_*` HITL
+   - UI：**`apps/desktop`** SSE 消费；M1 无 BPMN 编排抽屉
+
+3. **在回复中显式交代（编码前）**
+   - 查阅了哪些官方主题 / 页面要点
+   - 选用的官方 API 与理由（及明确不采用的官方备选，如有）
+   - 如何落入本仓模块（父图节点 / MCP wrapper / SSE 契约等）
+
+## 改中约束
+
+- 新 API、废弃接口、参数默认值以 **文档当日结果** 为准；训练数据与旧代码仅作线索。
+- 不得为「省事」引入与官方模型冲突的第二套控制流（例如图外 pending HITL、`HumanInTheLoopMiddleware` 与自定义表单双协议、手写 ReAct 双轨）。
+- 官方能力与产品表单冲突时：**保留本仓 HITL payload 形状**，底层仍走官方 `interrupt`/`Command`；策略不明先问用户。
+
+## 改后自检
+
+- [ ] 所用 LangGraph/LangChain API 已用 `docs-langchain` 核对签名与推荐用法
+- [ ] 实现落在父图 / MCP / checkpointer / SSE 既有主链，无旁路分叉
+- [ ] 对称路径（chat / resume / reject / 新消息）与契约（`packages/`、SSE）已同步
+
+## 参考
+
+- 详细 Agent 规范：`.cursor/rules/ai-agent-dev.mdc`
+- 质量门禁：`.cursor/rules/ai-dev-quality-gates.mdc`
+- 后端架构优先：`.cursor/rules/agent-architecture-first.mdc`

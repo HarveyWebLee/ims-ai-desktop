@@ -1,0 +1,28 @@
+{
+  "name": "ims-ai-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IMS AI 智能化桌面端（Electron + Agent + MCP）",
+  "scripts": {
+    "dev": "pnpm --filter @ims/desktop dev",
+    "build": "pnpm --filter @ims/desktop build",
+    "desktop": "pnpm --filter @ims/desktop dev",
+    "prepare": "husky",
+    "format": "pnpm format:docs && pnpm --filter @ims/desktop format && pnpm format:agent && pnpm format:mcp",
+    "format:docs": "prettier --write \"**/*.{md,mdc,json,yml,yaml}\"",
+    "format:agent": "cd services/platform-agent-service && uv run --no-sync --extra dev python -m app.quality fix",
+    "format:mcp": "cd services/platform-mcp-server && uv run --no-sync --extra dev python -m platform_mcp.quality fix",
+    "check": "pnpm check:docs && pnpm --filter @ims/desktop check && pnpm check:agent && pnpm check:mcp",
+    "check:docs": "prettier --check \"**/*.{md,mdc,json,yml,yaml}\"",
+    "check:agent": "cd services/platform-agent-service && uv run --no-sync --extra dev python -m app.quality all",
+    "check:mcp": "cd services/platform-mcp-server && uv run --no-sync --extra dev python -m platform_mcp.quality all"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "prettier": "^3.6.2"
+  }
+}

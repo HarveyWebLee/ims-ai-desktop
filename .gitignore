@@ -1,0 +1,60 @@
+# --- Node ---
+node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- 构建产物 ---
+dist/
+out/
+build/
+release/
+apps/desktop/dist/
+apps/desktop/dist-electron/
+*.egg-info/
+*.egg
+.eggs/
+*.whl
+
+# --- Python ---
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.basedpyright/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# --- 环境与密钥 ---
+.env
+.env.*
+!.env.example
+*.local
+
+# --- IDE / 系统 ---
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# --- 日志与临时 ---
+*.log
+*.pid
+*.tmp
+*.bak
+.cache/

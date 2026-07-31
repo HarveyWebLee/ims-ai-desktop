@@ -1,0 +1,28 @@
+---
+description: 功能开发/修复时必须同步维护关联功能点的完整性与可靠性
+alwaysApply: true
+---
+
+# 关联功能完整性
+
+开发或修复**单一功能点**时，若改动会影响同一业务链路上的其他入口、状态或展示，**必须一并修改**，保证端到端可靠。仅改「当前报错路径」而遗漏关联点，视为**开发缺陷**。
+
+## 必须遵守
+
+1. **改前先画影响面**：直接调用方、对称路径（chat / resume / reject / abort）、共享状态（Store、session_store、checkpointer、ContextVar）、UI（Plan / HITL / loading / i18n）、契约（`packages/`、SSE）。
+2. **对称路径同步**：变更一条路径时同步相反路径、新会话 / 新消息 / 同 thread 下一轮、错误降级策略。
+3. **状态生命周期闭合**：`set` / `pending` / `streaming=true` 必须有对应 `clear` / `finalize` / `pop`。
+4. **前后端与契约一致**：改 SSE / Tool / HITL 时同步 `packages/shared-types`、桌面端 parser、后端 mapper。
+5. **不确定策略时先问用户**：清除 vs 保留、静默 vs 提示、新气泡 vs 写回原消息等，不得擅自选一种交差。
+
+## 提交前自检（最小清单）
+
+- [ ] 是否只改了一条路径，而 chat / resume / reject / 新消息 未覆盖？
+- [ ] 前端 `pendingInterrupt`、后端 checkpoint interrupt 在新意图开始时是否正确清理？
+- [ ] UI 是否可能展示上一轮 Plan / 工具 / loading 残留？
+- [ ] 是否需按 `docs/desktop-m1-acceptance.md` 补验？
+
+## 参考
+
+- [`AGENTS.md`](../../AGENTS.md)
+- [`ai-agent-dev.mdc`](ai-agent-dev.mdc)

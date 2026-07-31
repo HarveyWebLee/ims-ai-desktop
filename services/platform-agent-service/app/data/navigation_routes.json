@@ -1,0 +1,1035 @@
+{
+  "generatedAt": "2026-07-24T03:02:30.131399+00:00",
+  "rules": "## 平台路由路径规范（navigate_to 必须遵守）\n\n1. **只使用 originPath（浏览器地址栏路径）**，禁止使用组件 filePath。\n2. **originPath 不含 groupId**：`meta.groupId` 仅用于前端组件懒加载目录，不出现在 URL 中。\n   - 错误：`/config_management/config/monitor_equipment/equipment_manage`（含 groupId）\n   - 正确：`/config_management/config/equipment_manage`\n3. **拼接规则**（与 routes.tsx → processRoutes 一致）：\n   - 顶层：`path` 以 `/` 开头时即为 originPath（如 `/overview`）\n   - 子级：`父级 originPath + '/' + 当前 path`（如 `equipment_manage` → `/config_management/config/equipment_manage`）\n4. **优先使用运行时注入的「常用页面路由」速查表**；不确定时传中文页面名，由工具解析别名。\n5. **禁止**编造 `/device_management` 等未在速查表中的简写路径。",
+  "routes": [
+    {
+      "name": "AI会话",
+      "path": "/ai_chat/chat",
+      "group": null,
+      "groupId": null
+    },
+    {
+      "name": "任务编排",
+      "path": "/ai_chat/arrange",
+      "group": null,
+      "groupId": null
+    },
+    {
+      "name": "数采服务器",
+      "path": "/config_management/config/das",
+      "group": "数采服务器",
+      "groupId": "data_acquisition_server"
+    },
+    {
+      "name": "通信网关",
+      "path": "/config_management/config/communication_config",
+      "group": "数采服务器",
+      "groupId": "data_acquisition_server"
+    },
+    {
+      "name": "服务组件",
+      "path": "/config_management/config/service_component",
+      "group": "数采服务器",
+      "groupId": "data_acquisition_server"
+    },
+    {
+      "name": "设备管理",
+      "path": "/config_management/config/equipment_manage",
+      "group": "监控设备",
+      "groupId": "monitor_equipment"
+    },
+    {
+      "name": "设备动态属性",
+      "path": "/config_management/config/device_dynamic_property",
+      "group": "监控设备",
+      "groupId": "monitor_equipment"
+    },
+    {
+      "name": "组合设备",
+      "path": "/config_management/config/combined_equipment",
+      "group": "监控设备",
+      "groupId": "monitor_equipment"
+    },
+    {
+      "name": "设备连接图",
+      "path": "/config_management/config/device_connection_diagram",
+      "group": "监控设备",
+      "groupId": "monitor_equipment"
+    },
+    {
+      "name": "设备变量",
+      "path": "/config_management/config/var",
+      "group": "设备变量",
+      "groupId": "device_variable"
+    },
+    {
+      "name": "二次变量",
+      "path": "/config_management/config/second_var",
+      "group": "设备变量",
+      "groupId": "device_variable"
+    },
+    {
+      "name": "实时数据",
+      "path": "/config_management/config/real_time_var_data",
+      "group": "设备变量",
+      "groupId": "device_variable"
+    },
+    {
+      "name": "变量报警配置",
+      "path": "/config_management/config/var_alarm_config",
+      "group": "设备变量",
+      "groupId": "device_variable"
+    },
+    {
+      "name": "事件联动规则",
+      "path": "/config_management/config/event_link_rule",
+      "group": "事件配置",
+      "groupId": "event_config"
+    },
+    {
+      "name": "事件联动记录表",
+      "path": "/config_management/config/event_rule_record",
+      "group": "事件配置",
+      "groupId": "event_config"
+    },
+    {
+      "name": "周期事件配置",
+      "path": "/config_management/config/cycle_event_config",
+      "group": "事件配置",
+      "groupId": "event_config"
+    },
+    {
+      "name": "标签列表",
+      "path": "/config_management/config/labelList",
+      "group": "标签管理",
+      "groupId": "label_management"
+    },
+    {
+      "name": "防区列表",
+      "path": "/config_management/config/group",
+      "group": "周界防区设定",
+      "groupId": "perimeter_setting"
+    },
+    {
+      "name": "防区维护",
+      "path": "/config_management/config/maintenance",
+      "group": "周界防区设定",
+      "groupId": "perimeter_setting"
+    },
+    {
+      "name": "手动撤布防",
+      "path": "/config_management/config/manual_cycle_disarm",
+      "group": "周界防区设定",
+      "groupId": "perimeter_setting"
+    },
+    {
+      "name": "撤布防记录",
+      "path": "/config_management/config/evacuation_record",
+      "group": "周界防区设定",
+      "groupId": "perimeter_setting"
+    },
+    {
+      "name": "采集器",
+      "path": "/config_management/config/harvester",
+      "group": "系统监控",
+      "groupId": "system_monitor"
+    },
+    {
+      "name": "报警信息查询",
+      "path": "/config_management/config/alarm_info_query",
+      "group": "报警查询统计",
+      "groupId": "alarm_query_statistics"
+    },
+    {
+      "name": "报警信息统计",
+      "path": "/config_management/config/alarm_info_statistics",
+      "group": "报警查询统计",
+      "groupId": "alarm_query_statistics"
+    },
+    {
+      "name": "历史数据查询",
+      "path": "/config_management/config/history_query",
+      "group": "历史数据查询统计",
+      "groupId": "history_data"
+    },
+    {
+      "name": "导出模板配置",
+      "path": "/config_management/config/query_template_configuration",
+      "group": "历史数据查询统计",
+      "groupId": "history_data"
+    },
+    {
+      "name": "设备索引",
+      "path": "/config_management/config/device_registry_index",
+      "group": "历史数据查询统计",
+      "groupId": "history_data"
+    },
+    {
+      "name": "任务管理",
+      "path": "/config_management/config/task_manage",
+      "group": "历史数据查询统计",
+      "groupId": "history_data"
+    },
+    {
+      "name": "历史曲线查询",
+      "path": "/config_management/config/history_statistics",
+      "group": "历史数据查询统计",
+      "groupId": "history_data"
+    },
+    {
+      "name": "组织机构",
+      "path": "/config_management/system/organization",
+      "group": "用户及参数管理",
+      "groupId": "user"
+    },
+    {
+      "name": "用户分组",
+      "path": "/config_management/system/user_group",
+      "group": "用户及参数管理",
+      "groupId": "user"
+    },
+    {
+      "name": "用户管理",
+      "path": "/config_management/system/user_manage",
+      "group": "用户及参数管理",
+      "groupId": "user"
+    },
+    {
+      "name": "角色管理",
+      "path": "/config_management/system/role_manage",
+      "group": "用户及参数管理",
+      "groupId": "user"
+    },
+    {
+      "name": "场景管理",
+      "path": "/config_management/system/module_manage",
+      "group": "用户及参数管理",
+      "groupId": "user"
+    },
+    {
+      "name": "菜单管理",
+      "path": "/config_management/system/menu_manage",
+      "group": "用户及参数管理",
+      "groupId": "user"
+    },
+    {
+      "name": "文件分类",
+      "path": "/config_management/system/file_category",
+      "group": "用户及参数管理",
+      "groupId": "user"
+    },
+    {
+      "name": "角色授权",
+      "path": "/config_management/system/role_auth",
+      "group": "用户及参数管理",
+      "groupId": "user"
+    },
+    {
+      "name": "系统运行日志",
+      "path": "/config_management/system/system_runtime_log",
+      "group": "日志管理",
+      "groupId": "log"
+    },
+    {
+      "name": "业务应用日志",
+      "path": "/config_management/system/business_application_log",
+      "group": "日志管理",
+      "groupId": "log"
+    },
+    {
+      "name": "用户行为日志",
+      "path": "/config_management/system/user_behavior_log",
+      "group": "日志管理",
+      "groupId": "log"
+    },
+    {
+      "name": "网络安全日志",
+      "path": "/config_management/system/network_security_log",
+      "group": "日志管理",
+      "groupId": "log"
+    },
+    {
+      "name": "日志审计",
+      "path": "/config_management/system/log_audit",
+      "group": "日志管理",
+      "groupId": "log"
+    },
+    {
+      "name": "日志策略配置",
+      "path": "/config_management/system/log_policy_config",
+      "group": "日志管理",
+      "groupId": "log"
+    },
+    {
+      "name": "区域管理",
+      "path": "/config_management/system/region_tree",
+      "group": "基础数据",
+      "groupId": "basedata"
+    },
+    {
+      "name": "设备类型",
+      "path": "/config_management/system/device_type",
+      "group": "基础数据",
+      "groupId": "basedata"
+    },
+    {
+      "name": "设备分组",
+      "path": "/config_management/system/device_group",
+      "group": "基础数据",
+      "groupId": "basedata"
+    },
+    {
+      "name": "人员管理",
+      "path": "/config_management/system/personnel_manage",
+      "group": "基础数据",
+      "groupId": "basedata"
+    },
+    {
+      "name": "人员统计",
+      "path": "/config_management/system/personnel_statistics",
+      "group": "基础数据",
+      "groupId": "basedata"
+    },
+    {
+      "name": "访问组",
+      "path": "/config_management/system/access_group",
+      "group": "基础数据",
+      "groupId": "basedata"
+    },
+    {
+      "name": "卡片管理",
+      "path": "/config_management/system/card_manage",
+      "group": "基础数据",
+      "groupId": "basedata"
+    },
+    {
+      "name": "岗哨信息",
+      "path": "/config_management/system/guard_post_info",
+      "group": "基础数据",
+      "groupId": "basedata"
+    },
+    {
+      "name": "区间设置",
+      "path": "/config_management/system/interval_setting",
+      "group": "基础数据",
+      "groupId": "basedata"
+    },
+    {
+      "name": "故障库",
+      "path": "/config_management/system/fault_library",
+      "group": "基础数据",
+      "groupId": "basedata"
+    },
+    {
+      "name": "监控任务",
+      "path": "/config_management/system/monitoring_task",
+      "group": "基础数据",
+      "groupId": "basedata"
+    },
+    {
+      "name": "数据备份",
+      "path": "/config_management/system/data_backup",
+      "group": "系统运维",
+      "groupId": "system_devops"
+    },
+    {
+      "name": "数据迁移",
+      "path": "/config_management/system/data-source-management",
+      "group": "系统运维",
+      "groupId": "system_devops"
+    },
+    {
+      "name": "报警级别",
+      "path": "/config_management/system/alarm_level",
+      "group": "字典表",
+      "groupId": "dic_table"
+    },
+    {
+      "name": "报警类型",
+      "path": "/config_management/system/alarm_category",
+      "group": "字典表",
+      "groupId": "dic_table"
+    },
+    {
+      "name": "报警源",
+      "path": "/config_management/system/alarm_source",
+      "group": "字典表",
+      "groupId": "dic_table"
+    },
+    {
+      "name": "职务",
+      "path": "/config_management/system/job",
+      "group": "字典表",
+      "groupId": "dic_table"
+    },
+    {
+      "name": "军衔",
+      "path": "/config_management/system/military_rank",
+      "group": "字典表",
+      "groupId": "dic_table"
+    },
+    {
+      "name": "风向",
+      "path": "/config_management/system/wind_direction",
+      "group": "字典表",
+      "groupId": "dic_table"
+    },
+    {
+      "name": "信息发布状态",
+      "path": "/config_management/system/info_release_state",
+      "group": "字典表",
+      "groupId": "dic_table"
+    },
+    {
+      "name": "物体类别",
+      "path": "/config_management/system/object_class",
+      "group": "字典表",
+      "groupId": "dic_table"
+    },
+    {
+      "name": "国别",
+      "path": "/config_management/system/nationality",
+      "group": "字典表",
+      "groupId": "dic_table"
+    },
+    {
+      "name": "技能",
+      "path": "/config_management/system/skill",
+      "group": "字典表",
+      "groupId": "dic_table"
+    },
+    {
+      "name": "专业",
+      "path": "/config_management/system/major",
+      "group": "字典表",
+      "groupId": "dic_table"
+    },
+    {
+      "name": "门禁信息同步",
+      "path": "/config_management/system/door_access_sync",
+      "group": "门禁系统",
+      "groupId": "door_access_system"
+    },
+    {
+      "name": "值班信息",
+      "path": "/config_management/system/duty_info",
+      "group": "门禁系统",
+      "groupId": "door_access_system"
+    },
+    {
+      "name": "安全检查",
+      "path": "/config_management/system/safety_check",
+      "group": "门禁系统",
+      "groupId": "door_access_system"
+    },
+    {
+      "name": "岗哨交接",
+      "path": "/config_management/system/guard_post_handover",
+      "group": "门禁系统",
+      "groupId": "door_access_system"
+    },
+    {
+      "name": "出入库管理",
+      "path": "/config_management/system/inner_storage",
+      "group": "门禁系统",
+      "groupId": "door_access_system"
+    },
+    {
+      "name": "出入信息管理",
+      "path": "/config_management/system/in_out_storage",
+      "group": "门禁系统",
+      "groupId": "door_access_system"
+    },
+    {
+      "name": "出入信息维护",
+      "path": "/config_management/system/access_information_maintenance",
+      "group": "门禁系统",
+      "groupId": "door_access_system"
+    },
+    {
+      "name": "出入信息统计",
+      "path": "/config_management/system/access_statistics",
+      "group": "门禁系统",
+      "groupId": "door_access_system"
+    },
+    {
+      "name": "信息管理",
+      "path": "/config_management/system/information_management",
+      "group": "信息发布",
+      "groupId": "information_release"
+    },
+    {
+      "name": "值班管理",
+      "path": "/config_management/system/duty_management",
+      "group": "信息发布",
+      "groupId": "information_release"
+    },
+    {
+      "name": "信息发布",
+      "path": "/config_management/system/information_fabu",
+      "group": "信息发布",
+      "groupId": "information_release"
+    },
+    {
+      "name": "属性字典",
+      "path": "/config_management/positional_management/attribute_dictionary",
+      "group": "设施设备管理",
+      "groupId": "facilities_management"
+    },
+    {
+      "name": "类别管理",
+      "path": "/config_management/positional_management/category_management",
+      "group": "设施设备管理",
+      "groupId": "facilities_management"
+    },
+    {
+      "name": "安装部位",
+      "path": "/config_management/positional_management/install_position_management",
+      "group": "设施设备管理",
+      "groupId": "facilities_management"
+    },
+    {
+      "name": "设施管理",
+      "path": "/config_management/positional_management/facility_management",
+      "group": "设施设备管理",
+      "groupId": "facilities_management"
+    },
+    {
+      "name": "质量统计",
+      "path": "/config_management/positional_management/quality_statistics",
+      "group": "设施设备管理",
+      "groupId": "facilities_management"
+    },
+    {
+      "name": "动用使用",
+      "path": "/config_management/positional_management/usage",
+      "group": "设施设备管理",
+      "groupId": "facilities_management"
+    },
+    {
+      "name": "交接管理",
+      "path": "/config_management/positional_management/handover_management",
+      "group": "设施设备管理",
+      "groupId": "facilities_management"
+    },
+    {
+      "name": "值班信息",
+      "path": "/config_management/positional_management/duty_information",
+      "group": "日常值班",
+      "groupId": "daily_duty"
+    },
+    {
+      "name": "值班计划",
+      "path": "/config_management/positional_management/duty_plan",
+      "group": "日常值班",
+      "groupId": "daily_duty"
+    },
+    {
+      "name": "值班日志",
+      "path": "/config_management/positional_management/duty_logs",
+      "group": "日常值班",
+      "groupId": "daily_duty"
+    },
+    {
+      "name": "值机交接班记录",
+      "path": "/config_management/positional_management/duty_handover",
+      "group": "日常值班",
+      "groupId": "daily_duty"
+    },
+    {
+      "name": "交接班记录",
+      "path": "/config_management/positional_management/week_handover",
+      "group": "日常值班",
+      "groupId": "daily_duty"
+    },
+    {
+      "name": "值班人员",
+      "path": "/config_management/positional_management/duty_personnel",
+      "group": "日常值班",
+      "groupId": "daily_duty"
+    },
+    {
+      "name": "值班岗位设置",
+      "path": "/config_management/positional_management/duty_setting",
+      "group": "日常值班",
+      "groupId": "daily_duty"
+    },
+    {
+      "name": "阵地出入审批",
+      "path": "/config_management/positional_management/entry_exit_approval",
+      "group": "日常值班",
+      "groupId": "daily_duty"
+    },
+    {
+      "name": "基本信息管理",
+      "path": "/config_management/positional_management/basic_info_management",
+      "group": "阵地人员管理",
+      "groupId": "staff_management"
+    },
+    {
+      "name": "人员信息统计",
+      "path": "/config_management/positional_management/personnel_information_statistics",
+      "group": "阵地人员管理",
+      "groupId": "staff_management"
+    },
+    {
+      "name": "资格证书",
+      "path": "/config_management/positional_management/qualification_certificate",
+      "group": "阵地人员管理",
+      "groupId": "staff_management"
+    },
+    {
+      "name": "考核情况",
+      "path": "/config_management/positional_management/assessment_results",
+      "group": "阵地人员管理",
+      "groupId": "staff_management"
+    },
+    {
+      "name": "培训情况",
+      "path": "/config_management/positional_management/training_situation",
+      "group": "阵地人员管理",
+      "groupId": "staff_management"
+    },
+    {
+      "name": "任务情况",
+      "path": "/config_management/positional_management/task_situation",
+      "group": "阵地人员管理",
+      "groupId": "staff_management"
+    },
+    {
+      "name": "工作经历",
+      "path": "/config_management/positional_management/work_experience",
+      "group": "阵地人员管理",
+      "groupId": "staff_management"
+    },
+    {
+      "name": "审批单管理",
+      "path": "/config_management/positional_management/approval_form_management",
+      "group": "进出阵地",
+      "groupId": "in_out_management"
+    },
+    {
+      "name": "巡检点位管理",
+      "path": "/config_management/positional_management/inspection_point_management",
+      "group": "阵地巡检管理",
+      "groupId": "inspection_management"
+    },
+    {
+      "name": "巡检项目管理",
+      "path": "/config_management/positional_management/inspection_project_management",
+      "group": "阵地巡检管理",
+      "groupId": "inspection_management"
+    },
+    {
+      "name": "巡检方案管理",
+      "path": "/config_management/positional_management/routine_inspection",
+      "group": "阵地巡检管理",
+      "groupId": "inspection_management"
+    },
+    {
+      "name": "巡查任务管理",
+      "path": "/config_management/positional_management/routine_inspection_task",
+      "group": "阵地巡检管理",
+      "groupId": "inspection_management"
+    },
+    {
+      "name": "操作记录",
+      "path": "/config_management/positional_management/inspection_task_operate_record",
+      "group": "阵地巡检管理",
+      "groupId": "inspection_management"
+    },
+    {
+      "name": "保养要求管理",
+      "path": "/config_management/positional_management/maintenance_requirement_management",
+      "group": "维护保养管理",
+      "groupId": "maintenance_management"
+    },
+    {
+      "name": "保养方案管理",
+      "path": "/config_management/positional_management/maintenance_scheme_management",
+      "group": "维护保养管理",
+      "groupId": "maintenance_management"
+    },
+    {
+      "name": "保养任务管理",
+      "path": "/config_management/positional_management/maintenance_task_management",
+      "group": "维护保养管理",
+      "groupId": "maintenance_management"
+    },
+    {
+      "name": "工具类型",
+      "path": "/config_management/positional_management/tool_type_management",
+      "group": "工具资料",
+      "groupId": "tool_information"
+    },
+    {
+      "name": "存放位置",
+      "path": "/config_management/positional_management/storage_position_management",
+      "group": "工具资料",
+      "groupId": "tool_information"
+    },
+    {
+      "name": "工具管理",
+      "path": "/config_management/positional_management/tool_management",
+      "group": "工具资料",
+      "groupId": "tool_information"
+    },
+    {
+      "name": "资料管理",
+      "path": "/config_management/positional_management/material_management",
+      "group": "工具资料",
+      "groupId": "tool_information"
+    },
+    {
+      "name": "备件管理",
+      "path": "/config_management/positional_management/spare_parts_management",
+      "group": "备品备件管理",
+      "groupId": "spare_parts_management"
+    },
+    {
+      "name": "故障库管理",
+      "path": "/config_management/positional_management/fault_info_library",
+      "group": "故障维修管理",
+      "groupId": "fault_repair_management"
+    },
+    {
+      "name": "故障记录",
+      "path": "/config_management/positional_management/fault_record",
+      "group": "故障维修管理",
+      "groupId": "fault_repair_management"
+    },
+    {
+      "name": "维修任务管理",
+      "path": "/config_management/positional_management/repair_task_management",
+      "group": "故障维修管理",
+      "groupId": "fault_repair_management"
+    },
+    {
+      "name": "计量记录管理",
+      "path": "/config_management/positional_management/measurement_record_management",
+      "group": "计量校验管理",
+      "groupId": "measurement_verification_management"
+    },
+    {
+      "name": "物资移交单",
+      "path": "/config_management/positional_management/transfer_management_record",
+      "group": "物资移交管理",
+      "groupId": "transfer_management_service"
+    },
+    {
+      "name": "计量对象管理",
+      "path": "/config_management/positional_management/measurement_object_management",
+      "group": "计量校验管理",
+      "groupId": "measurement_verification_management"
+    },
+    {
+      "name": "保障力量配备情况",
+      "path": "/config_management/positional_management/security_force_management",
+      "group": "保障力量",
+      "groupId": "security_force"
+    },
+    {
+      "name": "储备标准",
+      "path": "/config_management/positional_management/reserve_standard",
+      "group": "备品备件管理",
+      "groupId": "spare_parts_management"
+    },
+    {
+      "name": "备品信息管理",
+      "path": "/config_management/positional_management/spare_info_management",
+      "group": "备品备件管理",
+      "groupId": "spare_parts_management"
+    },
+    {
+      "name": "入库",
+      "path": "/config_management/positional_management/in_stock_management",
+      "group": "备品备件管理",
+      "groupId": "spare_parts_management"
+    },
+    {
+      "name": "出库",
+      "path": "/config_management/positional_management/out_stock_management",
+      "group": "备品备件管理",
+      "groupId": "spare_parts_management"
+    },
+    {
+      "name": "盘库",
+      "path": "/config_management/positional_management/inventory_management",
+      "group": "备品备件管理",
+      "groupId": "spare_parts_management"
+    },
+    {
+      "name": "设备备件替换",
+      "path": "/config_management/positional_management/equipment_spare_replacement",
+      "group": "备品备件管理",
+      "groupId": "spare_parts_management"
+    },
+    {
+      "name": "评估详情",
+      "path": "/config_management/positional_management/evaluation_details",
+      "group": "运行状态评估",
+      "groupId": "operation_status_evaluation"
+    }
+  ],
+  "aliases": {
+    "AI会话": "/ai_chat/chat",
+    "任务编排": "/ai_chat/arrange",
+    "数采服务器": "/config_management/config/das",
+    "/config_management/config/data_acquisition_server/das": "/config_management/config/das",
+    "通信网关": "/config_management/config/communication_config",
+    "/config_management/config/data_acquisition_server/communication_config": "/config_management/config/communication_config",
+    "服务组件": "/config_management/config/service_component",
+    "/config_management/config/data_acquisition_server/service_component": "/config_management/config/service_component",
+    "设备管理": "/config_management/config/equipment_manage",
+    "/config_management/config/monitor_equipment/equipment_manage": "/config_management/config/equipment_manage",
+    "设备动态属性": "/config_management/config/device_dynamic_property",
+    "/config_management/config/monitor_equipment/device_dynamic_property": "/config_management/config/device_dynamic_property",
+    "组合设备": "/config_management/config/combined_equipment",
+    "/config_management/config/monitor_equipment/combined_equipment": "/config_management/config/combined_equipment",
+    "设备连接图": "/config_management/config/device_connection_diagram",
+    "/config_management/config/monitor_equipment/device_connection_diagram": "/config_management/config/device_connection_diagram",
+    "设备变量": "/config_management/config/var",
+    "/config_management/config/device_variable/var": "/config_management/config/var",
+    "二次变量": "/config_management/config/second_var",
+    "/config_management/config/device_variable/second_var": "/config_management/config/second_var",
+    "实时数据": "/config_management/config/real_time_var_data",
+    "/config_management/config/device_variable/real_time_var_data": "/config_management/config/real_time_var_data",
+    "变量报警配置": "/config_management/config/var_alarm_config",
+    "/config_management/config/device_variable/var_alarm_config": "/config_management/config/var_alarm_config",
+    "事件联动规则": "/config_management/config/event_link_rule",
+    "/config_management/config/event_config/event_link_rule": "/config_management/config/event_link_rule",
+    "事件联动记录表": "/config_management/config/event_rule_record",
+    "/config_management/config/event_config/event_rule_record": "/config_management/config/event_rule_record",
+    "周期事件配置": "/config_management/config/cycle_event_config",
+    "/config_management/config/event_config/cycle_event_config": "/config_management/config/cycle_event_config",
+    "标签列表": "/config_management/config/labelList",
+    "/config_management/config/label_management/labelList": "/config_management/config/labelList",
+    "防区列表": "/config_management/config/group",
+    "/config_management/config/perimeter_setting/group": "/config_management/config/group",
+    "防区维护": "/config_management/config/maintenance",
+    "/config_management/config/perimeter_setting/maintenance": "/config_management/config/maintenance",
+    "手动撤布防": "/config_management/config/manual_cycle_disarm",
+    "/config_management/config/perimeter_setting/manual_cycle_disarm": "/config_management/config/manual_cycle_disarm",
+    "撤布防记录": "/config_management/config/evacuation_record",
+    "/config_management/config/perimeter_setting/evacuation_record": "/config_management/config/evacuation_record",
+    "采集器": "/config_management/config/harvester",
+    "/config_management/config/system_monitor/harvester": "/config_management/config/harvester",
+    "报警信息查询": "/config_management/config/alarm_info_query",
+    "/config_management/config/alarm_query_statistics/alarm_info_query": "/config_management/config/alarm_info_query",
+    "报警信息统计": "/config_management/config/alarm_info_statistics",
+    "/config_management/config/alarm_query_statistics/alarm_info_statistics": "/config_management/config/alarm_info_statistics",
+    "历史数据查询": "/config_management/config/history_query",
+    "/config_management/config/history_data/history_query": "/config_management/config/history_query",
+    "导出模板配置": "/config_management/config/query_template_configuration",
+    "/config_management/config/history_data/query_template_configuration": "/config_management/config/query_template_configuration",
+    "设备索引": "/config_management/config/device_registry_index",
+    "/config_management/config/history_data/device_registry_index": "/config_management/config/device_registry_index",
+    "任务管理": "/config_management/config/task_manage",
+    "/config_management/config/history_data/task_manage": "/config_management/config/task_manage",
+    "历史曲线查询": "/config_management/config/history_statistics",
+    "/config_management/config/history_data/history_statistics": "/config_management/config/history_statistics",
+    "组织机构": "/config_management/system/organization",
+    "/config_management/system/user/organization": "/config_management/system/organization",
+    "用户分组": "/config_management/system/user_group",
+    "/config_management/system/user/user_group": "/config_management/system/user_group",
+    "用户管理": "/config_management/system/user_manage",
+    "/config_management/system/user/user_manage": "/config_management/system/user_manage",
+    "角色管理": "/config_management/system/role_manage",
+    "/config_management/system/user/role_manage": "/config_management/system/role_manage",
+    "场景管理": "/config_management/system/module_manage",
+    "/config_management/system/user/module_manage": "/config_management/system/module_manage",
+    "菜单管理": "/config_management/system/menu_manage",
+    "/config_management/system/user/menu_manage": "/config_management/system/menu_manage",
+    "文件分类": "/config_management/system/file_category",
+    "/config_management/system/user/file_category": "/config_management/system/file_category",
+    "角色授权": "/config_management/system/role_auth",
+    "/config_management/system/user/role_auth": "/config_management/system/role_auth",
+    "系统运行日志": "/config_management/system/system_runtime_log",
+    "/config_management/system/log/system_runtime_log": "/config_management/system/system_runtime_log",
+    "业务应用日志": "/config_management/system/business_application_log",
+    "/config_management/system/log/business_application_log": "/config_management/system/business_application_log",
+    "用户行为日志": "/config_management/system/user_behavior_log",
+    "/config_management/system/log/user_behavior_log": "/config_management/system/user_behavior_log",
+    "网络安全日志": "/config_management/system/network_security_log",
+    "/config_management/system/log/network_security_log": "/config_management/system/network_security_log",
+    "日志审计": "/config_management/system/log_audit",
+    "/config_management/system/log/log_audit": "/config_management/system/log_audit",
+    "日志策略配置": "/config_management/system/log_policy_config",
+    "/config_management/system/log/log_policy_config": "/config_management/system/log_policy_config",
+    "区域管理": "/config_management/system/region_tree",
+    "/config_management/system/basedata/region_tree": "/config_management/system/region_tree",
+    "设备类型": "/config_management/system/device_type",
+    "/config_management/system/basedata/device_type": "/config_management/system/device_type",
+    "设备分组": "/config_management/system/device_group",
+    "/config_management/system/basedata/device_group": "/config_management/system/device_group",
+    "人员管理": "/config_management/system/personnel_manage",
+    "/config_management/system/basedata/personnel_manage": "/config_management/system/personnel_manage",
+    "人员统计": "/config_management/system/personnel_statistics",
+    "/config_management/system/basedata/personnel_statistics": "/config_management/system/personnel_statistics",
+    "访问组": "/config_management/system/access_group",
+    "/config_management/system/basedata/access_group": "/config_management/system/access_group",
+    "卡片管理": "/config_management/system/card_manage",
+    "/config_management/system/basedata/card_manage": "/config_management/system/card_manage",
+    "岗哨信息": "/config_management/system/guard_post_info",
+    "/config_management/system/basedata/guard_post_info": "/config_management/system/guard_post_info",
+    "区间设置": "/config_management/system/interval_setting",
+    "/config_management/system/basedata/interval_setting": "/config_management/system/interval_setting",
+    "故障库": "/config_management/system/fault_library",
+    "/config_management/system/basedata/fault_library": "/config_management/system/fault_library",
+    "监控任务": "/config_management/system/monitoring_task",
+    "/config_management/system/basedata/monitoring_task": "/config_management/system/monitoring_task",
+    "数据备份": "/config_management/system/data_backup",
+    "/config_management/system/system_devops/data_backup": "/config_management/system/data_backup",
+    "数据迁移": "/config_management/system/data-source-management",
+    "/config_management/system/system_devops/data-source-management": "/config_management/system/data-source-management",
+    "报警级别": "/config_management/system/alarm_level",
+    "/config_management/system/dic_table/alarm_level": "/config_management/system/alarm_level",
+    "报警类型": "/config_management/system/alarm_category",
+    "/config_management/system/dic_table/alarm_category": "/config_management/system/alarm_category",
+    "报警源": "/config_management/system/alarm_source",
+    "/config_management/system/dic_table/alarm_source": "/config_management/system/alarm_source",
+    "职务": "/config_management/system/job",
+    "/config_management/system/dic_table/job": "/config_management/system/job",
+    "军衔": "/config_management/system/military_rank",
+    "/config_management/system/dic_table/military_rank": "/config_management/system/military_rank",
+    "风向": "/config_management/system/wind_direction",
+    "/config_management/system/dic_table/wind_direction": "/config_management/system/wind_direction",
+    "信息发布状态": "/config_management/system/info_release_state",
+    "/config_management/system/dic_table/info_release_state": "/config_management/system/info_release_state",
+    "物体类别": "/config_management/system/object_class",
+    "/config_management/system/dic_table/object_class": "/config_management/system/object_class",
+    "国别": "/config_management/system/nationality",
+    "/config_management/system/dic_table/nationality": "/config_management/system/nationality",
+    "技能": "/config_management/system/skill",
+    "/config_management/system/dic_table/skill": "/config_management/system/skill",
+    "专业": "/config_management/system/major",
+    "/config_management/system/dic_table/major": "/config_management/system/major",
+    "门禁信息同步": "/config_management/system/door_access_sync",
+    "/config_management/system/door_access_system/door_access_sync": "/config_management/system/door_access_sync",
+    "值班信息": "/config_management/positional_management/duty_information",
+    "/config_management/system/door_access_system/duty_info": "/config_management/system/duty_info",
+    "安全检查": "/config_management/system/safety_check",
+    "/config_management/system/door_access_system/safety_check": "/config_management/system/safety_check",
+    "岗哨交接": "/config_management/system/guard_post_handover",
+    "/config_management/system/door_access_system/guard_post_handover": "/config_management/system/guard_post_handover",
+    "出入库管理": "/config_management/system/inner_storage",
+    "/config_management/system/door_access_system/inner_storage": "/config_management/system/inner_storage",
+    "出入信息管理": "/config_management/system/in_out_storage",
+    "/config_management/system/door_access_system/in_out_storage": "/config_management/system/in_out_storage",
+    "出入信息维护": "/config_management/system/access_information_maintenance",
+    "/config_management/system/door_access_system/access_information_maintenance": "/config_management/system/access_information_maintenance",
+    "出入信息统计": "/config_management/system/access_statistics",
+    "/config_management/system/door_access_system/access_statistics": "/config_management/system/access_statistics",
+    "信息管理": "/config_management/system/information_management",
+    "/config_management/system/information_release/information_management": "/config_management/system/information_management",
+    "值班管理": "/config_management/system/duty_management",
+    "/config_management/system/information_release/duty_management": "/config_management/system/duty_management",
+    "信息发布": "/config_management/system/information_fabu",
+    "/config_management/system/information_release/information_fabu": "/config_management/system/information_fabu",
+    "属性字典": "/config_management/positional_management/attribute_dictionary",
+    "/config_management/positional_management/facilities_management/attribute_dictionary": "/config_management/positional_management/attribute_dictionary",
+    "类别管理": "/config_management/positional_management/category_management",
+    "/config_management/positional_management/facilities_management/category_management": "/config_management/positional_management/category_management",
+    "安装部位": "/config_management/positional_management/install_position_management",
+    "/config_management/positional_management/facilities_management/install_position_management": "/config_management/positional_management/install_position_management",
+    "设施管理": "/config_management/positional_management/facility_management",
+    "/config_management/positional_management/facilities_management/facility_management": "/config_management/positional_management/facility_management",
+    "质量统计": "/config_management/positional_management/quality_statistics",
+    "/config_management/positional_management/facilities_management/quality_statistics": "/config_management/positional_management/quality_statistics",
+    "动用使用": "/config_management/positional_management/usage",
+    "/config_management/positional_management/facilities_management/usage": "/config_management/positional_management/usage",
+    "交接管理": "/config_management/positional_management/handover_management",
+    "/config_management/positional_management/facilities_management/handover_management": "/config_management/positional_management/handover_management",
+    "/config_management/positional_management/daily_duty/duty_information": "/config_management/positional_management/duty_information",
+    "值班计划": "/config_management/positional_management/duty_plan",
+    "/config_management/positional_management/daily_duty/duty_plan": "/config_management/positional_management/duty_plan",
+    "值班日志": "/config_management/positional_management/duty_logs",
+    "/config_management/positional_management/daily_duty/duty_logs": "/config_management/positional_management/duty_logs",
+    "值机交接班记录": "/config_management/positional_management/duty_handover",
+    "/config_management/positional_management/daily_duty/duty_handover": "/config_management/positional_management/duty_handover",
+    "交接班记录": "/config_management/positional_management/week_handover",
+    "/config_management/positional_management/daily_duty/week_handover": "/config_management/positional_management/week_handover",
+    "值班人员": "/config_management/positional_management/duty_personnel",
+    "/config_management/positional_management/daily_duty/duty_personnel": "/config_management/positional_management/duty_personnel",
+    "值班岗位设置": "/config_management/positional_management/duty_setting",
+    "/config_management/positional_management/daily_duty/duty_setting": "/config_management/positional_management/duty_setting",
+    "阵地出入审批": "/config_management/positional_management/entry_exit_approval",
+    "/config_management/positional_management/daily_duty/entry_exit_approval": "/config_management/positional_management/entry_exit_approval",
+    "基本信息管理": "/config_management/positional_management/basic_info_management",
+    "/config_management/positional_management/staff_management/basic_info_management": "/config_management/positional_management/basic_info_management",
+    "人员信息统计": "/config_management/positional_management/personnel_information_statistics",
+    "/config_management/positional_management/staff_management/personnel_information_statistics": "/config_management/positional_management/personnel_information_statistics",
+    "资格证书": "/config_management/positional_management/qualification_certificate",
+    "/config_management/positional_management/staff_management/qualification_certificate": "/config_management/positional_management/qualification_certificate",
+    "考核情况": "/config_management/positional_management/assessment_results",
+    "/config_management/positional_management/staff_management/assessment_results": "/config_management/positional_management/assessment_results",
+    "培训情况": "/config_management/positional_management/training_situation",
+    "/config_management/positional_management/staff_management/training_situation": "/config_management/positional_management/training_situation",
+    "任务情况": "/config_management/positional_management/task_situation",
+    "/config_management/positional_management/staff_management/task_situation": "/config_management/positional_management/task_situation",
+    "工作经历": "/config_management/positional_management/work_experience",
+    "/config_management/positional_management/staff_management/work_experience": "/config_management/positional_management/work_experience",
+    "审批单管理": "/config_management/positional_management/approval_form_management",
+    "/config_management/positional_management/in_out_management/approval_form_management": "/config_management/positional_management/approval_form_management",
+    "巡检点位管理": "/config_management/positional_management/inspection_point_management",
+    "/config_management/positional_management/inspection_management/inspection_point_management": "/config_management/positional_management/inspection_point_management",
+    "巡检项目管理": "/config_management/positional_management/inspection_project_management",
+    "/config_management/positional_management/inspection_management/inspection_project_management": "/config_management/positional_management/inspection_project_management",
+    "巡检方案管理": "/config_management/positional_management/routine_inspection",
+    "/config_management/positional_management/inspection_management/routine_inspection": "/config_management/positional_management/routine_inspection",
+    "巡查任务管理": "/config_management/positional_management/routine_inspection_task",
+    "/config_management/positional_management/inspection_management/routine_inspection_task": "/config_management/positional_management/routine_inspection_task",
+    "操作记录": "/config_management/positional_management/inspection_task_operate_record",
+    "/config_management/positional_management/inspection_management/inspection_task_operate_record": "/config_management/positional_management/inspection_task_operate_record",
+    "保养要求管理": "/config_management/positional_management/maintenance_requirement_management",
+    "/config_management/positional_management/maintenance_management/maintenance_requirement_management": "/config_management/positional_management/maintenance_requirement_management",
+    "保养方案管理": "/config_management/positional_management/maintenance_scheme_management",
+    "/config_management/positional_management/maintenance_management/maintenance_scheme_management": "/config_management/positional_management/maintenance_scheme_management",
+    "保养任务管理": "/config_management/positional_management/maintenance_task_management",
+    "/config_management/positional_management/maintenance_management/maintenance_task_management": "/config_management/positional_management/maintenance_task_management",
+    "工具类型": "/config_management/positional_management/tool_type_management",
+    "/config_management/positional_management/tool_information/tool_type_management": "/config_management/positional_management/tool_type_management",
+    "存放位置": "/config_management/positional_management/storage_position_management",
+    "/config_management/positional_management/tool_information/storage_position_management": "/config_management/positional_management/storage_position_management",
+    "工具管理": "/config_management/positional_management/tool_management",
+    "/config_management/positional_management/tool_information/tool_management": "/config_management/positional_management/tool_management",
+    "资料管理": "/config_management/positional_management/material_management",
+    "/config_management/positional_management/tool_information/material_management": "/config_management/positional_management/material_management",
+    "备件管理": "/config_management/positional_management/spare_parts_management",
+    "/config_management/positional_management/spare_parts_management/spare_parts_management": "/config_management/positional_management/spare_parts_management",
+    "故障库管理": "/config_management/positional_management/fault_info_library",
+    "/config_management/positional_management/fault_repair_management/fault_info_library": "/config_management/positional_management/fault_info_library",
+    "故障记录": "/config_management/positional_management/fault_record",
+    "/config_management/positional_management/fault_repair_management/fault_record": "/config_management/positional_management/fault_record",
+    "维修任务管理": "/config_management/positional_management/repair_task_management",
+    "/config_management/positional_management/fault_repair_management/repair_task_management": "/config_management/positional_management/repair_task_management",
+    "计量记录管理": "/config_management/positional_management/measurement_record_management",
+    "/config_management/positional_management/measurement_verification_management/measurement_record_management": "/config_management/positional_management/measurement_record_management",
+    "物资移交单": "/config_management/positional_management/transfer_management_record",
+    "/config_management/positional_management/transfer_management_service/transfer_management_record": "/config_management/positional_management/transfer_management_record",
+    "计量对象管理": "/config_management/positional_management/measurement_object_management",
+    "/config_management/positional_management/measurement_verification_management/measurement_object_management": "/config_management/positional_management/measurement_object_management",
+    "保障力量配备情况": "/config_management/positional_management/security_force_management",
+    "/config_management/positional_management/security_force/security_force_management": "/config_management/positional_management/security_force_management",
+    "储备标准": "/config_management/positional_management/reserve_standard",
+    "/config_management/positional_management/spare_parts_management/reserve_standard": "/config_management/positional_management/reserve_standard",
+    "备品信息管理": "/config_management/positional_management/spare_info_management",
+    "/config_management/positional_management/spare_parts_management/spare_info_management": "/config_management/positional_management/spare_info_management",
+    "入库": "/config_management/positional_management/in_stock_management",
+    "/config_management/positional_management/spare_parts_management/in_stock_management": "/config_management/positional_management/in_stock_management",
+    "出库": "/config_management/positional_management/out_stock_management",
+    "/config_management/positional_management/spare_parts_management/out_stock_management": "/config_management/positional_management/out_stock_management",
+    "盘库": "/config_management/positional_management/inventory_management",
+    "/config_management/positional_management/spare_parts_management/inventory_management": "/config_management/positional_management/inventory_management",
+    "设备备件替换": "/config_management/positional_management/equipment_spare_replacement",
+    "/config_management/positional_management/spare_parts_management/equipment_spare_replacement": "/config_management/positional_management/equipment_spare_replacement",
+    "评估详情": "/config_management/positional_management/evaluation_details",
+    "/config_management/positional_management/operation_status_evaluation/evaluation_details": "/config_management/positional_management/evaluation_details",
+    "/device_management": "/config_management/config/equipment_manage",
+    "/config_management/device_management": "/config_management/config/equipment_manage",
+    "告警列表": "/config_management/config/alarm_info_query",
+    "告警查询": "/config_management/config/alarm_info_query",
+    "告警统计": "/config_management/config/alarm_info_statistics",
+    "变量管理": "/config_management/config/var"
+  }
+}

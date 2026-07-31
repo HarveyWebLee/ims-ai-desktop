@@ -1,0 +1,719 @@
+/**
+ * @ims/agent-core — 平台工具 manifest（AI 对接唯一数据源）
+ */
+import type { HitlField, PlatformToolDefinition } from "@ims/shared-types";
+
+/** 告警查询/导出/批量操作缺参时的 HITL 表单（datetime_range 等，catalog 唯一数据源） */
+/** 设备标识缺参时的 HITL 表单（编码与名称二选一） */
+export const DEVICE_IDENT_HITL_FIELDS: HitlField[] = [
+  {
+    name: "device_code",
+    label: "设备编码",
+    type: "text",
+    required: false,
+    description: "设备唯一编码（与设备名称二选一）",
+  },
+  {
+    name: "device_name",
+    label: "设备名称",
+    type: "text",
+    required: false,
+    description: "设备名称（与设备编码二选一，模糊匹配）",
+  },
+];
+
+/** 设备指令下发缺参时的 HITL 表单（渐进式补参；Resolver 按缺失项裁剪） */
+export const DEVICE_CMD_HITL_FIELDS: HitlField[] = [
+  {
+    name: "device_code",
+    label: "目标设备",
+    type: "device_picker",
+    required: true,
+    description:
+      "可通过分组、类型、区域、名称、编码、在线状态筛选后单选（任意设备类型）",
+  },
+  {
+    name: "variable_name",
+    label: "目标变量",
+    type: "variable_picker",
+    required: false,
+    writableOnly: false,
+    dependsOn: "device_code",
+    description: "先选设备后，从该设备全部变量中选择",
+  },
+  {
+    name: "variable_value",
+    label: "写入值",
+    type: "text",
+    required: false,
+    description: "写入值；播报时为播报正文（未明确则 HITL 补填）",
+  },
+  {
+    name: "operate_name",
+    label: "操作说明",
+    type: "text",
+    required: false,
+    description: "可选，便于审计的操作描述",
+  },
+];
+
+export const ALARM_QUERY_HITL_FIELDS: HitlField[] = [
+  {
+    name: "time_range",
+    label: "时间范围",
+    type: "datetime_range",
+    required: true,
+    description: "选择开始与结束的日期时间（精确到秒）",
+  },
+  {
+    name: "alarm_category_id",
+    label: "报警类型",
+    type: "async_select",
+    asyncSource: "alarm_category",
+    required: false,
+    description: "可选，按报警类型筛选",
+    mode: "multiple",
+  },
+  {
+    name: "alarm_rank_id",
+    label: "报警级别",
+    type: "async_select",
+    asyncSource: "alarm_rank",
+    required: false,
+    description: "可选，按报警级别筛选",
+    mode: "multiple",
+  },
+  {
+    name: "status",
+    label: "告警状态",
+    type: "select",
+    required: false,
+    description: "可选，按告警状态筛选",
+    mode: "multiple",
+    options: [
+      { label: "未处理（待确认+已确认）", value: "unprocessed" },
+      { label: "待确认", value: "1" },
+      { label: "已确认", value: "2" },
+      { label: "已处理", value: "3" },
+    ],
+  },
+  {
+    name: "device_code",
+    label: "设备编码",
+    type: "text",
+    required: false,
+    description: "可选，按设备编码筛选（与设备名称二选一）",
+  },
+  {
+    name: "device_name",
+    label: "设备名称",
+    type: "text",
+    required: false,
+    description: "可选，按设备名称筛选（与设备编码二选一，模糊匹配）",
+  },
+];
+
+export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
+  {
+    name: "navigate_to",
+    description:
+      "帮使用者跳转到平台指定页面。path 传使用者原话（如「设施管理」「设备管理」）或 originPath；" +
+      "工具自动模糊匹配：唯一完全匹配直接跳转，多个匹配时列出供使用者确认。" +
+      "设施管理 ≠ 设备管理。每轮导航只调用一次。",
+    parameters: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description:
+            "页面名称或 originPath；推荐传使用者原话（如「设施管理」），由工具模糊匹配",
+        },
+        query: {
+          type: "object",
+          description: "可选 URL 查询参数",
+          additionalProperties: { type: "string" },
+        },
+      },
+      required: ["path"],
+    },
+    side: "client",
+    risk_level: "low",
+    client_action: "navigate",
+    enabled: true,
+  },
+  {
+    name: "pause",
+    description:
+      "在多步操作之间等待指定秒数，由浏览器执行计时，不阻塞 Agent 服务。" +
+      "仅当后续步骤明确需要等待页面或设备状态刷新时使用。",
+    parameters: {
+      type: "object",
+      properties: {
+        seconds: {
+          type: "integer",
+          description: "等待秒数，取值范围 0～120，默认 1 秒",
+          minimum: 0,
+          maximum: 120,
+        },
+      },
+      required: [],
+    },
+    side: "client",
+    risk_level: "low",
+    client_action: "pause",
+    enabled: true,
+  },
+  {
+    name: "open_alarm_detail",
+    description:
+      "帮使用者在当前页面打开告警详情弹窗。需要告警编号；若仅有编号无详情，可先调用 get_alarm_detail。",
+    parameters: {
+      type: "object",
+      properties: {
+        alarm_id: {
+          type: "string",
+          description: "告警编号",
+        },
+      },
+      required: ["alarm_id"],
+    },
+    side: "client",
+    risk_level: "low",
+    client_action: "openModal",
+    enabled: true,
+  },
+  {
+    name: "query_alarms",
+    description:
+      "帮使用者查询告警列表（仅查询/统计，不导出文件）。" +
+      "当使用者询问某时段、某类型、某设备的告警数量或列表时使用（含「近三天报警记录」「查某某设备报警」等说法）；" +
+      "「未处理告警」传 status=未处理；「未确认/待确认告警」传 status=未确认；" +
+      "某设备报警传 device_name（原话设备名）或 device_code。" +
+      "**必须立即调用本工具**；使用者已说相对时间时原样传入 start_time。" +
+      "若未明确时间范围，start_time/end_time 留空，由 HITL 表单补选。" +
+      "若使用者说「导出」「下载」请改用 download_file，禁止用本工具代替导出。",
+    parameters: {
+      type: "object",
+      properties: {
+        start_time: {
+          type: "string",
+          description:
+            "时间范围。可填 ISO8601（精确到秒），或相对描述如「近三天」「近30分钟」「近90秒」。" +
+            "使用者已说相对时间时**原样传入**；未明确时间时留空，由 HITL 补选。",
+        },
+        end_time: {
+          type: "string",
+          description:
+            "结束时间，**通常留空**。相对范围（如近三天）由服务端根据 start_time 自动推算，无需填写。",
+        },
+        alarm_level: {
+          type: "string",
+          description: "告警级别筛选，可选",
+        },
+        status: {
+          type: "string",
+          description:
+            "告警状态筛选，可选。" +
+            "「未处理」=待确认+已确认(走未处理专口)；「未确认/待确认」=仅待确认；" +
+            "「已确认」「已处理」按字面筛选。",
+        },
+        device_code: {
+          type: "string",
+          description:
+            "设备编码筛选，可选；与 device_name 二选一，对应平台 deviceCodes",
+        },
+        device_name: {
+          type: "string",
+          description:
+            "设备名称筛选，可选；使用者说「某某设备的报警」时将设备名原样传入，与 device_code 二选一",
+        },
+      },
+      // 全部 optional：避免 schema 与「end_time 可留空」矛盾；缺时间时工具内 HITL 补参
+      required: [],
+    },
+    side: "server",
+    risk_level: "low",
+    platform_api: "POST /api/app/alarm/getAlarmList",
+    enabled: true,
+    hitl_fields: ALARM_QUERY_HITL_FIELDS,
+    preflight: { alarm_time: true },
+  },
+  {
+    name: "get_alarm_detail",
+    description:
+      "帮使用者查看单条告警详情。需要告警编号 alarm_id；若使用者未提供，必须追问。",
+    parameters: {
+      type: "object",
+      properties: {
+        alarm_id: {
+          type: "string",
+          description: "告警编号，业务系统中的唯一标识",
+        },
+      },
+      required: ["alarm_id"],
+    },
+    side: "server",
+    risk_level: "low",
+    platform_api: "POST /api/app/alarm/getAlarmList",
+    enabled: true,
+  },
+  {
+    name: "download_file",
+    description:
+      "帮使用者**下载/导出**平台报表文件（Excel）。**必须立即调用**；" +
+      "使用者已说相对时间时原样传入 start_time；未明确时间时 start_time/end_time 留空，由 HITL 补选。" +
+      "resource 必填：" +
+      "告警/报警导出用 alarm_report（禁止用 query_alarms 代替）；" +
+      "岗哨交接/哨位交接导出用 sentry_handover；" +
+      "值班信息导出用 duty_info；" +
+      "值班管理导出用 duty_manage（勿与值班信息混淆）；" +
+      "出入信息/出入记录导出用 acs_record。" +
+      "支持相对时间：今天、昨天、近三天等。",
+    parameters: {
+      type: "object",
+      properties: {
+        resource: {
+          type: "string",
+          description:
+            "导出类型：alarm_report=告警；sentry_handover=岗哨交接；duty_info=值班信息；duty_manage=值班管理；acs_record=出入信息",
+          enum: [
+            "alarm_report",
+            "sentry_handover",
+            "duty_info",
+            "duty_manage",
+            "acs_record",
+          ],
+        },
+        start_time: {
+          type: "string",
+          description:
+            "时间范围，可填相对描述如「近三天」；使用者已说相对时间时原样传入，end_time 通常留空",
+        },
+        end_time: {
+          type: "string",
+          description: "结束时间，相对范围可留空，由服务端推算",
+        },
+        status: {
+          type: "string",
+          description:
+            "仅 alarm_report：告警状态筛选，可选。语义同 query_alarms：未处理/未确认/已确认/已处理",
+        },
+        device_code: {
+          type: "string",
+          description:
+            "仅 alarm_report：设备编码筛选，可选；与 device_name 二选一",
+        },
+        device_name: {
+          type: "string",
+          description:
+            "仅 alarm_report：设备名称筛选，可选；与 device_code 二选一",
+        },
+        sentry_id: {
+          type: "string",
+          description:
+            "仅 sentry_handover：岗哨 ID 筛选，可选；未指定则导出时间范围内全部",
+        },
+        person_id: {
+          type: "string",
+          description:
+            "仅 acs_record：人员 ID 筛选，可选；未指定则导出时间范围内全部",
+        },
+      },
+      required: ["resource"],
+    },
+    side: "server",
+    risk_level: "medium",
+    platform_api: "GET /api/app/alarm/exportAlarm",
+    client_action: "download",
+    enabled: true,
+    hitl_fields: ALARM_QUERY_HITL_FIELDS,
+    preflight: {
+      alarm_time: true,
+      when_resource: [
+        "alarm_report",
+        "sentry_handover",
+        "duty_info",
+        "duty_manage",
+        "acs_record",
+      ],
+    },
+  },
+  {
+    name: "batch_confirm_alarms",
+    description:
+      "帮使用者**批量确认告警**（高风险写操作，执行前须使用者 HITL 批准）。" +
+      "当使用者要求**确认**告警时使用（待确认→已确认）。" +
+      "**禁止**用于「处理/批量处理」场景（已确认→已处理请用 batch_process_alarms）。" +
+      "**一次请求只调用本工具一次**；本工具会拉取列表并在 HITL 卡片展示摘要，**禁止**先 query_alarms 再重复调用。" +
+      "平台：1=待确认、2=已确认、3=已处理；未处理=1+2。确认仅操作待确认(1)。" +
+      "alarm_ids 与 start_time/end_time 筛选二选一：有明确编号时传 alarm_ids，否则传时间范围。",
+    parameters: {
+      type: "object",
+      properties: {
+        alarm_ids: {
+          type: "string",
+          description:
+            "逗号分隔的告警编号；使用者已给出具体编号时使用，与下方时间筛选二选一",
+        },
+        start_time: {
+          type: "string",
+          description:
+            "开始时间。可填 ISO8601 或相对描述如「近三天」「昨天」；按筛选批量确认时必填",
+        },
+        end_time: {
+          type: "string",
+          description: "结束时间；相对范围可留空，由服务端推算",
+        },
+        status: {
+          type: "string",
+          description:
+            "可选。「未处理」=待确认+已确认(1+2)；「待确认/未确认」=仅1。批量确认时未处理会先筛出待确认",
+        },
+      },
+      required: [],
+    },
+    side: "server",
+    risk_level: "high",
+    platform_api: "POST /api/app/alarm/confirmAlarm",
+    required_permissions: ["alarm:confirm"],
+    enabled: true,
+    hitl_fields: ALARM_QUERY_HITL_FIELDS,
+    preflight: {
+      alarm_time: true,
+      one_of: [["alarm_ids"], ["start_time", "end_time"]],
+    },
+  },
+  {
+    name: "batch_process_alarms",
+    description:
+      "帮使用者**批量处理告警**（高风险写操作，执行前须 HITL 批准）。" +
+      "当使用者要求**处理/批量处理**告警时使用。" +
+      "适用于**待确认(1)或已确认(2)**，执行后变为已处理(3)，调用 processAlarm。" +
+      "待确认可直接处理（等同平台「立即处理」）；已确认只能处理、不能再次确认。" +
+      "**禁止**用于仅需「确认」的场景（请用 batch_confirm_alarms）。" +
+      "说「未处理」时走 getAlarmUnprocessList，处理其中全部待确认+已确认。" +
+      "alarm_ids 与 start_time/end_time 筛选二选一。",
+    parameters: {
+      type: "object",
+      properties: {
+        alarm_ids: {
+          type: "string",
+          description: "逗号分隔的告警编号；与下方时间筛选二选一",
+        },
+        start_time: {
+          type: "string",
+          description: "开始时间，相对描述如「近三天」",
+        },
+        end_time: {
+          type: "string",
+          description: "结束时间，相对范围可留空",
+        },
+        status: {
+          type: "string",
+          description:
+            "可选。「未处理」=待确认+已确认；也可指定「待确认」「已确认」",
+        },
+      },
+      required: [],
+    },
+    side: "server",
+    risk_level: "high",
+    platform_api: "POST /api/app/alarm/processAlarm",
+    required_permissions: ["alarm:process"],
+    enabled: true,
+    hitl_fields: ALARM_QUERY_HITL_FIELDS,
+    preflight: {
+      alarm_time: true,
+      one_of: [["alarm_ids"], ["start_time", "end_time"]],
+    },
+  },
+  {
+    name: "query_devices",
+    description:
+      "帮使用者**查询设备列表**（仅查询，不增删改设备）。" +
+      "当使用者询问设备、监控点、设施列表，或按名称/编码/在线状态查找设备时使用。" +
+      "**必须立即调用**；search 为模糊关键词，device_name / device_code 为精确筛选，可组合。" +
+      "online_status 可选：在线、离线、异常。未指定筛选时返回第一页摘要及总数。" +
+      "**禁止**用 navigate_to 代替数据查询；查告警请用 query_alarms。",
+    parameters: {
+      type: "object",
+      properties: {
+        search: {
+          type: "string",
+          description: "模糊搜索关键词（设备名称/编码等），可选",
+        },
+        device_name: {
+          type: "string",
+          description: "设备名称，可选，精确或部分匹配由平台决定",
+        },
+        device_code: {
+          type: "string",
+          description: "设备编码，可选",
+        },
+        online_status: {
+          type: "string",
+          description: "在线状态筛选：在线、离线、异常（或 0/1/2），可选",
+        },
+      },
+      required: [],
+    },
+    side: "server",
+    risk_level: "low",
+    platform_api: "POST /api/app/device/getDeviceList",
+    enabled: true,
+  },
+  {
+    name: "get_device_detail",
+    description:
+      "帮使用者查看单台设备详情（名称、编码、在线状态、区域、子系统等）。" +
+      "需要 device_code 或 device_name 至少一项；使用者说「门禁设备」「XX设备详情」时将 device_name 传原话。" +
+      "仅有名称时会先模糊查列表再取详情；多台匹配时 HITL 选择。" +
+      "**禁止**用 navigate_to 代替详情查询；打开设备管理页请用 open_device_detail。",
+    parameters: {
+      type: "object",
+      properties: {
+        device_code: {
+          type: "string",
+          description: "设备编码，与 device_name 二选一",
+        },
+        device_name: {
+          type: "string",
+          description: "设备名称，与 device_code 二选一（模糊匹配）",
+        },
+      },
+      required: [],
+    },
+    side: "server",
+    risk_level: "low",
+    platform_api: "GET /api/app/device/getDeviceByCode/{deviceCode}",
+    enabled: true,
+    hitl_fields: DEVICE_IDENT_HITL_FIELDS,
+    preflight: { one_of: [["device_code"], ["device_name"]] },
+  },
+  {
+    name: "query_device_variables",
+    description:
+      "帮使用者查询指定设备下的变量列表（varName、showName、读写属性等）。" +
+      "需要 device_code 或 device_name 至少一项；使用者说设备名时将 device_name 传原话。" +
+      "仅有名称时会先模糊查列表再取编码；多台匹配时 HITL 选择。" +
+      "可选 var_name 按 varName 或 showName 筛选（中文名走 showName 服务端筛选）。" +
+      "下发指令前可先调用本工具确认变量名；**禁止**用 query_devices 代替变量查询。",
+    parameters: {
+      type: "object",
+      properties: {
+        device_code: {
+          type: "string",
+          description: "设备编码，与 device_name 二选一",
+        },
+        device_name: {
+          type: "string",
+          description: "设备名称，与 device_code 二选一（模糊匹配）",
+        },
+        var_name: {
+          type: "string",
+          description: "变量关键词：英文 varName 或中文 showName，可选",
+        },
+      },
+      required: [],
+    },
+    side: "server",
+    risk_level: "low",
+    platform_api: "POST /api/app/device/getVarListByCode",
+    enabled: true,
+    hitl_fields: DEVICE_IDENT_HITL_FIELDS,
+    preflight: { one_of: [["device_code"], ["device_name"]] },
+  },
+  {
+    name: "send_device_cmd",
+    description:
+      "帮使用者向设备**下发控制指令**（高风险写操作，执行前须 HITL 批准）。" +
+      "当使用者要求控制设备、开门/关门、广播播报、写入变量、下发指令时，**必须立即调用本工具**，" +
+      "可传口语参数：device_name（设备名）、action（开门/关门/播报/开启/关闭等）、variable_name（任意可写变量）。" +
+      "**支持任意具备可写变量的设备**，不限于门禁或广播；通用「给设备下发指令」时参数可全留空，由 HITL 选设备与变量。" +
+      "**未指定设备时仍须立即调用**（device_code/device_name 留空）；" +
+      "系统弹出可筛选设备表格供单选，**禁止**用自然语言追问「哪台设备/设备名称」，" +
+      "**禁止**把能力说成仅支持开门/关门/播报。" +
+      "缺其它参时系统自动消解或 HITL 渐进补参，**禁止**反复追问编码格式。" +
+      "variable_name 支持中文 showName，服务端自动解析为 varName。" +
+      "**开门/关门**仅向可写变量 status_door_control（门控制状态）下发：开门=1、关门=0；" +
+      "设备无该变量则判定不支持开关门并失败，不改用其它变量。" +
+      "**播报/下发广播/广播XXX内容**：仅向可写变量 play（播报）下发，variable_value 填播报正文；" +
+      "正文未明确时由 HITL 补填；设备无 play 则判定不支持播报并失败。" +
+      "**开启/关闭/其它动作或显式变量名**：按设备可写变量消解并下发。" +
+      "**禁止**用于仅查询设备状态；查列表用 query_devices，查变量用 query_device_variables。",
+    parameters: {
+      type: "object",
+      properties: {
+        device_code: {
+          type: "string",
+          description: "设备编码，可选（与 device_name 二选一）",
+        },
+        device_name: {
+          type: "string",
+          description: "设备名称，可选（与 device_code 二选一，支持模糊匹配）",
+        },
+        action: {
+          type: "string",
+          description:
+            "控制动作口语：开门/关门→status_door_control（1/0）；播报→play（正文）；开启/关闭或其它可推断可写变量；通用下发可留空",
+        },
+        variable_name: {
+          type: "string",
+          description:
+            "任意可写变量 varName 或中文 showName；开门/关门固定 status_door_control，播报固定 play",
+        },
+        variable_value: {
+          type: "string",
+          description:
+            "写入值；开门=1、关门=0 可留空推断；播报时必须为正文（可从原话抽取，否则 HITL）",
+        },
+        operate_name: {
+          type: "string",
+          description: "操作说明，可选",
+        },
+      },
+      required: [],
+    },
+    side: "server",
+    risk_level: "high",
+    platform_api: "POST /api/app/device/sendCmd",
+    required_permissions: ["device:control"],
+    enabled: true,
+    hitl_fields: DEVICE_CMD_HITL_FIELDS,
+  },
+  {
+    name: "query_device_variable_realtime",
+    description:
+      "帮使用者查询指定设备变量的**实时当前值**（只读）。" +
+      "当使用者问「某某设备某某变量现在多少」「实时值/当前值」时使用；" +
+      "问「所有/全部变量实时值」时 **variable_name 留空**，一次返回该设备全部变量实时列表。" +
+      "需要 device_code 或 device_name；variable_name 可选（varName 或中文 showName）。" +
+      "**禁止**用 navigate_to 代替本查询；仅要变量清单（无实时值）时用 query_device_variables。" +
+      "**禁止**用本工具代替历史曲线（历史请用 query_device_variable_history）。",
+    parameters: {
+      type: "object",
+      properties: {
+        device_code: {
+          type: "string",
+          description: "设备编码，与 device_name 二选一",
+        },
+        device_name: {
+          type: "string",
+          description: "设备名称，与 device_code 二选一（模糊匹配）",
+        },
+        variable_name: {
+          type: "string",
+          description:
+            "可选。指定单个变量（varName/showName）；查全部实时值时留空，或传「所有/全部」",
+        },
+      },
+      required: [],
+    },
+    side: "server",
+    risk_level: "low",
+    platform_api: "POST /api/app/realData/getRealDataList",
+    enabled: true,
+    hitl_fields: [
+      ...DEVICE_IDENT_HITL_FIELDS,
+      {
+        name: "variable_name",
+        label: "变量名",
+        type: "text",
+        required: false,
+        description: "可选；留空表示查询该设备全部变量实时值",
+      },
+    ],
+    preflight: { one_of: [["device_code"], ["device_name"]] },
+  },
+  {
+    name: "query_device_variable_history",
+    description:
+      "帮使用者查询指定设备变量的**历史测点摘要**（只读），并提供一键跳转历史曲线页。" +
+      "当使用者问「历史曲线」「过去多久的值」「趋势」时使用。" +
+      "需要设备、变量与时间范围；相对时间（如「近三天」）原样传入 start_time。" +
+      "**禁止**用 navigate_to 代替本查询；实时当前值请用 query_device_variable_realtime。",
+    parameters: {
+      type: "object",
+      properties: {
+        device_code: {
+          type: "string",
+          description: "设备编码，与 device_name 二选一",
+        },
+        device_name: {
+          type: "string",
+          description: "设备名称，与 device_code 二选一（模糊匹配）",
+        },
+        variable_name: {
+          type: "string",
+          description: "变量 varName 或中文 showName",
+        },
+        start_time: {
+          type: "string",
+          description:
+            "时间范围。可填 ISO8601 或相对描述如「近三天」「近1小时」；使用者已说相对时间时原样传入",
+        },
+        end_time: {
+          type: "string",
+          description: "结束时间，相对范围通常留空，由服务端推算",
+        },
+      },
+      required: [],
+    },
+    side: "server",
+    risk_level: "low",
+    platform_api: "POST /api/app/sysMonitor/getDevVarDataList",
+    enabled: true,
+    hitl_fields: [
+      ...DEVICE_IDENT_HITL_FIELDS,
+      {
+        name: "variable_name",
+        label: "变量名",
+        type: "text",
+        required: true,
+        description: "变量英文名或中文显示名",
+      },
+      {
+        name: "time_range",
+        label: "时间范围",
+        type: "datetime_range",
+        required: true,
+        description: "历史查询起止时间",
+      },
+    ],
+    preflight: {
+      one_of: [["device_code"], ["device_name"]],
+      alarm_time: true,
+    },
+  },
+  {
+    name: "open_device_detail",
+    description:
+      "帮使用者在平台内打开设备管理页面并定位到指定设备（Client Tool）。" +
+      "需要 device_code；通常先 get_device_detail 获取详情，再调用本工具跳转。" +
+      "**禁止**用 navigate_to 泛化跳转代替本工具（本工具会携带 deviceCode 查询参数）。",
+    parameters: {
+      type: "object",
+      properties: {
+        device_code: {
+          type: "string",
+          description: "设备编码",
+        },
+        device_name: {
+          type: "string",
+          description: "可选，用于跳转摘要展示",
+        },
+      },
+      required: ["device_code"],
+    },
+    side: "client",
+    risk_level: "low",
+    client_action: "navigate",
+    enabled: true,
+  },
+];
+
+export function getToolDefinition(
+  name: string,
+): PlatformToolDefinition | undefined {
+  return PLATFORM_TOOL_CATALOG.find((t) => t.name === name);
+}

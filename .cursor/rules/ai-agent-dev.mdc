@@ -1,0 +1,141 @@
+---
+description: AI Agent 开发规范（LangChain/LangGraph、平台工具、HITL、桌面端）
+globs: "**/AiAssistant/**,**/AgentController*,**/platform-agent-service/**,**/platform-mcp-server/**,**/desktop-api/**"
+alwaysApply: false
+---
+
+# AI Agent 开发规范
+
+适用于 **ims-ai-desktop** 桌面端与 Agent / MCP 后端开发。
+
+## 文档与 API 来源（强制）
+
+> 配套 alwaysApply 规则：[`.cursor/rules/langchain-langgraph-docs-first.mdc`](langchain-langgraph-docs-first.mdc)
+
+1. **新功能 / 新需求 / 引入新 API 的修复：动手前必须先查 LangChain / LangGraph 官方文档**，禁止凭记忆写接口。
+2. 通过 MCP **`docs-langchain`** 检索最新文档：
+   - 工具：`search_docs_by_lang_chain`
+   - 全文：`query_docs_filesystem_docs_by_lang_chain`
+3. **先对齐官方设计理念与推荐 API**，再落入本仓架构（父 `StateGraph` + `create_agent`、HITL 仅 `interrupt`/`Command`、工具仅 Platform MCP）。编码前在回复中写明：查阅主题、选用 API、落点模块。
+4. 优先查阅主题：`create_agent`、Graph API、`Human-in-the-loop` / `Interrupts`、`Command`、`Checkpointers`、`Streaming`（`astream_events`）、`Subgraphs`、MCP。
+5. 架构基准：`docs/architecture/00-overview.md`、`03-agent-runtime.md`、`02-mcp-platform-server.md`、`06-contracts.md`。
+
+## 架构约束
+
+| 层级         | 职责                                                                     |
+| ------------ | ------------------------------------------------------------------------ |
+| 桌面端       | Electron UI、SSE 消费、HITL 表单、Plan 步骤条（M1 无 BPMN）              |
+| Agent 服务   | LangGraph、MCP Client、checkpointer、HITL、Qdrant RAG、Agent MCP Gateway |
+| Platform MCP | 平台工具唯一执行面（`:8010/mcp`）                                        |
+| 平台 API     | `/api/app` 等，经 Platform MCP 透传用户 JWT                              |
+
+- Agent 逻辑 **不得** 写在桌面端 TS 中（除 Client Tool 执行器与桌面降级）。
+- 会话上下文由服务端 **checkpointer + thread_id** 管理；「新会话」= 新 thread_id。
+- 禁止硬编码 Agent 服务地址；走 `AGENT_SERVICE_URL` / 开发代理。
+
+## LangGraph 实现要点
+
+```python
+# 概念引用：以官方文档当前签名为准
+from langchain.agents import create_agent
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver  # 无 DSN 时 InMemorySaver
+
+# 父 StateGraph 节点内：create_agent(tools=...)；HITL 仅 interrupt() + Command(resume)
+# 禁止 HumanInTheLoopMiddleware / interrupt_on（与自定义 HITL 表单双协议）
+```
+
+- **缺参 / 需确认 / plan_confirm**：父图节点或 MCP 工具包装器内 `interrupt(payload)`；前端 `POST /api/agent/resume` → 后端一律 `Command(resume=body)`。
+- **流式**：父图 `astream_events(..., version="v3")`；事件格式与 `AgentController` 契约一致。
+- **thread_id**：每次 invoke/stream 传入 `config={"configurable": {"thread_id": "..."}}`。
+- 节点内 `interrupt()` 之前的代码须 **幂等**（resume 会重跑节点）。
+- **禁止**图外 `pending_plan` / `pending_tool_hitl` 第二 HITL 状态机。
+
+## 提示词（Prompt）规范
+
+凡 System Prompt、节点 Prompt、工具/参数 description、HITL 引导、ToolResult 摘要：
+
+1. **使用者视角**：站在值班员/管理员一侧写；禁止研发术语进入面向模型的业务描述。
+2. **详细精确**：动作、格式、边界、缺参策略写死；禁止「尽量、可能、适当」等模糊词。
+3. **集中存放**：`services/platform-agent-service/app/prompts/` + `packages/agent-core/tool-catalog.ts`；禁止散落长 Prompt 字符串。
+
+## 平台工具规范
+
+完整规范见 `docs/architecture/02-mcp-platform-server.md`。概要：
+
+| 项          | 要求                                                                          |
+| ----------- | ----------------------------------------------------------------------------- |
+| 清单        | `@ims/agent-core/tool-catalog.ts` 唯一数据源                                  |
+| 执行面      | **仅** `services/platform-mcp-server` MCP Tools（禁止 Agent 内业务 `@tool`）  |
+| 分类        | `server`（调平台 API）/ `client`（返回 `client_action` → SSE → 桌面端）       |
+| Schema      | OpenAI function calling 兼容 JSON Schema，中文 description                    |
+| 返回        | 统一 `ToolResult`：`ok`、`summary`、`data`、`client_action?` / `client_actions?` |
+| HITL        | 图内 `interrupt` + `Command(resume)`（MCP 仅 `hitl_required` JSON）           |
+| Client 动作 | SSE `client_action` 直下发（`client_actions` 展开为多条）；桌面端 M1 对 navigate 等可跳过并降级提示 |
+
+新增工具 SOP：YApi → tool-catalog → `export_catalog.py` → Platform MCP handler → ClientExecutor/桌面降级 → i18n → 测试。
+
+## 接口响应规范
+
+Agent 后端 **JSON 接口**（非 SSE 流）统一返回：
+
+```json
+{ "code": 0, "data": {}, "message": "" }
+```
+
+| 字段      | 说明                                        |
+| --------- | ------------------------------------------- |
+| `code`    | `0` 成功，非 `0` 失败                       |
+| `data`    | 业务数据；失败时的具体展示信息也放在 `data` |
+| `message` | 成功或失败的响应消息                        |
+
+SSE 建立前的 HTTP 错误仍用上述 envelope；流内 `error` 事件 payload 对齐 `code` / `data` / `message` 语义。详见 `docs/architecture/06-contracts.md`。
+
+## 仓库位置
+
+| 工程           | 路径                                                                  |
+| -------------- | --------------------------------------------------------------------- |
+| 统一维护根目录 | `ims-ai-desktop/`                                                     |
+| 桌面端         | `apps/desktop/`                                                       |
+| Platform MCP   | `services/platform-mcp-server/`（端口 **8010**）                      |
+| Agent 后端     | `services/platform-agent-service/`（**Python 3.14.4**，端口 **8008**）|
+| 共享 npm 包    | `packages/`（agent-core / shared-types / desktop-api）                |
+
+Agent / MCP Python 代码 **禁止** 放入 `apps/desktop/`。详见 `docs/architecture/01-system-context.md`。
+
+## 桌面端约定
+
+- 组件：`apps/desktop/src/components/AiAssistant/`；API：`apps/desktop/src/services/AgentController.ts`
+- 登录 / token：`@ims/desktop-api`
+- 用户可见文案：**zh-CN / en-US 同步**；`apps/desktop/src/locales/ai_assistant/`
+- M1 不含 BPMN 编排画布；Plan 仅步骤条
+- 模型列表与 `AgentModelId` 以 `packages/agent-core/model-catalog.ts` 为唯一数据源；禁止硬编码下拉选项
+- 仅使用 `/api/agent` 对话协议
+
+## 禁止事项
+
+- Agent 后端运行 **Python 3.14.4**（`pyproject.toml`：`requires-python = "==3.14.4"`）。
+- 不引入与 Agent / 桌面端无关的新依赖。
+- 不跳过 HITL 直接执行高风险 Server Tool。
+- 不使用已废弃 API（如旧版 `AgentExecutor` 单轨）除非文档明确兼容层。
+- 不对平台达梦执行非 SELECT。
+
+## 关联功能完整性
+
+通用原则见 [`change-integrity.mdc`](change-integrity.mdc) 与 [`AGENTS.md`](../../AGENTS.md)。
+
+| 层级 | 关联入口 / 状态 |
+| ---- | ---- |
+| 桌面端 | `sendMessage` / HITL resume·reject / `abortStream`；Store：`pendingInterrupt`、`streaming`、`planSteps` |
+| 后端 | `stream_chat` / `stream_resume`（`Command(resume)`）；`parent_graph`；checkpointer；`session_store` |
+| 契约 | `packages/shared-types`；Tool 结果字段；SSE 事件语义 |
+
+**策略不确定时**：先咨询用户再实现。
+
+## 提交前检查
+
+- [ ] MCP 文档已核对所用 API 签名
+- [ ] JSON 接口符合 `{ code, data, message }`
+- [ ] i18n 中英文已同步
+- [ ] 未硬编码 Agent 服务 URL
+- [ ] chat / resume / reject / 新会话对称路径已覆盖
+- [ ] 建议按 [`docs/desktop-m1-acceptance.md`](../../docs/desktop-m1-acceptance.md) 验证

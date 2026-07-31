@@ -1,0 +1,19 @@
+{
+  "llm_direct": null,
+  "spoken": "查询近三天的门禁告警",
+  "e2e_local": "查近三天的门禁告警。",
+  "e2e_http": {
+    "code": 0,
+    "data": {
+      "text": "查近三天的门禁告警。",
+      "model_id": null
+    },
+    "message": "ok"
+  },
+  "dict_case": {
+    "text": "查询近三天的门禁告警",
+    "stage": "cache",
+    "changed": true,
+    "raw": "查询近三添的门进告井"
+  }
+}

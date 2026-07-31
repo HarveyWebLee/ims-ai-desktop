@@ -1,0 +1,65 @@
+---
+description: AI 智能化功能开发的强制流程门禁（改前影响面、对称路径、交付自检）
+alwaysApply: true
+---
+
+# AI 开发质量门禁
+
+本规则与 [`change-integrity.mdc`](change-integrity.mdc)、[`ai-agent-dev.mdc`](ai-agent-dev.mdc) 配套。**原则性约束已有，本文件约束「何时、以什么形式」执行**，防止只改报错路径、遗漏关联面、引入回归。
+
+## 一、改前（动手写代码前，必须完成）
+
+1. **读完整调用链**：用户操作 → 桌面端入口 → API/SSE → 后端 handler → 共享状态 → UI 回显；禁止只打开报错文件就改。
+2. **涉及 LangChain / LangGraph 时先查官方文档**（MCP `docs-langchain`）。详见 [`langchain-langgraph-docs-first.mdc`](langchain-langgraph-docs-first.mdc)。
+3. **输出影响面清单**（在回复中显式列出，再开始编码）：
+   - 直接改动文件
+   - 对称路径（chat / resume / reject / abort / 新会话 / 同 thread 下一轮）
+   - 共享状态（Store、`session_store`、checkpointer interrupt；**无** `pending_*` HITL）
+   - 契约层（`packages/`、SSE 事件、Tool 字段）
+   - i18n（`aiAssistant.*` 中英文）
+   - 需同步的验收项（见 `docs/desktop-m1-acceptance.md`）
+4. **策略不明先问**：清除 vs 保留、静默 vs 提示等无法从需求/现有代码推断时，**先向用户确认**。
+5. **范围声明**：影响面要求联动修改时须一并改；局部 POC 须声明未覆盖项。
+6. **平台业务库只读**：达梦仅 `SELECT`；业务写只经平台 API（[`09-platform-db-readonly.md`](../../docs/architecture/09-platform-db-readonly.md)）。
+
+## 二、改中（编码过程约束）
+
+1. **契约优先顺序**：`packages/agent-core` 或 `packages/shared-types` → `services/platform-agent-service/scripts/export_catalog.py` → 后端 → 桌面端 parser/Store。
+2. **对称路径同步**：变更任一路径须同步相反路径及新消息、续跑、错误降级。
+3. **状态生命周期闭合**：`set` / `pending` / `streaming=true` 须有对应 `clear` / `finalize` / `pop`。
+4. **禁止半成品交差**：不得留下 TODO、空实现、仅 happy path。
+5. **最小改动 ≠ 单点改动**：不扩 scope refactor，但不忽略关联入口。
+6. **桌面端 M1**：不擅自引入 BPMN 编排抽屉；`client_action` navigate 等保持可跳过降级。
+
+## 三、改后（交付前自检，必须执行并汇报）
+
+| 门禁项        | 动作 |
+| ------------- | ---- |
+| 调用方        | grep 关键符号，确认无遗漏引用方 |
+| 对称路径      | chat / resume / reject / abort / 新会话 mentally walkthrough |
+| 契约一致      | 前后端字段、SSE、catalog 已同步 |
+| i18n          | zh-CN / en-US 同步 |
+| catalog 导出  | 改 tool-catalog 后已说明或执行 `export_catalog.py` |
+| LangGraph API | 已用 `docs-langchain` 核对 |
+| 手工验收      | 按 [`docs/desktop-m1-acceptance.md`](../../docs/desktop-m1-acceptance.md) 列出验证步骤 |
+| 回归风险      | 说明可能受影响但未改动的模块 |
+
+**未跑测试或未手工验证时**，不得写「已完全验证」。
+
+## 四、典型反模式（视为开发缺陷）
+
+- 只改 `stream_chat` 未改 `stream_resume`
+- reject 后仍显示 loading / 旧 Plan / 残留 interrupt
+- 改 SSE 未改桌面端 `AgentController` 与 `shared-types`
+- 新增工具未走 catalog → export → Platform MCP → preflight → i18n
+- 重新引入图外 `pending_*` HITL 或 `HumanInTheLoopMiddleware` 双协议
+- 对平台达梦执行非 SELECT
+
+## 五、参考
+
+- [`langchain-langgraph-docs-first.mdc`](langchain-langgraph-docs-first.mdc)
+- [`change-integrity.mdc`](change-integrity.mdc)
+- [`ai-agent-dev.mdc`](ai-agent-dev.mdc)
+- [`agent-architecture-first.mdc`](agent-architecture-first.mdc)
+- [`feature-change-integrity.mdc`](feature-change-integrity.mdc)
+- [`docs/desktop-m1-acceptance.md`](../../docs/desktop-m1-acceptance.md)

@@ -1,0 +1,41 @@
+---
+description: 功能需求开发的影响面与回归完整性规则（Agent）
+globs: "services/platform-agent-service/app/**/*.py,services/platform-agent-service/tests/**/*.py"
+alwaysApply: false
+---
+
+# 功能变更完整性（Agent 项目）
+
+## 改前必须输出影响面
+
+至少覆盖以下 5 类：
+
+1. **入口路径**：`stream_chat`、`stream_resume`（`Command(resume)`）、相关 API。
+2. **对称路径**：approve / reject / retry / abort / 新消息。
+3. **共享状态**：checkpointer、`session_store` 元数据、ContextVar（**无** `pending_*` HITL）。
+4. **协议契约**：SSE 事件名与 payload 字段、`ToolResult` 结构。
+5. **观测与错误**：trace、日志事件、错误码/错误消息语义。
+
+## 改中约束
+
+- 新增状态必须有清理路径（含异常/取消分支）。
+- 变更工具前置校验时，同步核对 resume 续跑参数校验逻辑。
+- 涉及 Plan/HITL 的调整，需检查“同 thread 下一轮”是否残留旧状态。
+
+## 改后最小回归清单
+
+- [ ] 主路径可用（新功能 happy path）
+- [ ] reject/cancel 路径不回退
+- [ ] resume 路径不回退
+- [ ] 新 chat 不受上一轮 checkpoint interrupt / 元数据污染
+- [ ] 相关测试新增或更新（行为变更时）
+
+## 处理历史能力的原则
+
+- 优先“兼容演进”而非“替换式重写”：
+  - 先保留旧入口，内部转发到新实现
+  - 稳定后再删除旧入口
+- 若必须删除旧入口，需同步：
+  - 全局引用更新
+  - 测试修复
+  - 文档与规则更新

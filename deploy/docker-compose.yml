@@ -1,0 +1,72 @@
+# Agent 服务依赖：Postgres Checkpointer + Qdrant 向量库 + Redis 纠错缓存
+#
+# 启动：docker compose up -d
+# Postgres：postgresql://agent:agent@127.0.0.1:16543/platform_agent
+# Qdrant REST：http://127.0.0.1:16333 （容器内 6333）
+# Qdrant gRPC：127.0.0.1:16334 （容器内 6334，可选）
+# Dashboard：http://127.0.0.1:16333/dashboard
+# Redis：redis://127.0.0.1:13386/0 （宿主机 13386 → 容器 6379）
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: platform-agent-postgres
+    restart: unless-stopped
+    ports:
+      - "16543:5432"
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent
+      POSTGRES_DB: platform_agent
+      TZ: Asia/Shanghai
+    volumes:
+      - agent_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d platform_agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:v1.14.1
+    container_name: platform-agent-qdrant
+    restart: unless-stopped
+    ports:
+      # 宿主机 16333 → 容器 REST 6333（Web UI / HTTP API）
+      - "16333:6333"
+      # 宿主机 16334 → 容器 gRPC 6334（大批量写入可选）
+      - "16334:6334"
+    environment:
+      TZ: Asia/Shanghai
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    volumes:
+      - agent_qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: platform-agent-redis
+    restart: unless-stopped
+    ports:
+      # 宿主机 13386 → 容器 6379（语音纠错 Cache 等）
+      - "13386:6379"
+    environment:
+      TZ: Asia/Shanghai
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - agent_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  agent_pg_data:
+  agent_qdrant_data:
+  agent_redis_data:

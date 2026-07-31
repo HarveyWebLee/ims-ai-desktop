@@ -1,0 +1,1400 @@
+[
+  {
+    "tag": "projectManagementApi",
+    "count": 318,
+    "summaries": [
+      "POST /project/base/addProjectDeviceType — 添加设备类别",
+      "POST /project/base/addProjectFacilityCategory — 添加设施类别",
+      "POST /project/base/addProjectFacilityUpkeep — 添加保养项目",
+      "POST /project/base/addProjectWarehouse — 添加贮存地点",
+      "POST /project/base/addProjectWarehouseLocation — 添加存放位置",
+      "POST /project/base/delProjectDeviceType — 删除设备类别",
+      "POST /project/base/delProjectFacilityCategory — 删除设施类别",
+      "POST /project/base/delProjectFacilityUpkeep — 删除保养项目"
+    ]
+  },
+  {
+    "tag": "appGatewayApi",
+    "count": 119,
+    "summaries": [
+      "GET /api/alarmInfo/push — 报警信息推送",
+      "GET /api/app/device/v2/getDebugLevel — 获取当前调试级别",
+      "POST /api/app/device/v2/sendCmd — 发送指令接口",
+      "POST /api/app/device/v2/setDebugLevel/{debugLevel} — 设置调试级别",
+      "DELETE /api/app/sysMonitor/batchDeleteExportDevData — 批量删除导出任务",
+      "POST /api/app/sysMonitor/calibrateDevData — 标定设备变量数据",
+      "DELETE /api/app/sysMonitor/deleteExportDevData — 删除导出任务",
+      "GET /api/app/sysMonitor/downloadCalibrateTemplate — 下载标定导入模板"
+    ]
+  },
+  {
+    "tag": "dictionaryApi",
+    "count": 81,
+    "summaries": [
+      "POST /dic/addAlarmCategory — 添加报警类别",
+      "POST /dic/addAlarmRank — 添加报警级别",
+      "POST /dic/addAlarmSource — 添加报警源",
+      "POST /dic/addCountry — 添加国家",
+      "POST /dic/addMajor — 新增专业",
+      "POST /dic/addMessageStatus — 添加消息发布状态",
+      "POST /dic/addMilitaryPosition — 添加职务",
+      "POST /dic/addMilitaryRank — 添加军衔"
+    ]
+  },
+  {
+    "tag": "deviceManagementApi",
+    "count": 76,
+    "summaries": [
+      "POST /device/addDevice — 添加设备",
+      "POST /device/addDeviceCategory — 添加设备类型",
+      "POST /device/addDeviceGroup — 添加设备分组",
+      "POST /device/addDeviceVariable — 添加设备变量",
+      "POST /device/batchEnable — 设备批量启用、停用",
+      "POST /device/batchSetDeviceOffline — 批量设置设备离线",
+      "POST /device/batchUpdateDevice — 批量更新设备",
+      "POST /device/batchUpdateVariable — 批量更新设备变量"
+    ]
+  },
+  {
+    "tag": "warehouseApi",
+    "count": 60,
+    "summaries": [
+      "POST /wms/device/addWmsDevice — 添加设备",
+      "POST /wms/device/delWmsDevice — 删除设备",
+      "GET /wms/device/exportWmsDevice — 导出设备",
+      "POST /wms/device/getWmsDevice — 获取设备详情",
+      "POST /wms/device/getWmsDeviceList — 获取设备列表",
+      "POST /wms/device/importWmsDevice — 导入设备",
+      "POST /wms/device/updateWmsDevice — 更新设备",
+      "POST /wms/deviceType/addWmsDeviceType — 添加设备类型"
+    ]
+  },
+  {
+    "tag": "accessControlApi",
+    "count": 33,
+    "summaries": [
+      "POST /acs/addAcsPerson — 添加门禁人员",
+      "POST /acs/addAcsRecord — 添加出入信息",
+      "POST /acs/addCard — 添加卡片",
+      "POST /acs/addOpenDoorRecord — 添加远程开门记录",
+      "POST /acs/addVisitGroup — 添加访问组",
+      "POST /acs/deleteAcsPerson — 删除门禁人员",
+      "POST /acs/deleteAcsRecord — 删除出入信息",
+      "POST /acs/deleteCard — 删除卡片"
+    ]
+  },
+  {
+    "tag": "messageCenterApi",
+    "count": 29,
+    "summaries": [
+      "POST /message/addMessageManage — 添加信息管理",
+      "POST /message/batchPublish — 批量发布",
+      "POST /message/cancelBatchPublish — 取消批量发布",
+      "POST /message/deleteMessageManage — 删除信息管理",
+      "POST /message/deleteSatelliteHistory — 删除卫星临空历史记录",
+      "GET /message/exportMessageManage — 导出信息管理",
+      "POST /message/getMessageManageById — 获取信息管理详情",
+      "POST /message/getMessageManageList — 获取信息管理列表"
+    ]
+  },
+  {
+    "tag": "alarmManagementApi",
+    "count": 28,
+    "summaries": [
+      "POST /alarm/addAlarm — 添加告警记录",
+      "POST /alarm/addAlarmConfig — 添加告警配置",
+      "POST /alarm/addAlarmRelatedDevice — 添加报警事件关联设备",
+      "POST /alarm/clearAlarm — clearAlarm",
+      "POST /alarm/confirmAlarm — 确认操作",
+      "POST /alarm/deleteAlarm — 删除告警记录",
+      "POST /alarm/deleteAlarmConfig — 删除告警配置",
+      "POST /alarm/deleteAlarmData — 删除报警数据"
+    ]
+  },
+  {
+    "tag": "personnelApi",
+    "count": 25,
+    "summaries": [
+      "POST /person/addPerson — 添加人员",
+      "POST /person/deletePerson — 删除人员",
+      "GET /person/exportPerson — 导出人员",
+      "GET /person/getCertificateTypeList — 获取证件类型字典",
+      "GET /person/getEducationList — 获取学历字典",
+      "GET /person/getKeyPositionPersonCategoryList — 获取关键岗位人员类别字典",
+      "GET /person/getMajorList — 获取所学专业字典",
+      "GET /person/getMilitaryPositionLevelList — 获取职级字典"
+    ]
+  },
+  {
+    "tag": "defenseAreaApi",
+    "count": 22,
+    "summaries": [
+      "POST /defenceArea/addDefenceArea — 添加防区",
+      "POST /defenceArea/addDefenceAreaDevices — 添加防区设备",
+      "POST /defenceArea/defenceAll — 全部布防",
+      "POST /defenceArea/defenceBatch — 批量布防",
+      "POST /defenceArea/defenceCycle — 布防周期设定",
+      "POST /defenceArea/delDefenceArea — 删除防区",
+      "POST /defenceArea/delDefenceAreaDevices — 删除防区设备",
+      "POST /defenceArea/editDefenceArea — 修改防区"
+    ]
+  },
+  {
+    "tag": "organizationApi",
+    "count": 22,
+    "summaries": [
+      "POST /organize/addOrganize — 添加组织",
+      "POST /organize/delOrganize — 删除组织",
+      "POST /organize/delOrganizes — delOrganizes",
+      "POST /organize/editOrganize — 修改组织",
+      "POST /organize/getDicArmedCategory — 获取武装力量区分",
+      "POST /organize/getDicArmedType — 获取军种",
+      "POST /organize/getDicArmyCategory — 获取部队类别",
+      "POST /organize/getDicArmyDivision — 获取部队划分"
+    ]
+  },
+  {
+    "tag": "dutyManagementApi",
+    "count": 19,
+    "summaries": [
+      "POST /duty/addDutyInfo — 添加值班信息",
+      "POST /duty/addDutyManage — 添加值班管理",
+      "POST /duty/addSentryHandover — 添加岗哨交接信息",
+      "POST /duty/deleteDutyInfo — 删除值班信息",
+      "POST /duty/deleteDutyManage — 删除值班管理",
+      "POST /duty/deleteSentryHandover — 删除岗哨交接信息",
+      "GET /duty/exportDutyInfo — 导出值班信息",
+      "GET /duty/exportDutyManage — 导出值班管理"
+    ]
+  },
+  {
+    "tag": "logCenterApi",
+    "count": 19,
+    "summaries": [
+      "POST /logs/addApp — 添加服务",
+      "POST /logs/closeAllIncrLog — 关闭所有服务增量日志",
+      "POST /logs/closeIncrLog — 关闭所有服务增量日志",
+      "POST /logs/delApp — 删除服务",
+      "POST /logs/delLogsLogin — 删除登陆日志",
+      "POST /logs/delLogsSystem — 删除操作日志",
+      "POST /logs/getAppList — 获取服务列表",
+      "POST /logs/getLogList — 获取服务日志列表"
+    ]
+  },
+  {
+    "tag": "monitoringApi",
+    "count": 18,
+    "summaries": [
+      "POST /monitor/capturePic — 同步抓图",
+      "POST /monitor/getPreviewUrl — 根据设备id获取实时取流url",
+      "POST /monitor/getToken — 获取token",
+      "POST /monitor/presetInfoAdd — 添加预置点信息",
+      "POST /monitor/presetInfoDelete — 删除预置点信息",
+      "POST /monitor/presetInfoUpdate — 更新预置点信息",
+      "POST /monitor/ptzCapability — 获取云台能力",
+      "POST /monitor/ptzControl — 云台控制"
+    ]
+  },
+  {
+    "tag": "serverManagementApi",
+    "count": 17,
+    "summaries": [
+      "POST /server/addCollectServer — 添加数据采集服务器",
+      "POST /server/addCommDevice — 添加通信设备",
+      "POST /server/checkIpPort — 数采服务通信测试",
+      "POST /server/deleteCollectServer — 删除数据采集服务器",
+      "POST /server/deleteCommDevice — 删除通信设备",
+      "GET /server/exportCollectServer — 导出数采服务器",
+      "GET /server/exportCommDevice — 导出通信设备",
+      "POST /server/getCollectServerById — 获取采集服务器详情"
+    ]
+  },
+  {
+    "tag": "deviceUsageApi",
+    "count": 16,
+    "summaries": [
+      "POST /deviceUse/addDeviceUseConfig — 获取设备动用信息",
+      "POST /deviceUse/addDeviceUseRecord — 添加设备动用记录",
+      "POST /deviceUse/delDeviceUseConfig — 删除设备动用信息",
+      "POST /deviceUse/delDeviceUseRecord — 删除设备动用记录",
+      "POST /deviceUse/editDeviceUseConfig — 修改设备动用信息",
+      "POST /deviceUse/editDeviceUseRecord — 修改设备动用记录",
+      "POST /deviceUse/getDeviceUseConfig — 获取设备动用信息",
+      "POST /deviceUse/getDeviceUseConfigList — 获取设备动用配置列表"
+    ]
+  },
+  {
+    "tag": "hmiFileLibraryApi",
+    "count": 16,
+    "summaries": [
+      "POST /hmiFile/addHmiDir — 添加组态文件分类",
+      "POST /hmiFile/addHmiFile — 添加组态文件",
+      "POST /hmiFile/addHmiType — 添加组态类型",
+      "POST /hmiFile/delHmiDir — 删除组态文件分类",
+      "POST /hmiFile/delHmiFile — 删除组态文件",
+      "POST /hmiFile/delHmiType — 删除组态类型",
+      "POST /hmiFile/editHmiDir — 修改组态文件分类",
+      "POST /hmiFile/editHmiFile — 修改组态文件"
+    ]
+  },
+  {
+    "tag": "inventoryApi",
+    "count": 15,
+    "summaries": [
+      "POST /store/addStorePersonInfo — 添加出入库信息",
+      "POST /store/deleteStorePersonInfo — 删除出入库信息",
+      "GET /store/getIsUpdateStoreCount — 获取出入库每日清除开关",
+      "POST /store/getStoreAcsRecords — 根据库id获取出入信息",
+      "POST /store/getStoreDevice — 查询库设备出入库人数",
+      "POST /store/getStoreInfoList — 获取内部人员出入库信息列表",
+      "POST /store/getStoreInfoStatic — 查询出入库信息统计",
+      "POST /store/getStorePersonInfoList — 出入库信息分页列表"
+    ]
+  },
+  {
+    "tag": "expressionEngineApi",
+    "count": 13,
+    "summaries": [
+      "POST /aviator/addDeviceUseConfig — 获取设备动用信息",
+      "POST /aviator/addDeviceUseRecord — 添加设备动用记录",
+      "POST /aviator/delDeviceUseConfig — 删除设备动用信息",
+      "POST /aviator/delDeviceUseRecord — 删除设备动用记录",
+      "POST /aviator/editDeviceUseConfig — 修改设备动用信息",
+      "POST /aviator/editDeviceUseRecord — 修改设备动用记录",
+      "POST /aviator/getDeviceUseConfig — 获取设备动用信息",
+      "POST /aviator/getDeviceUseConfigList — 获取设备动用配置列表"
+    ]
+  },
+  {
+    "tag": "systemMonitorApi",
+    "count": 13,
+    "summaries": [
+      "DELETE /sysMonitor/batchDeleteExportDevData — 批量删除已结束任务",
+      "DELETE /sysMonitor/deleteExportDevData — 删除已结束任务",
+      "GET /sysMonitor/downloadDevDataExcel/{id}/{fileName} — 下载历史数据文件",
+      "POST /sysMonitor/exportDevDataReport — 导出报表",
+      "GET /sysMonitor/exportDynamicDataList — 导出历史数据",
+      "POST /sysMonitor/getDevDataExportTaskList — 获取导出任务列表",
+      "POST /sysMonitor/getDevDataIndexList — 获取历史数据索引表",
+      "POST /sysMonitor/getDevDataList — 历史数据查询接口"
+    ]
+  },
+  {
+    "tag": "dataLabelNodeApi",
+    "count": 12,
+    "summaries": [
+      "POST /dataLabelNode/addDataLabelNode — 添加数据结点",
+      "POST /dataLabelNode/delDataLabelNode — 删除数据结点",
+      "POST /dataLabelNode/delDataLabelNodes — 批量删除数据结点",
+      "POST /dataLabelNode/editDataLabelNode — 修改数据结点",
+      "POST /dataLabelNode/getDataLabelNode — 获取数据结点",
+      "POST /dataLabelNode/getDataLabelNodeList — 获取数据结点列表",
+      "POST /dataLabelNode/getLabelData — 获取标签数据",
+      "POST /dataLabelNode/getRedisData — 运行数据redis"
+    ]
+  },
+  {
+    "tag": "roleManagementApi",
+    "count": 12,
+    "summaries": [
+      "POST /role/addRole — 添加角色",
+      "POST /role/allotAdmin — 分配用户（批量）",
+      "POST /role/allotDevice — 分配设备权限（批量）",
+      "POST /role/allotMenu — 分配菜单权限（批量）",
+      "POST /role/allotPerm — 分配权限（批量）",
+      "POST /role/delRoles — 删除角色（批量）",
+      "POST /role/editRole — 修改角色",
+      "POST /role/getRoleInfo — 获取角色"
+    ]
+  },
+  {
+    "tag": "taskManagementApi",
+    "count": 11,
+    "summaries": [
+      "POST /task/addTaskDevice — 添加监控任务设备",
+      "POST /task/addTaskMonitor — 添加监控任务",
+      "POST /task/deleteTaskDevice — 删除监控任务设备",
+      "POST /task/deleteTaskMonitor — 删除监控任务",
+      "GET /task/exportTaskMonitor — 导出监控任务",
+      "POST /task/getTaskDeviceById — 获取监控任务设备详情",
+      "POST /task/getTaskDeviceList — 获取监控任务设备列表",
+      "POST /task/getTaskMonitorById — 获取监控任务详情"
+    ]
+  },
+  {
+    "tag": "backupRestoreApi",
+    "count": 10,
+    "summaries": [
+      "POST /dataBackup/delBackupRecord — 删除备份记录",
+      "POST /dataBackup/getBackupProgress — 获取手动备份进度",
+      "POST /dataBackup/getDataBackupConfig — 获取备份配置",
+      "POST /dataBackup/getDataBackupNodeInfo — 获取远程备份结点",
+      "POST /dataBackup/getDataBackupRecordList — 获取备份列表",
+      "POST /dataBackup/getRecoverProgress — 获取还原任务进度",
+      "POST /dataBackup/manualBackupData — 手动备份",
+      "POST /dataBackup/recoverDb — 还原数据库"
+    ]
+  },
+  {
+    "tag": "facilityDeviceApi",
+    "count": 10,
+    "summaries": [
+      "POST /misFacilityDevice/addMisFacilityDevice — 添加设施设备",
+      "POST /misFacilityDevice/delMisFacilityDevice — 删除设施设备",
+      "POST /misFacilityDevice/editMisFacilityDevice — 修改设施设备",
+      "GET /misFacilityDevice/exportDeviceData — 导出设施设备",
+      "POST /misFacilityDevice/getCountByCategory — 获取分类统计",
+      "POST /misFacilityDevice/getMisFacilityDevice — 获取设施设备",
+      "POST /misFacilityDevice/getMisFacilityDeviceComponentList — 获取设施设备组件列表",
+      "POST /misFacilityDevice/getMisFacilityDeviceList — 获取设施设备列表"
+    ]
+  },
+  {
+    "tag": "ruleScriptApi",
+    "count": 10,
+    "summaries": [
+      "POST /ruleScript/addSecondRule — 添加二次规则",
+      "POST /ruleScript/delSecondRules — 删除事件联动规则",
+      "POST /ruleScript/editSecondRule — 修改事件联动规则",
+      "POST /ruleScript/execSecondaryTest — 模拟事件联动",
+      "GET /ruleScript/exportSecondRuleList — 导出二次规则列表",
+      "POST /ruleScript/getSecondRule — 获取二次规则详情",
+      "POST /ruleScript/getSecondRuleList — 获取二次规则列表",
+      "POST /ruleScript/importSecondRuleList — 导入二次规则数据"
+    ]
+  },
+  {
+    "tag": "scheduleRuleApi",
+    "count": 10,
+    "summaries": [
+      "POST /scheduleRule/addScheduleRule — 添加计划任务",
+      "POST /scheduleRule/checkScheduleData — 计划任务数据校验",
+      "POST /scheduleRule/delScheduleRules — 批量删除计划任务",
+      "POST /scheduleRule/editScheduleRule — 修改计划任务",
+      "GET /scheduleRule/exportScheduleRuleList — 导出计划任务列表",
+      "POST /scheduleRule/getScheduleRule — 获取计划任务",
+      "POST /scheduleRule/getScheduleRuleList — 获取计划任务列表",
+      "POST /scheduleRule/importScheduleRuleList — 导入计划任务数据"
+    ]
+  },
+  {
+    "tag": "syncDataApi",
+    "count": 10,
+    "summaries": [
+      "POST /syncData/connApp — 连接平台",
+      "POST /syncData/connAppByAuth — 带认证连接平台",
+      "POST /syncData/downloadFiles — 下载设备图片",
+      "POST /syncData/syncDeviceData — 下载设备信息",
+      "POST /syncData/syncMeterRecord — 上报计量记录",
+      "POST /syncData/syncRepairRecord — 上报维修记录",
+      "POST /syncData/syncTaskData — 下载任务信息",
+      "POST /syncData/syncUpkeepRecord — 上报保养记录"
+    ]
+  },
+  {
+    "tag": "alarmVariablePropertyApi",
+    "count": 9,
+    "summaries": [
+      "POST /alarmVarProperty/addAlarmVarProperty — 新增变量告警属性",
+      "POST /alarmVarProperty/batchUpdateAlarmVarProperty — 批量更新变量告警属性",
+      "POST /alarmVarProperty/deleteAlarmVarProperty — 删除变量告警属性",
+      "GET /alarmVarProperty/exportAlarmVarProperty — 导出变量告警属性",
+      "POST /alarmVarProperty/getAlarmVarPropertyById — 根据id查询变量告警属性",
+      "POST /alarmVarProperty/getAlarmVarPropertyByVarId — 根据设变量id查询变量告警属性",
+      "POST /alarmVarProperty/getAlarmVarPropertyPage — 分页查询变量告警属性",
+      "POST /alarmVarProperty/importAlarmVarProperty — 导入变量告警属性"
+    ]
+  },
+  {
+    "tag": "dataValidationApi",
+    "count": 9,
+    "summaries": [
+      "POST /dataCheck/getCollectConfigErrorList — 变量采集频率没配置或小于输入值",
+      "POST /dataCheck/getDevQueryList — 设备通用查询",
+      "POST /dataCheck/getDnErrorList — 设备编码不合规的",
+      "POST /dataCheck/getDnLenErrorList — 设备编码超过设置长度的",
+      "POST /dataCheck/getFilterConfigErrorList — 配置有滤波参数的变量",
+      "POST /dataCheck/getPushConfigErrorList — 存储频率没配置或小于输入值",
+      "POST /dataCheck/getVarQueryList — 变量通用查询",
+      "POST /dataCheck/getVnErrorList — 变量英文编码不合规的"
+    ]
+  },
+  {
+    "tag": "facilityPositionApi",
+    "count": 9,
+    "summaries": [
+      "POST /misFacilityPosition/addMisFacilityPosition — 添加安装部位",
+      "POST /misFacilityPosition/delMisFacilityPosition — 删除安装部位",
+      "POST /misFacilityPosition/editMisFacilityPosition — 修改安装部位",
+      "GET /misFacilityPosition/exportMisFacilityPositionList — 导出安装部位列表",
+      "POST /misFacilityPosition/getMisFacilityPosition — 获取安装部位",
+      "POST /misFacilityPosition/getMisFacilityPositionList — 获取安装部位列表",
+      "POST /misFacilityPosition/getMisFacilityPositions — 获取安装部位数组",
+      "POST /misFacilityPosition/importMisFacilityPositionList — 导入安装部位数据"
+    ]
+  },
+  {
+    "tag": "facilityFaultLibraryApi",
+    "count": 9,
+    "summaries": [
+      "POST /misFaultLibrary/addMisFaultLibrary — 添加MisFaultLibrary",
+      "POST /misFaultLibrary/delMisFaultLibrary — 删除MisFaultLibrary",
+      "POST /misFaultLibrary/delMisFaultLibrarys — 批量删除MisFaultLibrarys",
+      "POST /misFaultLibrary/editMisFaultLibrary — 修改MisFaultLibrary",
+      "GET /misFaultLibrary/exportMisFaultLibraryList — 导出MisFaultLibrary列表",
+      "POST /misFaultLibrary/getMisFaultLibrary — 获取MisFaultLibrary",
+      "POST /misFaultLibrary/getMisFaultLibraryList — 获取MisFaultLibrary列表",
+      "POST /misFaultLibrary/importMisFaultLibraryList — 导入MisFaultLibrary数据"
+    ]
+  },
+  {
+    "tag": "facilityHandoverDeviceApi",
+    "count": 9,
+    "summaries": [
+      "POST /misHandoverDevice/addMisHandoverDevice — 添加MisHandoverDevice",
+      "POST /misHandoverDevice/delMisHandoverDevice — 删除MisHandoverDevice",
+      "POST /misHandoverDevice/delMisHandoverDevices — 批量删除MisHandoverDevices",
+      "POST /misHandoverDevice/editMisHandoverDevice — 修改MisHandoverDevice",
+      "GET /misHandoverDevice/exportMisHandoverDeviceList — 导出MisHandoverDevice列表",
+      "POST /misHandoverDevice/getMisHandoverDevice — 获取MisHandoverDevice",
+      "POST /misHandoverDevice/getMisHandoverDeviceList — 获取MisHandoverDevice列表",
+      "POST /misHandoverDevice/importMisHandoverDeviceList — 导入MisHandoverDevice数据"
+    ]
+  },
+  {
+    "tag": "facilityMeteringRecordApi",
+    "count": 9,
+    "summaries": [
+      "POST /misMeteringRecord/addMisMeteringRecord — 添加MisMeteringRecord",
+      "POST /misMeteringRecord/delMisMeteringRecord — 删除MisMeteringRecord",
+      "POST /misMeteringRecord/delMisMeteringRecords — 批量删除MisMeteringRecords",
+      "POST /misMeteringRecord/editMisMeteringRecord — 修改MisMeteringRecord",
+      "GET /misMeteringRecord/exportMisMeteringRecordList — 导出MisMeteringRecord列表",
+      "POST /misMeteringRecord/getMisMeteringRecord — 获取MisMeteringRecord",
+      "POST /misMeteringRecord/getMisMeteringRecordList — 获取MisMeteringRecord列表",
+      "POST /misMeteringRecord/importMisMeteringRecordList — 导入MisMeteringRecord数据"
+    ]
+  },
+  {
+    "tag": "facilityRepairTaskApi",
+    "count": 9,
+    "summaries": [
+      "POST /misRepairTask/addMisRepairTask — 添加MisRepairTask",
+      "POST /misRepairTask/delMisRepairTask — 删除MisRepairTask",
+      "POST /misRepairTask/delMisRepairTasks — 批量删除MisRepairTasks",
+      "POST /misRepairTask/editMisRepairTask — 修改MisRepairTask",
+      "GET /misRepairTask/exportMisRepairTaskList — 导出MisRepairTask列表",
+      "POST /misRepairTask/getMisRepairTask — 获取MisRepairTask",
+      "POST /misRepairTask/getMisRepairTaskList — 获取MisRepairTask列表",
+      "POST /misRepairTask/importMisRepairTaskList — 导入MisRepairTask数据"
+    ]
+  },
+  {
+    "tag": "facilitySparePartApi",
+    "count": 9,
+    "summaries": [
+      "POST /misSparePart/addMisSparePart — 添加备件",
+      "POST /misSparePart/delMisSparePart — 删除备件",
+      "POST /misSparePart/delMisSpareParts — 批量删除备件",
+      "POST /misSparePart/editMisSparePart — 修改备件",
+      "GET /misSparePart/exportMisSparePartList — 导出备件列表",
+      "POST /misSparePart/getMisSparePart — 获取备件",
+      "POST /misSparePart/getMisSparePartList — 获取备件列表",
+      "POST /misSparePart/importMisSparePartList — 导入备件数据"
+    ]
+  },
+  {
+    "tag": "facilityUpkeepTaskApi",
+    "count": 9,
+    "summaries": [
+      "POST /misUpkeepTask/addMisUpkeepTask — 添加任务",
+      "POST /misUpkeepTask/delMisUpkeepTask — 删除任务",
+      "POST /misUpkeepTask/editMisUpkeepTask — 修改任务",
+      "POST /misUpkeepTask/editMisUpkeepTaskInfo — 记录保养和状态",
+      "POST /misUpkeepTask/editMisUpkeepTaskStatus — 修改任务状态",
+      "POST /misUpkeepTask/getMisDeviceUpkeepRecordList — 获取保养记录",
+      "POST /misUpkeepTask/getMisUpkeepTask — 获取任务",
+      "POST /misUpkeepTask/getMisUpkeepTaskInfoList — 获取任务详情"
+    ]
+  },
+  {
+    "tag": "patrolTaskApi",
+    "count": 9,
+    "summaries": [
+      "POST /patrolTask/addPatrolTask — 新增巡检任务",
+      "POST /patrolTask/deletePatrolTask — 删除巡检任务",
+      "POST /patrolTask/getPatrolTaskList — 获取巡检任务列表",
+      "POST /patrolTask/getPatrolTaskOperateRecordList — 获取巡检任务操作记录列表",
+      "POST /patrolTask/getPatrolTaskOperateRecordPage — 获取巡检任务操作记录分页列表",
+      "POST /patrolTask/getPatrolTaskPage — 获取巡检任务分页列表",
+      "POST /patrolTask/queryPatrolTask — 查询巡检任务",
+      "POST /patrolTask/updatePatrolTask — 修改巡检任务"
+    ]
+  },
+  {
+    "tag": "adminManagementApi",
+    "count": 8,
+    "summaries": [
+      "POST /admin/addAdmin — 添加管理员",
+      "POST /admin/delAdmin — 删除管理员",
+      "POST /admin/delAdmins — 批量删除管理员",
+      "POST /admin/editAdmin — 修改管理员",
+      "POST /admin/getAdminInfo — 获取管理员信息",
+      "POST /admin/getAdminList — 获取管理员列表",
+      "POST /admin/getDicWorkStatus — 获取在位情况",
+      "POST /admin/resetAdminPassword — 重置管理员密码"
+    ]
+  },
+  {
+    "tag": "configurationApi",
+    "count": 8,
+    "summaries": [
+      "POST /config/addDataIntervalConfig — 添加区间设置",
+      "POST /config/deleteDataIntervalConfig — 删除区间设置",
+      "GET /config/exportDataIntervalConfig — 导出区间设置",
+      "GET /config/exportFaultLibrary — 导出区间设置",
+      "POST /config/getDataIntervalConfigById — 获取区间设置详情",
+      "POST /config/getDataIntervalConfigList — 获取区间设置列表",
+      "POST /config/getFaultLibraryList — 获取区间设置列表",
+      "POST /config/updateDataIntervalConfig — 更新区间设置"
+    ]
+  },
+  {
+    "tag": "eventRuleApi",
+    "count": 8,
+    "summaries": [
+      "POST /eventRule/addEventRule — 添加事件联动规则",
+      "POST /eventRule/delEventRule — 删除事件联动规则",
+      "POST /eventRule/editEventRule — 修改事件联动规则",
+      "GET /eventRule/exportEventRuleList — 导出EventRule列表",
+      "POST /eventRule/getEventRule — 获取事件联动规则信息",
+      "POST /eventRule/getEventRuleList — 获取事件联动规则列表",
+      "POST /eventRule/importEventRuleList — 导入EventRule数据",
+      "POST /eventRule/updateEventRuleStatus — 批量修改状态"
+    ]
+  },
+  {
+    "tag": "kafkaApi",
+    "count": 8,
+    "summaries": [
+      "GET /kafka/getEventRuleStatus — 获取事件联动监听状态",
+      "GET /kafka/getSecondRuleStatus — 获取二次变量监听状态",
+      "GET /kafka/pauseEventRule — 暂停事件联动监听",
+      "GET /kafka/pauseSecondRule — 暂停二次变监听",
+      "GET /kafka/startEventRule — 开启事件联动监听",
+      "GET /kafka/startSecondRule — 开启二次变量监听",
+      "GET /kafka/stopEventRule — 关闭事件联动监听",
+      "GET /kafka/stopSecondRule — 关闭二次变量监听"
+    ]
+  },
+  {
+    "tag": "patrolPlanApi",
+    "count": 8,
+    "summaries": [
+      "POST /patrolPlan/addPatrolPlan — 新增巡检方案",
+      "POST /patrolPlan/deletePatrolPlan — 删除巡检方案",
+      "GET /patrolPlan/exportPlanDetails/{planId} — 导出巡检方案的点位项目信息",
+      "POST /patrolPlan/getPatrolPlan — 获取巡检方案",
+      "POST /patrolPlan/getPatrolPlanList — 获取巡检方案列表",
+      "POST /patrolPlan/getPatrolPlanPage — 获取巡检方案分页列表",
+      "POST /patrolPlan/importPlanDetails/{planId} — 导入巡检方案的点位项目信息",
+      "POST /patrolPlan/updatePatrolPlan — 更新巡检方案"
+    ]
+  },
+  {
+    "tag": "patrolPointApi",
+    "count": 8,
+    "summaries": [
+      "POST /patrolPoint/createPatrolPoint — 新增巡检点位",
+      "POST /patrolPoint/deletePatrolPoint — 删除巡检点位",
+      "POST /patrolPoint/exportPatrolPointList — 导出巡检点位列表",
+      "POST /patrolPoint/getPatrolPoint — 查询巡检点位",
+      "POST /patrolPoint/getPatrolPointList — 获取巡检点位列表",
+      "POST /patrolPoint/getPatrolPointPage — 查询巡检点位分页列表",
+      "POST /patrolPoint/importPatrolPoint — 导入巡检点位",
+      "POST /patrolPoint/updatePatrolPoint — 更新巡检点位"
+    ]
+  },
+  {
+    "tag": "patrolProjectApi",
+    "count": 8,
+    "summaries": [
+      "POST /patrolProject/addPatrolProject — 新增巡检/检查项目",
+      "POST /patrolProject/delPatrolProject — 删除巡检/检查项目",
+      "POST /patrolProject/editPatrolProject — 修改巡检/检查项目",
+      "POST /patrolProject/exportPatrolProjectList — 导出检查项目列表",
+      "POST /patrolProject/getPatrolProjectList — 获取巡检/检查项目列表",
+      "POST /patrolProject/getPatrolProjectPage — 查询巡检/检查项目分页列表",
+      "POST /patrolProject/importPatrolProject — 导入检查项目",
+      "POST /patrolProject/queryPatrolProject — 查询巡检/检查项目"
+    ]
+  },
+  {
+    "tag": "remoteBackupApi",
+    "count": 8,
+    "summaries": [
+      "POST /remoteBackup/checkRemoteBackupNode — 检测远程备份结点",
+      "POST /remoteBackup/deleteBackupRecord — 删除备份记录",
+      "POST /remoteBackup/getBackupConfig — 获取备份配置",
+      "POST /remoteBackup/getDataBackupRecordList — 获取备份列表",
+      "POST /remoteBackup/getRemoteBackupNode — 获取远程结点信息",
+      "POST /remoteBackup/manualBackupData — 手动备份",
+      "POST /remoteBackup/setBackupConfig — 设置备份配置",
+      "POST /remoteBackup/setRemoteBackupNode — 设置远程备份结点"
+    ]
+  },
+  {
+    "tag": "scheduleTaskApi",
+    "count": 8,
+    "summaries": [
+      "POST /scheduleTask/addScheduleTask — 新增计划任务",
+      "POST /scheduleTask/clearAllTask — 停止全部计划任务",
+      "POST /scheduleTask/clearTask — 停止计划任务",
+      "POST /scheduleTask/deleteScheduleTask — 删除计划任务",
+      "POST /scheduleTask/getScheduleTaskList — 获取计划任务列表",
+      "POST /scheduleTask/startAllTask — 启动全部计划任务",
+      "POST /scheduleTask/startTask — 启动计划任务",
+      "POST /scheduleTask/updateScheduleTask — 更新计划任务"
+    ]
+  },
+  {
+    "tag": "adminGroupApi",
+    "count": 7,
+    "summaries": [
+      "POST /adminGroup/addAdminGroup — 添加用户分组",
+      "POST /adminGroup/delAdminGroups — 删除用户分组",
+      "POST /adminGroup/editAdminGroup — 修改用户分组",
+      "POST /adminGroup/getAdminGroup — 获取用户分组信息",
+      "POST /adminGroup/getAdminGroupList — 获取用户分组列表",
+      "POST /adminGroup/getAdminGroups — 获取全部用户分组",
+      "GET /adminGroup/writerAdminGroupList — 导出用户分组"
+    ]
+  },
+  {
+    "tag": "logCleanupApi",
+    "count": 7,
+    "summaries": [
+      "POST /appLogClear/clearLogLoginData — 清空登陆日志",
+      "POST /appLogClear/clearLogOperateData — 清空操作日志",
+      "POST /appLogClear/clearLogSystemData — 清空设备控制日志",
+      "POST /appLogClear/deleteLogLoginData — 删除登陆日志",
+      "POST /appLogClear/deleteLogOperateData — 删除操作日志",
+      "POST /appLogClear/deleteLogSystemData — 删除设备控制日志",
+      "POST /appLogClear/getDeviceOption — 获取设备数据"
+    ]
+  },
+  {
+    "tag": "devicePropertyApi",
+    "count": 7,
+    "summaries": [
+      "POST /deviceProperty/addDeviceProperty — 添加设备属性",
+      "POST /deviceProperty/deleteDeviceProperty — 删除设备属性",
+      "POST /deviceProperty/getDevicePropertyByCode — 根据设备编码查询属性列表",
+      "POST /deviceProperty/getDevicePropertyDetail — 获取设备属性详情",
+      "GET /deviceProperty/getDevicePropertyEnum — 获取设备属性枚举",
+      "POST /deviceProperty/getDevicePropertyList — 获取设备属性列表",
+      "POST /deviceProperty/updateDeviceProperty — 修改设备属性"
+    ]
+  },
+  {
+    "tag": "faultManagementApi",
+    "count": 7,
+    "summaries": [
+      "POST /fault/addFaultLibrary — 添加故障",
+      "POST /fault/deleteFaultLibrary — 删除故障",
+      "GET /fault/exportFaultLibrary — 导出故障",
+      "POST /fault/getFaultLibraryById — 获取故障详情",
+      "POST /fault/getFaultLibraryList — 获取故障列表",
+      "POST /fault/importFaultLibrary — importFaultLibrary",
+      "POST /fault/updateFaultLibrary — 更新故障"
+    ]
+  },
+  {
+    "tag": "linkNodeApi",
+    "count": 7,
+    "summaries": [
+      "POST /linkNode/addLinkNode — 添加LinkNode",
+      "POST /linkNode/delLinkNode — 删除LinkNode",
+      "POST /linkNode/delLinkNodes — 批量删除LinkNodes",
+      "POST /linkNode/editLinkNode — 修改LinkNode",
+      "POST /linkNode/getLinkNode — 获取LinkNode",
+      "POST /linkNode/getLinkNodeList — 获取LinkNode列表",
+      "POST /linkNode/getLinkNodes — 获取全部LinkNode"
+    ]
+  },
+  {
+    "tag": "linkNodePointApi",
+    "count": 7,
+    "summaries": [
+      "POST /linkNodePoint/addLinkNodePoint — 添加LinkNodePoint",
+      "POST /linkNodePoint/delLinkNodePoint — 删除LinkNodePoint",
+      "POST /linkNodePoint/delLinkNodePoints — 批量删除LinkNodePoints",
+      "POST /linkNodePoint/editLinkNodePoint — 修改LinkNodePoint",
+      "POST /linkNodePoint/getLinkNodePoint — 获取LinkNodePoint",
+      "POST /linkNodePoint/getLinkNodePointList — 获取LinkNodePoint列表",
+      "POST /linkNodePoint/getLinkNodePointsByNodeId — 按结点获取LinkNodePoint"
+    ]
+  },
+  {
+    "tag": "menuManagementApi",
+    "count": 7,
+    "summaries": [
+      "POST /menu/addMenu — 添加菜单",
+      "POST /menu/delMenu — 删除菜单",
+      "POST /menu/editMenu — 修改菜单",
+      "POST /menu/getMenuInfo — 获取菜单",
+      "POST /menu/getMenuTree — 获取菜单树",
+      "POST /menu/getRoleMenuTree — 获取角色菜单权限树（全树构造）",
+      "POST /menu/getUserMenuTree — 获取用户菜单树"
+    ]
+  },
+  {
+    "tag": "facilityCategoryApi",
+    "count": 7,
+    "summaries": [
+      "POST /misFacilityCategory/addMisFacilityCategory — 添加设施设备分类",
+      "POST /misFacilityCategory/allotMisFacilityCategoryAttribute — 设施设备分类关联属性",
+      "POST /misFacilityCategory/delMisFacilityCategory — 删除设施设备分类",
+      "POST /misFacilityCategory/editMisFacilityCategory — 修改设施设备分类",
+      "POST /misFacilityCategory/getMisFacilityCategory — 获取设施设备分类",
+      "POST /misFacilityCategory/getMisFacilityCategoryAttributes — 获取设施设备分类关联属性",
+      "POST /misFacilityCategory/getMisFacilityCategoryTree — 获取设施设备分类列表"
+    ]
+  },
+  {
+    "tag": "facilityUpkeepRequirementApi",
+    "count": 7,
+    "summaries": [
+      "POST /misUpkeepRequire/addMisUpkeepRequire — 添加保养要求",
+      "POST /misUpkeepRequire/delMisUpkeepRequire — 删除保养要求",
+      "POST /misUpkeepRequire/editMisUpkeepRequire — 修改保养要求",
+      "GET /misUpkeepRequire/exportMisUpkeepRequireList — 导出保养要求列表",
+      "POST /misUpkeepRequire/getMisUpkeepRequire — 获取保养要求",
+      "POST /misUpkeepRequire/getMisUpkeepRequireList — 获取保养要求列表",
+      "POST /misUpkeepRequire/importMisUpkeepRequireList — 导入保养要求数据"
+    ]
+  },
+  {
+    "tag": "storageStrategyApi",
+    "count": 7,
+    "summaries": [
+      "POST /storeStrategy/addStoreStrategy — 添加存储策略",
+      "POST /storeStrategy/deleteStoreStrategy — 删除存储策略",
+      "GET /storeStrategy/exportStoreStrategy — 导出存储策略",
+      "GET /storeStrategy/exportTaskMonitor — 导出存储策略",
+      "POST /storeStrategy/getStoreStrategyById — 获取存储策略详情",
+      "POST /storeStrategy/getStoreStrategyList — 获取存储策略列表",
+      "POST /storeStrategy/updateStoreStrategy — 更新存储策略"
+    ]
+  },
+  {
+    "tag": "dataLabelConfigApi",
+    "count": 6,
+    "summaries": [
+      "POST /dataLabelConfig/addDataLabelConfig — 添加DataLabelConfig",
+      "POST /dataLabelConfig/delDataLabelConfig — 删除DataLabelConfig",
+      "POST /dataLabelConfig/delDataLabelConfigs — 批量删除DataLabelConfigs",
+      "POST /dataLabelConfig/editDataLabelConfig — 修改DataLabelConfig",
+      "POST /dataLabelConfig/getDataLabelConfig — 获取数据标签",
+      "POST /dataLabelConfig/getDataLabelConfigList — 获取数据标签列表"
+    ]
+  },
+  {
+    "tag": "dutyHandoverRecordApi",
+    "count": 6,
+    "summaries": [
+      "POST /dutyHandoverRecord/addDutyHandoverRecord — 新增交接记录",
+      "POST /dutyHandoverRecord/deleteDutyHandoverRecord — 删除交接记录",
+      "POST /dutyHandoverRecord/getDutyHandoverRecord — 获取交接记录",
+      "POST /dutyHandoverRecord/getDutyHandoverRecordList — 获取交接记录列表",
+      "POST /dutyHandoverRecord/getDutyHandoverRecordPage — 获取交接记录分页列表",
+      "POST /dutyHandoverRecord/updateDutyHandoverRecord — 修改交接记录"
+    ]
+  },
+  {
+    "tag": "dutyPlanApi",
+    "count": 6,
+    "summaries": [
+      "POST /dutyPlan/addDutyPlan — 添加值班计划",
+      "POST /dutyPlan/deleteDutyPlan — 删除值班计划",
+      "GET /dutyPlan/exportDutyPlan — 生成值班计划",
+      "POST /dutyPlan/getCurrentDutyPerson — 查询当前时间的值班人员信息",
+      "POST /dutyPlan/getDutyPlanList — 获取值班计划列表",
+      "POST /dutyPlan/updateDutyPlan — 修改值班计划"
+    ]
+  },
+  {
+    "tag": "dutyPositionApi",
+    "count": 6,
+    "summaries": [
+      "POST /dutyPosition/addDutyPosition — 新增岗位配置",
+      "POST /dutyPosition/deleteDutyPosition — 删除岗位配置",
+      "POST /dutyPosition/getDutyPosition — 获取岗位配置",
+      "POST /dutyPosition/getDutyPositionList — 获取岗位配置列表",
+      "POST /dutyPosition/getDutyPositionPage — 获取岗位配置分页列表",
+      "POST /dutyPosition/updateDutyPosition — 修改岗位配置"
+    ]
+  },
+  {
+    "tag": "linkConfigurationApi",
+    "count": 6,
+    "summaries": [
+      "POST /linkConfig/addLinkConfig — 添加LinkConfig",
+      "POST /linkConfig/delLinkConfig — 删除LinkConfig",
+      "POST /linkConfig/delLinkConfigs — 批量删除LinkConfigs",
+      "POST /linkConfig/editLinkConfig — 修改LinkConfig",
+      "POST /linkConfig/getLinkConfig — 获取LinkConfig",
+      "POST /linkConfig/getLinkConfigList — 获取LinkConfig列表"
+    ]
+  },
+  {
+    "tag": "facilityFileApi",
+    "count": 6,
+    "summaries": [
+      "POST /misFile/addMisFile — 添加文件",
+      "POST /misFile/delMisFile — 删除文件",
+      "POST /misFile/delMisFiles — 批量删除文件",
+      "POST /misFile/editMisFile — 修改文件",
+      "POST /misFile/getMisFile — 获取文件详情",
+      "POST /misFile/getMisFileList — 获取文件列表"
+    ]
+  },
+  {
+    "tag": "facilityHandoverFormApi",
+    "count": 6,
+    "summaries": [
+      "POST /misHandoverForm/addMisHandoverForm — 添加MisHandoverForm",
+      "POST /misHandoverForm/delMisHandoverForm — 删除MisHandoverForm",
+      "POST /misHandoverForm/delMisHandoverForms — 批量删除MisHandoverForms",
+      "POST /misHandoverForm/editMisHandoverForm — 修改MisHandoverForm",
+      "POST /misHandoverForm/getMisHandoverForm — 获取MisHandoverForm",
+      "POST /misHandoverForm/getMisHandoverFormList — 获取MisHandoverForm列表"
+    ]
+  },
+  {
+    "tag": "facilityStoragePositionApi",
+    "count": 6,
+    "summaries": [
+      "POST /misStoragePosition/addMisStoragePosition — 添加存放位置",
+      "POST /misStoragePosition/delMisStoragePositions — 批量删除存放位置",
+      "POST /misStoragePosition/editMisStoragePosition — 修改存放位置",
+      "POST /misStoragePosition/getMisStoragePosition — 获取存放位置",
+      "POST /misStoragePosition/getMisStoragePositionArray — 获取存放位置数组",
+      "POST /misStoragePosition/getMisStoragePositionList — 获取存放位置列表"
+    ]
+  },
+  {
+    "tag": "facilityToolTypeApi",
+    "count": 6,
+    "summaries": [
+      "POST /misToolType/addMisToolType — 添加工具类型",
+      "POST /misToolType/delMisToolTypes — 批量删除工具类型",
+      "POST /misToolType/editMisToolType — 修改工具类型",
+      "POST /misToolType/getMisToolType — 获取工具类型",
+      "POST /misToolType/getMisToolTypeArray — 获取工具类型数组",
+      "POST /misToolType/getMisToolTypeList — 获取工具类型列表"
+    ]
+  },
+  {
+    "tag": "facilityUpkeepSceneApi",
+    "count": 6,
+    "summaries": [
+      "POST /misUpkeepScene/addMisUpkeepScene — 添加保养方案管理",
+      "POST /misUpkeepScene/delMisUpkeepScene — 删除保养方案管理",
+      "POST /misUpkeepScene/editMisUpkeepScene — 修改保养方案管理",
+      "POST /misUpkeepScene/getMisUpkeepScene — 获取保养方案管理",
+      "POST /misUpkeepScene/getMisUpkeepSceneList — 获取保养方案管理列表",
+      "POST /misUpkeepScene/getSceneDeviceList — 获取方案所有设备列表"
+    ]
+  },
+  {
+    "tag": "facilityUpkeepTypeApi",
+    "count": 6,
+    "summaries": [
+      "POST /misUpkeepType/addMisUpkeepType — 添加保养类型",
+      "POST /misUpkeepType/delMisUpkeepType — 删除保养类型",
+      "POST /misUpkeepType/editMisUpkeepType — 修改保养类型",
+      "POST /misUpkeepType/getMisUpkeepType — 获取保养类型",
+      "POST /misUpkeepType/getMisUpkeepTypeList — 获取保养类型列表",
+      "POST /misUpkeepType/getMisUpkeepTypes — 获取保养类型数组"
+    ]
+  },
+  {
+    "tag": "positionPersonnelApi",
+    "count": 6,
+    "summaries": [
+      "POST /positionPerson/addPositionPerson — 新增阵地人员",
+      "POST /positionPerson/deletePositionPerson — 删除阵地人员",
+      "POST /positionPerson/getPositionPerson — 获取阵地人员",
+      "POST /positionPerson/getPositionPersonList — 获取阵地人员列表",
+      "POST /positionPerson/getPositionPersonPage — 获取阵地人员分页列表",
+      "POST /positionPerson/updatePositionPerson — 修改阵地人员"
+    ]
+  },
+  {
+    "tag": "sentryApi",
+    "count": 6,
+    "summaries": [
+      "POST /sentry/addSentryInfo — 添加岗哨信息",
+      "POST /sentry/deleteSentryInfo — 删除岗哨信息",
+      "GET /sentry/exportSentryInfo — 导出岗哨信息",
+      "POST /sentry/getSentryInfoById — 获取岗哨信息详情",
+      "POST /sentry/getSentryInfoList — 获取岗哨信息列表",
+      "POST /sentry/updateSentryInfo — 更新岗哨信息"
+    ]
+  },
+  {
+    "tag": "templateManagementApi",
+    "count": 6,
+    "summaries": [
+      "POST /template/addDeviceTemplateInfo — 添加设备模板信息",
+      "POST /template/autoCreateDevAndVar — 自动创建设备及变量",
+      "POST /template/deleteDeviceTemplateInfo — 删除设备模板信息",
+      "POST /template/getDeviceTemplateInfo — 获取设备模板信息详情",
+      "POST /template/getDeviceTemplateInfoList — 获取设备模板信息列表",
+      "POST /template/updateDeviceTemplateInfo — 更新设备模板信息"
+    ]
+  },
+  {
+    "tag": "wmsMeterRecordApi",
+    "count": 6,
+    "summaries": [
+      "POST /wmsMeterRecord/addWmsMeterRecord — 生成计量记录",
+      "POST /wmsMeterRecord/delWmsMeterRecord — 删除计量记录",
+      "POST /wmsMeterRecord/delWmsMeterRecords — 批量删除计量记录",
+      "POST /wmsMeterRecord/editWmsMeterRecord — 修改计量记录",
+      "POST /wmsMeterRecord/getWmsMeterRecord — 获取计量记录详情",
+      "POST /wmsMeterRecord/getWmsMeterRecordList — 获取计量记录列表"
+    ]
+  },
+  {
+    "tag": "wmsRepairRecordApi",
+    "count": 6,
+    "summaries": [
+      "POST /wmsRepairRecord/addWmsRepairRecord — 生成维修记录",
+      "POST /wmsRepairRecord/delWmsRepairRecord — 删除维修记录",
+      "POST /wmsRepairRecord/delWmsRepairRecords — 批量删除维修记录",
+      "POST /wmsRepairRecord/editWmsRepairRecord — 修改维修记录",
+      "POST /wmsRepairRecord/getWmsRepairRecord — 获取维修记录",
+      "POST /wmsRepairRecord/getWmsRepairRecordList — 获取维修记录列表"
+    ]
+  },
+  {
+    "tag": "wmsUpkeepRecordApi",
+    "count": 6,
+    "summaries": [
+      "POST /wmsUpkeepRecord/addWmsUpkeepRecord — 生成保养记录",
+      "POST /wmsUpkeepRecord/delWmsUpkeepRecord — 删除保养记录",
+      "POST /wmsUpkeepRecord/delWmsUpkeepRecords — 批量删除保养记录",
+      "POST /wmsUpkeepRecord/editWmsUpkeepRecord — 修改保养记录",
+      "POST /wmsUpkeepRecord/getWmsUpkeepRecord — 获取保养记录",
+      "POST /wmsUpkeepRecord/getWmsUpkeepRecordList — 获取保养记录列表"
+    ]
+  },
+  {
+    "tag": "dataTagApi",
+    "count": 5,
+    "summaries": [
+      "POST /dataTag/add — 基本信息新增",
+      "POST /dataTag/add_1764120207101 — 基本信息编辑",
+      "POST /dataTag/delete — 列表删除",
+      "GET /dataTag/node/add — 节点树新增",
+      "POST /dataTag/query — 列表查询"
+    ]
+  },
+  {
+    "tag": "deviceCombinationApi",
+    "count": 5,
+    "summaries": [
+      "POST /deviceComb/addDeviceComb — 添加组合设备和关联",
+      "POST /deviceComb/delDeviceComb — 删除组合设备和关联",
+      "POST /deviceComb/editDeviceComb — 修改组合设备和关联",
+      "POST /deviceComb/getDeviceComb — 查询组合设备和关联",
+      "POST /deviceComb/getDeviceCombList — 查询组合设备和关联列表"
+    ]
+  },
+  {
+    "tag": "dutyLogApi",
+    "count": 5,
+    "summaries": [
+      "POST /dutyLog/addDutyLog — 添加值班日志",
+      "POST /dutyLog/deleteDutyLog — 删除值班日志",
+      "POST /dutyLog/getDutyLog — 获取值班日志",
+      "POST /dutyLog/getDutyLogPage — 获取值班日志分页列表",
+      "POST /dutyLog/updateDutyLog — 修改值班日志"
+    ]
+  },
+  {
+    "tag": "eventBroadcastApi",
+    "count": 5,
+    "summaries": [
+      "POST /eventBc/addEventBc — 添加广播事件实例",
+      "POST /eventBc/allotEvent — 获取广播事件列表",
+      "POST /eventBc/delEventBc — 删除广播事件实例",
+      "POST /eventBc/editEventBc — 修改广播事件实例",
+      "POST /eventBc/getVarEventList — 获取关联信息列表"
+    ]
+  },
+  {
+    "tag": "hmiApi",
+    "count": 5,
+    "summaries": [
+      "POST /hmi/addHmi — 添加组态模块配置",
+      "POST /hmi/delHmi — 删除组态模块配置",
+      "POST /hmi/editHmi — 修改组态模块配置",
+      "POST /hmi/getHmi — 获取组态模块配置",
+      "POST /hmi/getHmiList — 获取组态模块配置列表"
+    ]
+  },
+  {
+    "tag": "informationPublishApi",
+    "count": 5,
+    "summaries": [
+      "POST /infoPublish/getAirborneSatelliteList — 获取临空的卫星数据",
+      "POST /infoPublish/getMessageInfoList — 获取信息公告",
+      "POST /infoPublish/getSatelliteSafeList — 获取安全时段数据",
+      "POST /infoPublish/getTodayDuty — 获取今日值班安排数据",
+      "POST /infoPublish/getWillAirborneSatelliteList — 获取即将临空的卫星数据"
+    ]
+  },
+  {
+    "tag": "linkDataApi",
+    "count": 5,
+    "summaries": [
+      "POST /linkData/addLinkData — 添加LinkData",
+      "POST /linkData/delLinkData — 删除LinkData",
+      "POST /linkData/delLinkDatas — 批量删除LinkDatas",
+      "POST /linkData/getLinkData — 获取LinkData",
+      "POST /linkData/getLinkDataList — 获取LinkData列表"
+    ]
+  },
+  {
+    "tag": "materialLibraryApi",
+    "count": 5,
+    "summaries": [
+      "POST /material/addMaterial — 添加物料",
+      "POST /material/deleteMaterial — 删除物料",
+      "POST /material/editMaterial — 修改物料",
+      "POST /material/getMaterial — 获取物料详情",
+      "POST /material/getMaterialList — 获取物料列表"
+    ]
+  },
+  {
+    "tag": "facilityAttributeApi",
+    "count": 5,
+    "summaries": [
+      "POST /misFacilityAttribute/addMisFacilityAttribute — 添加设施设备属性",
+      "POST /misFacilityAttribute/delMisFacilityAttribute — 删除设施设备属性",
+      "POST /misFacilityAttribute/editMisFacilityAttribute — 修改设施设备属性",
+      "POST /misFacilityAttribute/getMisFacilityAttribute — 获取设施设备属性",
+      "POST /misFacilityAttribute/getMisFacilityAttributeList — 获取设施设备属性列表"
+    ]
+  },
+  {
+    "tag": "facilityHandoverApi",
+    "count": 5,
+    "summaries": [
+      "POST /misFacilityHandover/addMisFacilityHandover — 添加交接管理",
+      "POST /misFacilityHandover/delMisFacilityHandover — 删除交接管理",
+      "POST /misFacilityHandover/editMisFacilityHandover — 修改交接管理",
+      "POST /misFacilityHandover/getMisFacilityHandover — 获取交接管理",
+      "POST /misFacilityHandover/getMisFacilityHandoverList — 获取交接管理列表"
+    ]
+  },
+  {
+    "tag": "facilityToolApi",
+    "count": 5,
+    "summaries": [
+      "POST /misTool/addMisTool — 添加工具管理",
+      "POST /misTool/delMisTools — 批量删除工具管理",
+      "POST /misTool/editMisTool — 修改工具管理",
+      "POST /misTool/getMisTool — 获取工具管理详情",
+      "POST /misTool/getMisToolList — 获取工具管理列表"
+    ]
+  },
+  {
+    "tag": "systemConfigurationApi",
+    "count": 5,
+    "summaries": [
+      "POST /sysConfig/editSysConfig — 修改系统配置项",
+      "POST /sysConfig/getSysConfigArray — 获取系统配置数组",
+      "POST /sysConfig/getSysConfigInfo — 获取系统配置项信息",
+      "POST /sysConfig/getSysConfigList — 获取系统配置列表",
+      "GET /sysConfig/writerSysConfigList — 导出系统配置"
+    ]
+  },
+  {
+    "tag": "authenticationApi",
+    "count": 4,
+    "summaries": [
+      "POST /auth/changeMyPassword — 修改我的密码",
+      "POST /auth/getAuthInfo — 获取登陆信息",
+      "POST /auth/info — 获取登陆信息",
+      "POST /auth/login — 用户登陆"
+    ]
+  },
+  {
+    "tag": "configErrorInfoApi",
+    "count": 4,
+    "summaries": [
+      "POST /configErrorInfo/addConfigErrorInfo — 添加配置错误信息",
+      "POST /configErrorInfo/delConfigErrorInfo — 删除配置错误信息",
+      "POST /configErrorInfo/editConfigErrorInfo — 修改配置错误信息",
+      "POST /configErrorInfo/pageConfigErrorInfo — 获取配置错误信息分页列表"
+    ]
+  },
+  {
+    "tag": "devopsApi",
+    "count": 4,
+    "summaries": [
+      "POST /devops/getAlarmStatic — 报警统计",
+      "POST /devops/getDevStatic — 设备统计",
+      "POST /devops/getFaultStatic — 故障统计",
+      "POST /devops/setAllOffline — setAllOffline"
+    ]
+  },
+  {
+    "tag": "eventDeviceControlApi",
+    "count": 4,
+    "summaries": [
+      "POST /eventDc/addEventDc — 添加设备控制事件实例",
+      "POST /eventDc/delEventDc — 删除设备控制事件实例",
+      "POST /eventDc/editEventDc — 修改设备控制事件实例",
+      "POST /eventDc/getEventDcList — 获取设备控制事件列表"
+    ]
+  },
+  {
+    "tag": "eventRuleRecordApi",
+    "count": 4,
+    "summaries": [
+      "POST /eventRuleRecord/delEventRuleRecord — 删除事件联动记录",
+      "POST /eventRuleRecord/delEventRuleRecords — 批量删除事件联动记录",
+      "POST /eventRuleRecord/getEventRuleRecord — 获取事件联动记录",
+      "POST /eventRuleRecord/getEventRuleRecordList — 获取事件联动记录列表"
+    ]
+  },
+  {
+    "tag": "formApi",
+    "count": 4,
+    "summaries": [
+      "POST /form/deleteRecord — 删除审批单据",
+      "POST /form/getRecord — 根据id查询审批单据详情",
+      "POST /form/getRecordPage — 分页查询审批单据列表",
+      "POST /form/submit — 单据提交"
+    ]
+  },
+  {
+    "tag": "linkInteractionApi",
+    "count": 4,
+    "summaries": [
+      "POST /link/getNodeDataByCmdTag — 通过cmdTag获取结点埋点时间数据",
+      "POST /link/getNodeParamByCmdTag — 通过cmdTag获取设备变量参数",
+      "POST /link/receiveCmdTag — 接收前端指令标识及设备变量信息",
+      "POST /link/sendKafka — 接收前端埋点结束投kafka"
+    ]
+  },
+  {
+    "tag": "minioStorageApi",
+    "count": 4,
+    "summaries": [
+      "POST /minio/delete — delete文件",
+      "POST /minio/listObjects — 查询某路径下的文件",
+      "POST /minio/upload — 上传文件",
+      "POST /minio/uploadByIo — 上传文件(IO流)"
+    ]
+  },
+  {
+    "tag": "facilityFileCategoryApi",
+    "count": 4,
+    "summaries": [
+      "POST /misFileCategory/addMisFileCategory — 添加文件分类",
+      "POST /misFileCategory/delMisFileCategory — 删除文件分类",
+      "POST /misFileCategory/editMisFileCategory — 修改文件分类",
+      "POST /misFileCategory/getMisFileCategoryTree — 获取文件分类树"
+    ]
+  },
+  {
+    "tag": "facilitySparePartStatsApi",
+    "count": 4,
+    "summaries": [
+      "POST /misSparePartCount/addMisSparePartCount — 添加MisSparePartCount",
+      "POST /misSparePartCount/delMisSparePartCount — 删除MisSparePartCount",
+      "POST /misSparePartCount/getMisSparePartCount — 获取MisSparePartCount",
+      "POST /misSparePartCount/getMisSparePartCountList — 获取MisSparePartCount列表"
+    ]
+  },
+  {
+    "tag": "facilityToolStatsApi",
+    "count": 4,
+    "summaries": [
+      "POST /misToolCount/addMisToolCount — 添加MisToolCount",
+      "POST /misToolCount/delMisToolCount — 删除MisToolCount",
+      "POST /misToolCount/getMisToolCount — 获取MisToolCount",
+      "POST /misToolCount/getMisToolCountList — 获取MisToolCount列表"
+    ]
+  },
+  {
+    "tag": "regionManagementApi",
+    "count": 4,
+    "summaries": [
+      "POST /region/addRegion — 添加区域",
+      "POST /region/delRegion — 删除区域",
+      "GET /region/getRegionTree — 获取区域树",
+      "POST /region/updateRegion — 修改区域"
+    ]
+  },
+  {
+    "tag": "changeApi",
+    "count": 3,
+    "summaries": [
+      "GET /change/getChangeById/{id} — getChangeRecords",
+      "POST /change/getChangeRecords — 根据表名、序列号查询变更信息",
+      "POST /change/getMaxId — 根据表名(支持all)获取当前最大序列号"
+    ]
+  },
+  {
+    "tag": "databaseApi",
+    "count": 3,
+    "summaries": [
+      "POST /database/getDatabaseRealStatusList — 获取数据库状态列表",
+      "POST /database/getDatabaseStatusList — 获取数据库状态列表",
+      "GET /db/getTables — 获取数据库表"
+    ]
+  },
+  {
+    "tag": "recognitionApi",
+    "count": 3,
+    "summaries": [
+      "POST /recognition/bindCategory — 绑定所选的类别，更新到p_device的新增字段中",
+      "POST /recognition/getCameraList — 获取摄像头设备列表",
+      "POST /recognition/getRecognitionCategorys — 获取类别列表，支持名称模糊查询"
+    ]
+  },
+  {
+    "tag": "websocketApi",
+    "count": 3,
+    "summaries": [
+      "GET /websocket/devData/{username}/{menu} — 实时获取设备数据ws",
+      "GET /websocket/devData/{username}/{menu}_1734748094541 — 实时获取设备告警ws",
+      "GET /websocket/syncData/{username} — websocket"
+    ]
+  },
+  {
+    "tag": "wmsTaskApi",
+    "count": 3,
+    "summaries": [
+      "POST /wmsTask/execWmsTask — 开始执行任务",
+      "POST /wmsTask/getWmsTask — 获取任务详情",
+      "POST /wmsTask/getWmsTaskList — 获取任务列表"
+    ]
+  },
+  {
+    "tag": "broadcastControlApi",
+    "count": 2,
+    "summaries": [
+      "POST /broadcast/getBroadcastListByDn — 获取广播列表",
+      "POST /broadcast/sendControlCmd — 控制广播"
+    ]
+  },
+  {
+    "tag": "commonApi",
+    "count": 2,
+    "summaries": [
+      "POST /common/getWmsPlanTypes — 获取计划任务类型",
+      "POST /common/upload — 文件上传"
+    ]
+  },
+  {
+    "tag": "eventFlowApi",
+    "count": 2,
+    "summaries": [
+      "POST /event/allotEvent — 关联设备及变量",
+      "POST /event/getEventTypes — 获取事件类型"
+    ]
+  },
+  {
+    "tag": "hmiUserFileApi",
+    "count": 2,
+    "summaries": [
+      "POST /hmiUserFile/addHmiFile — 添加用户组态文件",
+      "POST /hmiUserFile/getHmiUserFiles — 获取用户组态列表"
+    ]
+  },
+  {
+    "tag": "menuConfigurationApi",
+    "count": 2,
+    "summaries": [
+      "POST /menuConfig/getMenuConfig — 获取菜单配置",
+      "POST /menuConfig/saveMenuConfig — 保存菜单配置"
+    ]
+  },
+  {
+    "tag": "videoMonitorApi",
+    "count": 2,
+    "summaries": [
+      "POST /monitorVideo/downloadPlayBack — 下载录像",
+      "POST /monitorVideo/getPlayUri — 获取播放地址"
+    ]
+  },
+  {
+    "tag": "testApi",
+    "count": 2,
+    "summaries": [
+      "POST /test/test1 — 设备操作权限测试",
+      "POST /test/test2 — ws测试"
+    ]
+  },
+  {
+    "tag": "userConfigurationApi",
+    "count": 2,
+    "summaries": [
+      "POST /userConfig/getUserConfigs — 获取用户配置信息",
+      "POST /userConfig/setUserConfigs — 设置用户配置信息"
+    ]
+  },
+  {
+    "tag": "wmsDeviceApi",
+    "count": 2,
+    "summaries": [
+      "POST /wmsDevice/getWmsDevice — 获取设备",
+      "POST /wmsDevice/getWmsDeviceList — 获取设备列表"
+    ]
+  },
+  {
+    "tag": "websocketGatewayApi",
+    "count": 2,
+    "summaries": [
+      "POST /ws/sendLogs — 发送ws日志",
+      "POST /ws/setAllOffline — setAllOffline"
+    ]
+  },
+  {
+    "tag": "websocketHealthApi",
+    "count": 2,
+    "summaries": [
+      "POST /wsHealth/healthDevAlarm — 设备告警ws健康检查",
+      "POST /wsHealth/healthDevData — 设备数据ws健康检查"
+    ]
+  },
+  {
+    "tag": "applicationStatusApi",
+    "count": 1,
+    "summaries": [
+      "POST /appStatus/getAppStatusMap — 获取应用状态"
+    ]
+  },
+  {
+    "tag": "linkCommandApi",
+    "count": 1,
+    "summaries": [
+      "POST /linkCmd/getLinkCmdData — 获取LinkCmd列表"
+    ]
+  },
+  {
+    "tag": "realTimeDataApi",
+    "count": 1,
+    "summaries": [
+      "POST /realData/getRealDataList — 获取实时数据列表"
+    ]
+  }
+]

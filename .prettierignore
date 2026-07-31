@@ -1,0 +1,12 @@
+node_modules
+dist
+out
+release
+.venv
+.git
+.cursor
+pnpm-lock.yaml
+services/platform-agent-service/app/data/*.json
+services/platform-agent-service/app/tools/catalog.json
+services/platform-agent-service/app/models/catalog.json
+services/platform-mcp-server/platform_mcp/data/*.json

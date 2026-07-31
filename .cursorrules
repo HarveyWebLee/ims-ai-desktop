@@ -1,0 +1,62 @@
+# Cursor AI 规则配置（ims-ai-desktop）
+
+## 语言设置
+- 始终使用中文进行交流和代码注释
+- 生成 git 提交消息时使用中文
+- 遵循 Angular 提交规范
+
+## Git 提交消息规范
+
+### 格式：<type>(<scope>): <subject>
+
+### 类型 (type)：
+- feat: 新功能
+- fix: 修复 bug
+- docs: 文档更新
+- style: 代码格式调整
+- refactor: 代码重构
+- test: 测试相关
+- chore: 构建过程或辅助工具的变动
+- build: 构建相关
+- ci: 持续集成
+- revert: 回退代码
+
+### 作用域 (scope)：
+- 桌面端: Electron / AiAssistant UI
+- Agent: platform-agent-service
+- mcp: platform-mcp-server
+- 契约: packages/agent-core、shared-types、desktop-api
+- 知识库: Qdrant RAG / kb 脚本
+- 工具: scripts / 本地联调
+- 规则: .cursor rules/skills/hooks
+
+### 示例：
+- feat(桌面端): 增加会话历史抽屉
+- fix(Agent): 修复 resume 后 Plan 残留
+- docs(契约): 同步 SSE interrupt 字段说明
+- chore(工具): 更新一键联调脚本
+
+## 代码注释
+- 业务规则、复杂算法、非显而易见决策用中文注释
+- 不解释显而易见的代码
+
+## 本仓约束摘要
+- monorepo：`apps/desktop` + `services/*` + `packages/*`
+- 联调：`bash scripts/all.sh`（MCP :8010 → Agent :8008 → Electron）
+- 工具只经 Platform MCP；HITL 仅 `interrupt` / `Command(resume)`
+- 平台达梦只读（仅 SELECT）；业务写走平台 API
+- 桌面端 M1 不含 BPMN 编排画布；`client_action` navigate 等可跳过降级
+
+## 桌面端联调
+- Agent：`http://127.0.0.1:8008`
+- Platform MCP：`http://127.0.0.1:8010/mcp`
+- 环境变量示例：`apps/desktop/.env.example`
+- 包管理：`pnpm`（Node >= 20）
+
+## YApi MCP 配置
+- YApi 登录地址: http://192.168.99.106:1081/login
+- 登录凭据:
+  - 用户名: 1592172772@qq.com
+  - 密码: 621656
+- 项目名称: 智能保障综合信息平台
+- 使用 YApi MCP 进行 API 文档管理和接口测试时，优先使用上述配置

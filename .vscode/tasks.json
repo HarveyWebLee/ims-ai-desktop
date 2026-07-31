@@ -1,0 +1,80 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "mcp: format",
+      "type": "shell",
+      "command": "uv run --extra dev mcp-check format",
+      "options": { "cwd": "${workspaceFolder}/services/platform-mcp-server" },
+      "group": "build",
+      "presentation": { "reveal": "silent", "panel": "shared", "close": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "mcp: lint",
+      "type": "shell",
+      "command": "uv run --extra dev mcp-check lint",
+      "options": { "cwd": "${workspaceFolder}/services/platform-mcp-server" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "mcp: typecheck",
+      "type": "shell",
+      "command": "uv run --extra dev mcp-check typecheck",
+      "options": { "cwd": "${workspaceFolder}/services/platform-mcp-server" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "mcp: fix",
+      "type": "shell",
+      "command": "uv run --extra dev mcp-check fix",
+      "options": { "cwd": "${workspaceFolder}/services/platform-mcp-server" },
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "mcp: all",
+      "type": "shell",
+      "command": "uv run --extra dev mcp-check all",
+      "options": { "cwd": "${workspaceFolder}/services/platform-mcp-server" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "agent: fix",
+      "type": "shell",
+      "command": "uv run --extra dev python -m app.quality fix",
+      "options": { "cwd": "${workspaceFolder}/services/platform-agent-service" },
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "agent: all",
+      "type": "shell",
+      "command": "uv run --extra dev python -m app.quality all",
+      "options": { "cwd": "${workspaceFolder}/services/platform-agent-service" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "desktop: check",
+      "type": "shell",
+      "command": "pnpm --filter @ims/desktop check",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    }
+  ]
+}

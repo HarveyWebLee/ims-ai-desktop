@@ -1,0 +1,36 @@
+---
+description: Electron 桌面端（apps/desktop）开发约定：登录、SSE、HITL、Plan、client_action 降级
+globs: "apps/desktop/**,packages/desktop-api/**"
+alwaysApply: false
+---
+
+# 桌面端（Electron）开发约定
+
+## 范围
+
+- 入口：`apps/desktop`（electron-vite + React + antd）
+- 共享：`@ims/desktop-api`、`@ims/shared-types`、`@ims/agent-core`
+- M1：聊天 + Plan 步骤条 + 基础 HITL；不含 BPMN 编排画布
+
+## 必须
+
+- Agent 请求经 `AGENT_SERVICE_URL` / 开发代理，禁止硬编码生产地址
+- SSE / HITL / Plan 状态与后端对称：`sendMessage` / resume / reject / abort 同步清理
+- i18n：`apps/desktop/src/locales/ai_assistant/` 中英文同步
+- token 仅本地存储，不提交仓库
+- `client_action`（如 navigate）无宿主页面时：跳过并给出可理解降级，不抛未捕获异常
+
+## 禁止
+
+- 在桌面端实现 Agent 业务图逻辑或直连平台达梦
+- 擅自引入 BPMN 编排画布（须单独立项）
+- 硬编码 Agent 服务 URL
+
+## 联调
+
+```bash
+bash scripts/up.sh
+bash scripts/all.sh
+```
+
+验收：`docs/desktop-m1-acceptance.md`

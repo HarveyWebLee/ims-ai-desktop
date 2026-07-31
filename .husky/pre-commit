@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+
+# Cursor/IDE 图形界面触发的 git hook 常继承精简 PATH，
+# 导致找不到用户级安装的 uv（~/.local/bin），而终端 bash 正常。
+# 必须用 $HOME 的 Unix 路径；勿拼 USERPROFILE（含 C: 会拆坏 PATH）。
+if [ -d "${HOME}/.local/bin" ]; then
+  case ":${PATH}:" in
+    *":${HOME}/.local/bin:"*) ;;
+    *) export PATH="${HOME}/.local/bin:${PATH}" ;;
+  esac
+fi
+
+echo "[pre-commit] 1/2 代码格式化"
+pnpm format || exit 1
+
+if ! git diff --quiet; then
+  echo "[pre-commit] 格式化已修改文件，请先 git add 后重新提交"
+  exit 1
+fi
+
+echo "[pre-commit] 2/2 质量检查"
+pnpm check || exit 1

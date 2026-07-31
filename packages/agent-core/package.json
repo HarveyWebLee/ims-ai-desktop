@@ -1,0 +1,17 @@
+{
+  "name": "@ims/agent-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "dependencies": {
+    "@ims/shared-types": "workspace:*"
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./model-catalog": "./model-catalog.ts",
+    "./tool-catalog": "./tool-catalog.ts",
+    "./route-catalog": "./route-catalog.ts"
+  }
+}

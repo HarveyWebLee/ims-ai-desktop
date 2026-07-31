@@ -1,0 +1,121 @@
+"""Qdrant 切块与内存态向量存储单测（不依赖真实 Embedding / Docker）。"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from qdrant_client import QdrantClient
+
+from app.infrastructure.vector.chunking import chunk_text
+from app.infrastructure.vector.store import VectorStoreService
+
+
+class _FakeEmbeddings:
+    """确定性假 Embedding：用字符码填充到固定维度。"""
+
+    def __init__(self, size: int = 8) -> None:
+        self.size = size
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self._vec(t) for t in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._vec(text)
+
+    def _vec(self, text: str) -> list[float]:
+        if not text:
+            return [0.0] * self.size
+        seed = sum(ord(c) for c in text) % 97
+        return [((seed + i) % 10) / 10.0 for i in range(self.size)]
+
+
+def test_chunk_text_respects_overlap_and_non_empty() -> None:
+    text = "第一段内容。\n" + ("很长的一行文字。" * 40) + "\n结尾。"
+    chunks = chunk_text(text, chunk_size=80, chunk_overlap=20)
+    assert len(chunks) >= 2
+    assert all(c.strip() for c in chunks)
+
+
+def test_chunk_text_rejects_bad_overlap() -> None:
+    with pytest.raises(ValueError):
+        chunk_text("abc", chunk_size=10, chunk_overlap=10)
+
+
+def test_vector_store_upsert_and_search(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "app.infrastructure.vector.store.settings.qdrant_vector_size",
+        8,
+    )
+    monkeypatch.setattr(
+        "app.infrastructure.vector.store.settings.qdrant_collection",
+        "test_docs",
+    )
+
+    client = QdrantClient(":memory:")
+    store = VectorStoreService(
+        collection="test_docs",
+        client=client,
+        embeddings=_FakeEmbeddings(size=8),
+    )
+    store.ensure_collection()
+    ids = store.upsert_texts(
+        ["告警确认需要值班员在侧栏操作", "BPMN 编排用于多步 Plan"],
+        metadatas=[
+            {"source": "ops.md", "filename": "ops.md"},
+            {"source": "bpmn.md", "filename": "bpmn.md"},
+        ],
+    )
+    assert len(ids) == 2
+
+    hits = store.similarity_search("告警确认", limit=2)
+    assert hits
+    assert any("告警" in h.text for h in hits)
+
+    doc = tmp_path / "note.md"
+    doc.write_text("导出告警报表可使用 download_file 工具。", encoding="utf-8")
+    count = store.ingest_file(doc)
+    assert count >= 1
+
+    filtered = store.similarity_search("导出", limit=3, source_contains="note.md")
+    assert filtered
+    assert all("note.md" in str(h.payload.get("source")) for h in filtered)
+
+    context = store.format_context(filtered, max_chars=2000)
+    assert "导出" in context or "download_file" in context
+
+
+def test_upsert_texts_batches_without_losing_chunk_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """分批 upsert 时 chunk_index 仍为全局序号，且多批均写入。"""
+    monkeypatch.setattr(
+        "app.infrastructure.vector.store.settings.qdrant_vector_size",
+        8,
+    )
+    monkeypatch.setattr(
+        "app.infrastructure.vector.store.settings.vector_upsert_batch_size",
+        3,
+    )
+
+    client = QdrantClient(":memory:")
+    store = VectorStoreService(
+        collection="test_batch",
+        client=client,
+        embeddings=_FakeEmbeddings(size=8),
+    )
+    store.ensure_collection()
+
+    texts = [f"片段-{i}-知识内容" for i in range(7)]
+    ids = store.upsert_texts(
+        texts,
+        metadatas=[{"source": "big.md"} for _ in texts],
+        source="big.md",
+    )
+    assert len(ids) == 7
+    assert len(set(ids)) == 7
+
+    hits, _ = store.scroll_points(limit=20, source_equals="big.md")
+    assert len(hits) == 7
+    indices = sorted(int(h.payload.get("chunk_index", -1)) for h in hits)
+    assert indices == list(range(7))

@@ -1,0 +1,47 @@
+# 阵地巡检管理
+
+> 英文名：Position Inspection Management  
+> 模块 ID：`inspection_management`  
+> 所属业务域：阵地维护管理（`/config_management/positional_management`）  
+> 来源：平台功能模块知识库（本仓 `prj-docs`）
+
+## 模块说明
+
+巡检点位、项目、方案、任务及操作记录全流程管理。
+
+## 适用场景
+
+阵地设施、值班、人员、巡检、保养、工具备件、故障维修与计量移交等日常保障场景。
+
+## 功能页面
+
+| 页面         | 路径                             | 路由                                                                      | 说明                 |
+| ------------ | -------------------------------- | ------------------------------------------------------------------------- | -------------------- |
+| 巡检点位管理 | `inspection_point_management`    | `/config_management/positional_management/inspection_point_management`    | 巡检点位。           |
+| 巡检项目管理 | `inspection_project_management`  | `/config_management/positional_management/inspection_project_management`  | 巡检检查项/项目。    |
+| 巡检方案管理 | `routine_inspection`             | `/config_management/positional_management/routine_inspection`             | 巡检方案。           |
+| 巡查任务管理 | `routine_inspection_task`        | `/config_management/positional_management/routine_inspection_task`        | 巡查任务下发与执行。 |
+| 操作记录     | `inspection_task_operate_record` | `/config_management/positional_management/inspection_task_operate_record` | 巡检操作记录。       |
+
+## 操作指引（通用）
+
+1. 登录综合信息管理平台，从门户进入「配置管理平台」。
+2. 打开左侧「阵地维护管理」→「阵地巡检管理」。
+3. 在列表页按条件查询；通过新增/编辑/删除维护数据（具体按钮以页面为准）。
+4. 若页面含树形筛选（区域/组织/类别），先选节点再操作右侧列表。
+5. 无菜单权限时，请管理员在「角色授权 / 菜单管理」中分配。
+
+## 关联依赖
+
+点位/项目 → 方案 → 任务 → 操作记录，按顺序配置。
+
+## 常见问题
+
+- **看不到本模块菜单**：检查账号角色是否授权；超级管理员可在「菜单管理 / 角色授权 / 场景管理」配置。
+- **列表无数据**：确认筛选条件、所属区域/组织节点，以及后端服务与数据权限范围。
+- **无法保存**：检查必填项、字典引用是否存在，以及是否具备写权限。
+
+## 代码定位
+
+- 功能分组：`groupId: inspection_management`
+- 对应平台配置管理功能页面

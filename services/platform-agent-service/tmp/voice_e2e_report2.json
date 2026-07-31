@@ -1,0 +1,11 @@
+{
+  "asr_raw": "查询近三天的门禁告警。",
+  "asr_final": "查近三天的门禁告警。",
+  "correct_from_raw": {
+    "text": "查近三天的门禁告警。",
+    "stage": "cache",
+    "changed": true,
+    "raw": "查询近三天的门禁告警。"
+  },
+  "llm_forced": null
+}

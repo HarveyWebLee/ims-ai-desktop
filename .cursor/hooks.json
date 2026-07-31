@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "node .cursor/hooks/session-start.mjs"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "node .cursor/hooks/block-dangerous-shell.mjs",
+        "failClosed": false
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "node .cursor/hooks/remind-impact-map.mjs",
+        "matcher": "Write"
+      },
+      {
+        "command": "node .cursor/hooks/remind-impact-map.mjs",
+        "matcher": "StrReplace"
+      },
+      {
+        "command": "node .cursor/hooks/remind-impact-map.mjs",
+        "matcher": "ApplyPatch"
+      }
+    ]
+  }
+}

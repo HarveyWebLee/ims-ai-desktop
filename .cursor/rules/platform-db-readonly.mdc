@@ -1,0 +1,26 @@
+---
+description: 智能化功能对平台达梦业务库严格只读，禁止任何写操作
+alwaysApply: true
+---
+
+# 平台业务库只读（强制）
+
+智能化功能开发与运行时，对**平台业务关系库（达梦）**严格禁止任何写操作，只允许查询。
+
+完整方案见：[`docs/architecture/09-platform-db-readonly.md`](../../docs/architecture/09-platform-db-readonly.md)
+
+## 硬性规则
+
+1. 对平台达梦：**禁止** `INSERT` / `UPDATE` / `DELETE` / `MERGE` / DDL / 含写副作用的存储过程 / 在业务库写同步消费标记。
+2. **仅允许** `SELECT`（及只读视图查询）。
+3. 业务数据变更必须：`Agent/HITL → Platform MCP → 平台 API → 平台服务写库`，禁止智能化进程直连达梦写库。
+4. 同步水位线、消费进度只写在 **Agent Postgres**；向量写入 **Qdrant** 合法。
+5. Agent 自有 Postgres / Qdrant / Redis **不在**本禁令内。
+6. 使用只读账号；连接层尽量 `readOnly=true`；凭据不进 git / 文档正文。
+7. 表范围由 `ENTITY_SYNC_TABLES` 控制：空=不转换；`*`=全部表；逗号分隔=指定表；缺表提示但存在的仍转换。
+
+## 否决项（Review）
+
+- 智能化代码对平台达梦执行非 SELECT
+- 为同步申请可写账号或在达梦建可写状态表并由智能化账号更新
+- 文档或代码中提交达梦密码

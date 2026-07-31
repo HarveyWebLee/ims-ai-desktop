@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "anysphere.cursorpyright",
+    "ms-python.python",
+    "charliermarsh.ruff",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint"
+  ],
+  "unwantedRecommendations": ["ms-python.vscode-pylance"]
+}

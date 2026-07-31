@@ -1,0 +1,53 @@
+---
+description: Agent 后端架构优先与兼容演进规范
+globs: "services/platform-agent-service/app/**/*.py,services/platform-agent-service/tests/**/*.py,services/platform-agent-service/scripts/**/*.py,services/platform-agent-service/pyproject.toml"
+alwaysApply: false
+---
+
+# platform-agent-service 架构优先规则
+
+适用于 `platform-agent-service` 的功能开发与重构，目标是：
+
+- 提升需求理解与实现效率
+- 降低“补丁式开发”导致的技术债
+- 保证新增功能尽量不影响既有能力
+
+## 1. 功能开发基本原则
+
+0. **官方文档优先**：涉及 LangChain/LangGraph 的新功能或新 API，动手前用 MCP `docs-langchain` 核对最新设计与签名；按官方理念选型后再落入本仓父图 / MCP / SSE 架构（见 monorepo `.cursor/rules/langchain-langgraph-docs-first.mdc`）。
+1. 先读调用链再编码：`api -> graph -> services/tools -> persistence -> SSE`。
+2. 先复用现有模式：优先沿用已有 `parent_graph` / `create_agent` / checkpointer interrupt / `session_store` 元数据 / tool preflight 约定。
+3. 最小改动不等于单点改动：若存在对称路径影响，必须同步覆盖。
+4. 禁止临时补丁：避免在多处散落 `if/else` 特判；优先抽象为可复用策略/适配层。
+
+## 2. 新需求落地顺序（强制）
+
+1. **官方文档检索**：`docs-langchain` 确认 Graph / Agent / interrupt / streaming / checkpointer 等选用路径。
+2. **需求分解**：输入、输出、状态变化、失败分支。
+3. **影响面清单**：列出 chat / resume / reject / 新一轮 chat / 同 thread 下一轮。
+4. **契约检查**：确认是否影响 SSE 事件、`ToolResult`、`shared-types`、catalog 导出。
+5. **实现**：优先在已有层扩展，不引入旁路逻辑；官方 API + 本仓架构双对齐。
+6. **回归**：至少验证主路径 + 对称路径 + 历史功能不回退。
+
+## 3. 架构演进优先级（发生冲突时遵循）
+
+1. 领域边界清晰（api / graph / services / tools / persistence）
+2. 状态生命周期闭合（set/pending 必有 clear/pop/finalize）
+3. 可观测性（日志事件、trace、错误语义一致）
+4. 契约一致（SSE / shared-types / catalog）；官方 LangGraph 零兼容收敛后 **禁止**再引入图外 `pending_*` HITL 或 ReAct 双轨
+5. 局部性能优化
+
+## 4. 禁止事项
+
+- 禁止绕过父图（`stream_chat` / `stream_resume` → `parent_graph`）直接拼接独立执行流，造成主链分叉。
+- 禁止新增功能只改 `stream_chat` 不核对 `stream_resume` 与 reject 路径。
+- 禁止重新引入 `pending_plan` / `pending_tool_hitl` / `orchestrated_hitl` 或 `AGENT_USE_STATE_GRAPH` 双轨。
+- 禁止将“需求紧急”作为引入架构债的理由。
+
+## 5. 交付要求
+
+- 描述中必须包含：
+  - 改了什么
+  - 为什么这么改
+  - 可能影响哪些既有能力
+- 若未覆盖全部回归路径，明确列出“未验证项”与风险。
