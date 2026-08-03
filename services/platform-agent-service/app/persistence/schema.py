@@ -63,20 +63,33 @@ CREATE TABLE IF NOT EXISTS agent_thread_bpmn (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 声纹库（Agent 自有库；与平台达梦隔离）
-CREATE TABLE IF NOT EXISTS agent_voiceprints (
+-- 声纹档案（元数据；向量在 Qdrant collection agent_voiceprints）
+CREATE TABLE IF NOT EXISTS agent_voiceprint_profiles (
     id TEXT PRIMARY KEY,
     display_name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    embedding JSONB NOT NULL DEFAULT '[]',
-    sample_count INT NOT NULL DEFAULT 0,
     model_id TEXT NOT NULL DEFAULT '',
+    sample_count INT NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_agent_voiceprints_updated
-    ON agent_voiceprints (updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_voiceprint_profiles_updated
+    ON agent_voiceprint_profiles (updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_voiceprint_samples (
+    id TEXT PRIMARY KEY,
+    profile_id TEXT NOT NULL REFERENCES agent_voiceprint_profiles(id) ON DELETE CASCADE,
+    model_id TEXT NOT NULL,
+    duration_ms INT NOT NULL DEFAULT 0,
+    device_hint TEXT NOT NULL DEFAULT '',
+    env_hint TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_voiceprint_samples_profile
+    ON agent_voiceprint_samples (profile_id);
 """
 
 # 旧图外 HITL 暂存表：零兼容后删除（IF EXISTS，可重复执行）
@@ -84,20 +97,19 @@ _DROP_LEGACY_PENDING_DDL = """
 DROP TABLE IF EXISTS agent_thread_pending;
 """
 
-# 已有库补列（CREATE IF NOT EXISTS 不会改旧表结构）
-_VOICEPRINT_MODEL_ID_DDL = """
-ALTER TABLE agent_voiceprints
-    ADD COLUMN IF NOT EXISTS model_id TEXT NOT NULL DEFAULT '';
+# 旧单向量声纹表：破坏性删除（见 docs/architecture/11-voiceprint.md）
+_DROP_LEGACY_VOICEPRINT_DDL = """
+DROP TABLE IF EXISTS agent_voiceprints;
 """
 
 
 def setup_app_tables(conn) -> None:
     """
-    创建或确保 Agent 业务表存在，并清理已废弃的 pending HITL 表。
+    创建或确保 Agent 业务表存在，并清理已废弃的 pending HITL / 旧声纹表。
 
     参数：
         conn: psycopg 连接，需支持 conn.execute(sql)
     """
+    conn.execute(_DROP_LEGACY_VOICEPRINT_DDL)
     conn.execute(AGENT_APP_DDL)
     conn.execute(_DROP_LEGACY_PENDING_DDL)
-    conn.execute(_VOICEPRINT_MODEL_ID_DDL)

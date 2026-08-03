@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import base64
 import json
+from typing import Any
 
 
-def decode_jwt_payload(token: str) -> dict:
+def decode_jwt_payload(token: str) -> dict[str, Any]:
     raw = (token or "").replace("Bearer ", "").strip()
     parts = raw.split(".")
     if len(parts) != 3:
@@ -17,7 +18,7 @@ def decode_jwt_payload(token: str) -> dict:
         segment += "=" * pad
     try:
         decoded = base64.urlsafe_b64decode(segment.encode("ascii"))
-        data = json.loads(decoded.decode("utf-8"))
+        data: Any = json.loads(decoded.decode("utf-8"))
         return data if isinstance(data, dict) else {}
     except ValueError, json.JSONDecodeError, UnicodeDecodeError:
         return {}

@@ -198,4 +198,6 @@ cd services/platform-agent-service && python scripts/export_catalog.py
 
 Agent / MCP / contracts 的 Ruff、basedpyright 规则以**各自** `pyproject.toml` 为准；IDE 的 `cursorpyright` 与命令行 `basedpyright` 均使用 **basic** 模式对齐。
 
+仓根 [`pyrightconfig.json`](../../pyrightconfig.json) 仅供 IDE 多包 `executionEnvironments`（解析各服务包根与 `contracts`）；CLI 门禁通过 `basedpyright --project <服务根>` 使用各服务 `pyproject.toml`，避免与仓根配置互相污染。
+
 若 `uv run check` / `mcp-check` 因正在运行的 `uv run agent` / `mcp` 锁住环境，可先停进程，或临时用 `.venv` 内 `python -m app.quality` / `python -m platform_mcp.quality`。

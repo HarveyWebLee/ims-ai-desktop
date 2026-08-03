@@ -1,27 +1,29 @@
-"""声纹特征与内存库单测（默认 mock 嵌入器，避免单测强依赖模型下载）。"""
+"""声纹：多模板录入 / 1:1 / 1:N（默认 mock 嵌入与预处理）。"""
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
 
-from app.services.voice.voiceprint_features import (
+from app.services.voice.voiceprint.calibrate import calibrate_score, reset_calibration_for_tests
+from app.services.voice.voiceprint.embedding import (
     DEFAULT_MODEL_ID,
     EMBEDDING_DIM,
+    aggregate_scores,
     cosine_similarity,
-    merge_embeddings,
 )
-from app.services.voice.voiceprint_service import (
+from app.services.voice.voiceprint.preprocess import PreprocessError, preprocess_audio
+from app.services.voice.voiceprint.service import (
     VoiceprintError,
     create_voiceprint,
     enroll_voiceprint,
+    identify_voiceprint,
     list_voiceprints,
     verify_voiceprint,
 )
-from app.services.voice.voiceprint_store import (
-    InMemoryVoiceprintStore,
-    configure_voiceprint_store,
-)
+from app.services.voice.voiceprint.store_pg import InMemoryProfileStore, configure_profile_store
+from app.services.voice.voiceprint.store_qdrant import InMemoryVectorIndex, configure_vector_index
+from app.services.voice.voiceprint.types import PreprocessResult
 
 
 def _tone_pcm(freq: float, seconds: float = 1.2, sr: int = 16000) -> bytes:
@@ -31,146 +33,170 @@ def _tone_pcm(freq: float, seconds: float = 1.2, sr: int = 16000) -> bytes:
     return pcm.tobytes()
 
 
-def _fake_embedding_from_pcm(audio_bytes: bytes, *, sample_rate: int | None = None) -> list[float]:
-    """用能量谱粗哈希生成确定性 192 维向量，便于门禁单测。"""
+def _fake_embedding_from_waveform(samples: np.ndarray, *, sample_rate: int = 16000) -> list[float]:
     del sample_rate
-    samples = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32)
+    n = EMBEDDING_DIM
     if samples.size < 16:
         raise ValueError("音频过短")
-    n = EMBEDDING_DIM
-    chunks = np.array_split(np.abs(samples), n)
+    chunks = np.array_split(np.abs(samples.astype(np.float64)), n)
     vec = np.array([float(np.mean(c)) if len(c) else 0.0 for c in chunks], dtype=np.float64)
-    spec = np.abs(np.fft.rfft(samples[: min(len(samples), 4096)]))
-    peak = int(np.argmax(spec))
+    peak = int(np.argmax(np.abs(np.fft.rfft(samples[: min(len(samples), 4096)]))))
     vec = vec + 0.01 * np.sin(np.linspace(0, peak, n))
     norm = float(np.linalg.norm(vec)) or 1.0
     return [float(x / norm) for x in vec.tolist()]
 
 
+def _fake_preprocess(
+    audio_bytes: bytes,
+    *,
+    sample_rate: int | None = None,
+    min_speech_ms: int,
+    vad_enabled: bool | None = None,
+    denoise_enabled: bool | None = None,
+) -> PreprocessResult:
+    del vad_enabled, denoise_enabled
+    sr = sample_rate or 16000
+    samples = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+    speech_ms = int(round(samples.size / sr * 1000))
+    if speech_ms < min_speech_ms:
+        raise PreprocessError("audio_too_short", f"有效语音不足 {min_speech_ms}ms")
+    return PreprocessResult(samples=samples, speech_ms=speech_ms, sample_rate=sr)
+
+
 @pytest.fixture
-def mock_encoder(monkeypatch: pytest.MonkeyPatch):
+def voiceprint_env(monkeypatch: pytest.MonkeyPatch):
+    store = InMemoryProfileStore()
+    index = InMemoryVectorIndex()
+    configure_profile_store(store)
+    configure_vector_index(index)
     monkeypatch.setattr(
-        "app.services.voice.voiceprint_service.extract_embedding",
-        _fake_embedding_from_pcm,
+        "app.services.voice.voiceprint.service.settings.voiceprint_enabled",
+        True,
     )
     monkeypatch.setattr(
-        "app.services.voice.voiceprint_service.current_model_id",
+        "app.services.voice.voiceprint.service.settings.voiceprint_enroll_min_samples",
+        3,
+    )
+    monkeypatch.setattr(
+        "app.services.voice.voiceprint.service.settings.voiceprint_enroll_max_samples",
+        5,
+    )
+    monkeypatch.setattr(
+        "app.services.voice.voiceprint.service.settings.voiceprint_enroll_min_speech_ms",
+        500,
+    )
+    monkeypatch.setattr(
+        "app.services.voice.voiceprint.service.settings.voiceprint_verify_min_speech_ms",
+        500,
+    )
+    monkeypatch.setattr(
+        "app.services.voice.voiceprint.service.settings.voiceprint_threshold_assistant_gate",
+        0.5,
+    )
+    monkeypatch.setattr(
+        "app.services.voice.voiceprint.service.settings.voiceprint_threshold_identify",
+        0.5,
+    )
+    monkeypatch.setattr(
+        "app.services.voice.voiceprint.service.preprocess_audio",
+        _fake_preprocess,
+    )
+    monkeypatch.setattr(
+        "app.services.voice.voiceprint.service.extract_embedding_from_waveform",
+        _fake_embedding_from_waveform,
+    )
+    monkeypatch.setattr(
+        "app.services.voice.voiceprint.service.current_model_id",
         lambda: DEFAULT_MODEL_ID,
     )
+    reset_calibration_for_tests()
+    # 单测：校准近似恒等，便于用 raw cosine 阈值
+    monkeypatch.setattr(
+        "app.services.voice.voiceprint.service.calibrate_score",
+        lambda x: float(x),
+    )
+    return store, index
 
 
-def test_merge_embeddings_keeps_dim() -> None:
-    base = [1.0 / (EMBEDDING_DIM**0.5)] * EMBEDDING_DIM
-    nxt = list(base)
-    nxt[0], nxt[1] = nxt[1], nxt[0]
-    merged = merge_embeddings(base, nxt, count=1)
-    assert len(merged) == EMBEDDING_DIM
-    assert abs(sum(x * x for x in merged) - 1.0) < 1e-5
-
-
-def test_cosine_similarity_identity() -> None:
+def test_cosine_and_aggregate() -> None:
     v = [0.0] * EMBEDDING_DIM
     v[0] = 1.0
     assert cosine_similarity(v, v) == pytest.approx(1.0)
-    assert cosine_similarity(v, [0.0] * 64) == 0.0
+    assert aggregate_scores([0.2, 0.9, 0.4], mode="max") == pytest.approx(0.9)
 
 
-def test_voiceprint_crud_enroll_verify(monkeypatch: pytest.MonkeyPatch, mock_encoder) -> None:
-    del mock_encoder
-    store = InMemoryVoiceprintStore()
-    configure_voiceprint_store(store)
+def test_calibrate_monotonic() -> None:
+    reset_calibration_for_tests()
+    low = calibrate_score(0.3)
+    high = calibrate_score(0.8)
+    assert 0.0 <= low < high <= 1.0
+
+
+def test_preprocess_too_short(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "app.services.voice.voiceprint_service.settings.voiceprint_enabled",
-        True,
+        "app.config.settings.voiceprint_vad_enabled",
+        False,
     )
     monkeypatch.setattr(
-        "app.services.voice.voiceprint_service.settings.voiceprint_match_threshold",
-        0.5,
+        "app.config.settings.voiceprint_denoise_enabled",
+        False,
     )
+    with pytest.raises(PreprocessError) as exc:
+        preprocess_audio(_tone_pcm(440.0, seconds=0.05), min_speech_ms=2000)
+    assert exc.value.code in {"audio_too_short", "pipeline_failed"}
 
+
+def test_enroll_verify_identify(voiceprint_env) -> None:
+    del voiceprint_env
     created = create_voiceprint(display_name="张三", description="值班员")
-    assert created["display_name"] == "张三"
-    assert created["model_id"] == ""
+    assert created["enrolled"] is False
+    assert created["status"] == "pending"
+
+    for _ in range(3):
+        enrolled = enroll_voiceprint(created["id"], _tone_pcm(440.0, seconds=0.8))
+    assert enrolled["enrolled"] is True
+    assert enrolled["sample_count"] == 3
+    assert enrolled["status"] == "enrolled"
     assert any(i["id"] == created["id"] for i in list_voiceprints())
 
-    enrolled = enroll_voiceprint(created["id"], _tone_pcm(440.0))
-    assert enrolled["model_id"] == DEFAULT_MODEL_ID
-    assert enrolled["enrolled"] is True
-    assert enrolled["needs_reenroll"] is False
-    enroll_voiceprint(created["id"], _tone_pcm(450.0))
-
-    ok = verify_voiceprint(created["id"], _tone_pcm(445.0))
+    ok = verify_voiceprint(created["id"], _tone_pcm(445.0, seconds=0.8))
     assert ok["matched"] is True
-    assert ok["score"] >= 0.5
+    assert ok["decision"] == "accept"
+    assert "latency_ms" in ok
     assert ok["model_id"] == DEFAULT_MODEL_ID
 
-    bad = verify_voiceprint(created["id"], _tone_pcm(1800.0))
+    identified = identify_voiceprint(_tone_pcm(442.0, seconds=0.8))
+    assert identified["matched"] is True
+    assert identified["profile_id"] == created["id"]
+
+    other = create_voiceprint(display_name="李四")
+    for _ in range(3):
+        enroll_voiceprint(other["id"], _tone_pcm(1800.0, seconds=0.8))
+    # 用张三模板核验李四频率：分数应较低（mock 下未必严格，至少字段完整）
+    bad = verify_voiceprint(created["id"], _tone_pcm(1800.0, seconds=0.8))
     assert "matched" in bad
     assert "score" in bad
+    assert "score_raw" in bad
 
 
-def test_verify_requires_enrollment(monkeypatch: pytest.MonkeyPatch) -> None:
-    configure_voiceprint_store(InMemoryVoiceprintStore())
-    monkeypatch.setattr(
-        "app.services.voice.voiceprint_service.settings.voiceprint_enabled",
-        True,
-    )
+def test_verify_requires_min_enroll(voiceprint_env) -> None:
+    del voiceprint_env
     created = create_voiceprint(display_name="空用户")
-    try:
-        verify_voiceprint(created["id"], _tone_pcm(400.0))
-        raise AssertionError("应抛出未录入错误")
-    except VoiceprintError as exc:
-        assert "尚未录入" in str(exc)
+    enroll_voiceprint(created["id"], _tone_pcm(400.0, seconds=0.8))
+    with pytest.raises(VoiceprintError) as exc:
+        verify_voiceprint(created["id"], _tone_pcm(400.0, seconds=0.8))
+    assert "尚未完成录入" in str(exc.value)
 
 
-def test_verify_rejects_legacy_model_id(monkeypatch: pytest.MonkeyPatch, mock_encoder) -> None:
-    del mock_encoder
-    store = InMemoryVoiceprintStore()
-    configure_voiceprint_store(store)
+def test_enroll_rejects_over_max(voiceprint_env, monkeypatch: pytest.MonkeyPatch) -> None:
+    del voiceprint_env
     monkeypatch.setattr(
-        "app.services.voice.voiceprint_service.settings.voiceprint_enabled",
-        True,
+        "app.services.voice.voiceprint.service.settings.voiceprint_enroll_max_samples",
+        3,
     )
-    created = create_voiceprint(display_name="旧模板")
-    store.save_embedding(
-        created["id"],
-        embedding=[0.1] * EMBEDDING_DIM,
-        sample_count=1,
-        model_id="speechbrain/spkrec-ecapa-voxceleb",
-    )
-    listed = list_voiceprints()
-    item = next(i for i in listed if i["id"] == created["id"])
-    assert item["needs_reenroll"] is True
-    assert item["enrolled"] is False
-    try:
-        verify_voiceprint(created["id"], _tone_pcm(400.0))
-        raise AssertionError("应拒绝旧模型模板")
-    except VoiceprintError as exc:
-        assert "不兼容" in str(exc)
-
-
-def test_enroll_resets_when_model_changes(monkeypatch: pytest.MonkeyPatch, mock_encoder) -> None:
-    del mock_encoder
-    store = InMemoryVoiceprintStore()
-    configure_voiceprint_store(store)
-    created = create_voiceprint(display_name="迁移用户")
-    store.save_embedding(
-        created["id"],
-        embedding=[0.1] * EMBEDDING_DIM,
-        sample_count=3,
-        model_id="legacy-model",
-    )
-    updated = enroll_voiceprint(created["id"], _tone_pcm(440.0))
-    assert updated["sample_count"] == 1
-    assert updated["model_id"] == DEFAULT_MODEL_ID
-    assert updated["needs_reenroll"] is False
-
-
-@pytest.mark.integration
-def test_eres2net_extract_embedding_real_model() -> None:
-    """需联网下载/已缓存 ModelScope 权重；日常单测可跳过。"""
-    from app.services.voice.voiceprint_features import extract_embedding
-
-    emb = extract_embedding(_tone_pcm(220.0, seconds=1.5))
-    assert len(emb) == EMBEDDING_DIM
-    assert abs(sum(x * x for x in emb) - 1.0) < 1e-4
+    created = create_voiceprint(display_name="上限用户")
+    for _ in range(3):
+        enroll_voiceprint(created["id"], _tone_pcm(500.0, seconds=0.8))
+    with pytest.raises(VoiceprintError) as exc:
+        enroll_voiceprint(created["id"], _tone_pcm(500.0, seconds=0.8))
+    assert "上限" in str(exc.value)

@@ -26,11 +26,6 @@ const VOLUME_GAIN = 9;
 const TARGET_SAMPLE_RATE = 16000;
 /** 连续无有效语音（音量/识别文本）超时后自动结束并纠错 */
 const SILENCE_TIMEOUT_MS = 10_000;
-/**
- * 声纹门禁开关（临时关闭）：false 时不要求选声纹，录音直接送 ASR 写入输入框。
- * 重新启用时改回 true，并确保 Agent `VOICEPRINT_ENABLED=true`。
- */
-export const VOICEPRINT_GATE_ENABLED = false;
 /** 录音中声纹实时核验间隔 */
 const VOICEPRINT_LIVE_CHECK_MS = 1000;
 /** 实时核验最少有效 PCM（秒）；过短易误伤本人 */
@@ -182,7 +177,7 @@ export default function VoiceInput({
   disabled?: boolean;
 }) {
   const intl = useIntl();
-  const { selectedModelId, selectedVoiceprintId } = useAiAssistantStore();
+  const { selectedModelId, selectedVoiceprintId, voiceprintEnabled } = useAiAssistantStore();
   const [phase, setPhase] = useState<VoicePhase>("idle");
   const [elapsedSec, setElapsedSec] = useState(0);
   const [interimText, setInterimText] = useState("");
@@ -394,7 +389,7 @@ export default function VoiceInput({
   );
 
   const gateByVoiceprint = useCallback(async (): Promise<boolean> => {
-    if (!VOICEPRINT_GATE_ENABLED) return true;
+    if (!voiceprintEnabled) return true;
     const profileId = activeVoiceprintIdRef.current || selectedVoiceprintId;
     if (!profileId) {
       message.warning(intl.formatMessage({ id: "aiAssistant.voiceprint.selectRequired" }));
@@ -408,6 +403,7 @@ export default function VoiceInput({
     try {
       const result = await verifyVoiceprint(profileId, blob, {
         sampleRate: TARGET_SAMPLE_RATE,
+        scene: "assistant_gate",
       });
       if (result.skipped) return true;
       if (!result.matched) {
@@ -433,7 +429,7 @@ export default function VoiceInput({
       );
       return false;
     }
-  }, [buildVerifyPcmBlob, intl, selectedVoiceprintId]);
+  }, [buildVerifyPcmBlob, intl, selectedVoiceprintId, voiceprintEnabled]);
 
   const emitVoiceDraft = useCallback(
     (opts?: { preview?: string; segments?: VoiceSegment[] }) => {
@@ -515,6 +511,7 @@ export default function VoiceInput({
     try {
       const result = await verifyVoiceprint(profileId, blob, {
         sampleRate: TARGET_SAMPLE_RATE,
+        scene: "assistant_gate",
       });
       if (stoppingRef.current) return;
       if (result.skipped) {
@@ -542,7 +539,7 @@ export default function VoiceInput({
 
   const startLiveVoiceprintWatch = useCallback(() => {
     clearLiveVoiceprintWatch();
-    if (!VOICEPRINT_GATE_ENABLED) return;
+    if (!voiceprintEnabled) return;
     liveVoiceprintTimerRef.current = window.setInterval(() => {
       void runLiveVoiceprintCheck();
     }, VOICEPRINT_LIVE_CHECK_MS);
@@ -552,7 +549,7 @@ export default function VoiceInput({
       },
       Math.floor(VOICEPRINT_LIVE_MIN_SEC * 1000),
     );
-  }, [clearLiveVoiceprintWatch, runLiveVoiceprintCheck]);
+  }, [clearLiveVoiceprintWatch, runLiveVoiceprintCheck, voiceprintEnabled]);
 
   useEffect(() => () => cleanupMic(), [cleanupMic]);
 
@@ -992,13 +989,13 @@ export default function VoiceInput({
       message.error(intl.formatMessage({ id: "aiAssistant.voice.notSupported" }));
       return;
     }
-    if (VOICEPRINT_GATE_ENABLED && !selectedVoiceprintId) {
+    if (voiceprintEnabled && !selectedVoiceprintId) {
       message.warning(intl.formatMessage({ id: "aiAssistant.voiceprint.selectRequired" }));
       return;
     }
     try {
       stoppingRef.current = false;
-      activeVoiceprintIdRef.current = VOICEPRINT_GATE_ENABLED ? selectedVoiceprintId : null;
+      activeVoiceprintIdRef.current = voiceprintEnabled ? selectedVoiceprintId : null;
       modeRef.current = "realtime";
       sessionIdRef.current = null;
       seqRef.current = 0;
@@ -1010,8 +1007,8 @@ export default function VoiceInput({
       finalTextRef.current = null;
       pcmVerifyChunksRef.current = [];
       // 门禁关闭时直接放行 ASR；开启时默认关闭，等实时核验通过后再送
-      voiceprintLiveOkRef.current = !VOICEPRINT_GATE_ENABLED;
-      voiceprintEverMatchedRef.current = !VOICEPRINT_GATE_ENABLED;
+      voiceprintLiveOkRef.current = !voiceprintEnabled;
+      voiceprintEverMatchedRef.current = !voiceprintEnabled;
       matchedInterimRef.current = "";
       voiceprintVerifyInflightRef.current = false;
       filterHintAtRef.current = 0;
@@ -1126,6 +1123,7 @@ export default function VoiceInput({
     intl,
     onRecordingStart,
     selectedVoiceprintId,
+    voiceprintEnabled,
     startHttpChunkCapture,
     startPcmCaptureForVerify,
     startRealtimeCapture,

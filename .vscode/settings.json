@@ -4,12 +4,14 @@
   "python.terminal.activateEnvironment": true,
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
+  // 默认解释器指向 Agent；编辑 MCP/contracts 时可在状态栏切换到对应 .venv
+  "python.defaultInterpreterPath": "${workspaceFolder}/services/platform-agent-service/.venv/Scripts/python.exe",
   "cursorpyright.analysis.typeCheckingMode": "basic",
   "cursorpyright.analysis.autoImportCompletions": true,
   "cursorpyright.analysis.extraPaths": [
+    "${workspaceFolder}/services/platform-contracts",
     "${workspaceFolder}/services/platform-agent-service",
-    "${workspaceFolder}/services/platform-mcp-server",
-    "${workspaceFolder}/services/platform-contracts"
+    "${workspaceFolder}/services/platform-mcp-server"
   ],
 
   // Ruff（各服务以各自 pyproject.toml 为准）

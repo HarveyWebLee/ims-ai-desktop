@@ -116,7 +116,7 @@
 | 采集         | 桌面 WebAudio → PCM16 mono 16kHz                                                         | 已有 `VoiceInput` / 录入面板模式         |
 | 预处理       | 服务端统一管线（§7）                                                                     | 避免浏览器 NS 与服务端特征不一致         |
 | VAD          | **Silero VAD**                                                                           | 开源效果领先；切有效语音段               |
-| 降噪         | **DeepFilterNet3**                                                                       | 复杂噪声优于 RNNoise；嵌入前执行         |
+| 降噪         | **DeepFilterNet3**（可选；与主依赖 numpy 冲突时默认关闭，惰性加载）                      | 复杂噪声优于 RNNoise；嵌入前执行         |
 | 声纹模型     | **3D-Speaker ERes2Net-Large**（512 维）                                                  | 替换 FunASR V2-192；中文与短语音表现更强 |
 | 推理封装     | `modelscope` / `3D-Speaker` 官方推理路径（或 FunASR 同系 Large 权重，**唯一 model_id**） | 进程内单例 + device=cpu/cuda             |
 | 向量库       | **Qdrant**（新建独立 collection）                                                        | 仓内已部署；中小规模足够；不引入 Milvus  |
@@ -258,8 +258,7 @@ CREATE INDEX idx_voiceprint_samples_profile
 ```
 
 桌面：`VoiceInput` 选中用户后周期性 verify；不匹配则不上行 ASR（与 `10` §7 一致）。  
-`VOICEPRINT_ENABLED=false` 时：**直接拒绝门禁旁路的「假匹配」业务语义？**  
-定稿：关闭时桌面不强制选人、不调用 verify；服务端 verify 若仍被调用则返回明确 `skipped` + `reason=voiceprint_disabled`（便于联调），**生产默认 `VOICEPRINT_ENABLED=true`**。
+唯一开关 **`VOICEPRINT_ENABLED`**：桌面经 `GET /api/agent/voiceprints/config` 同步；关闭时不强制选人、不调用 verify；服务端 verify 若仍被调用则返回 `skipped` + `reason=voiceprint_disabled`。
 
 ### 9.3 1:N 识别（Identify）
 
@@ -421,8 +420,10 @@ VOICEPRINT_THRESHOLD_IDENTIFY=0.80
 VOICEPRINT_CALIBRATION_PATH=
 VOICEPRINT_REDIS_TTL_SEC=3600
 VOICEPRINT_VAD_ENABLED=true
-VOICEPRINT_DENOISE_ENABLED=true
+VOICEPRINT_DENOISE_ENABLED=false
 ```
+
+> DeepFilterNet3 与当前主依赖 `numpy>=2` 不兼容时保持 `VOICEPRINT_DENOISE_ENABLED=false`；代码侧惰性加载，缺包则跳过降噪。
 
 ## 16. 分期实施
 

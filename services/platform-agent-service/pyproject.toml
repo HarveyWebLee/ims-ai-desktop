@@ -32,7 +32,7 @@ dependencies = [
     "fastmcp>=2.3.0",
     # 共享运行时契约（HITL / preflight / catalog；工具执行面仅经 MCP Client）
     "contracts",
-    # 声纹：FunASR + ModelScope ERes2NetV2（torch 2.13）
+    # 声纹：FunASR + ModelScope ERes2Net-Large（512 维；torch 2.13）
     "torch==2.13.0",
     "torchaudio>=2.1.0",
     "modelscope>=1.20.0",

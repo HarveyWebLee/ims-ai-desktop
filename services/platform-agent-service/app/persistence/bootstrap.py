@@ -32,10 +32,14 @@ from app.services.trace_store import (
     PostgresTraceStore,
     configure_trace_store,
 )
-from app.services.voice.voiceprint_store import (
-    InMemoryVoiceprintStore,
-    PostgresVoiceprintStore,
-    configure_voiceprint_store,
+from app.services.voice.voiceprint.store_pg import (
+    InMemoryProfileStore,
+    PostgresProfileStore,
+    configure_profile_store,
+)
+from app.services.voice.voiceprint.store_qdrant import (
+    InMemoryVectorIndex,
+    configure_vector_index,
 )
 
 logger = logging.getLogger(__name__)
@@ -85,7 +89,8 @@ async def init_persistence(postgres_dsn: str | None) -> dict[str, Any]:
         configure_bpmn_persistence(None)
         configure_trace_store(InMemoryTraceStore())
         configure_audit_store(InMemoryAuditStore())
-        configure_voiceprint_store(InMemoryVoiceprintStore())
+        configure_profile_store(InMemoryProfileStore())
+        configure_vector_index(InMemoryVectorIndex())
         _using_postgres = False
         return {"mode": "memory"}
 
@@ -117,7 +122,8 @@ async def init_persistence(postgres_dsn: str | None) -> dict[str, Any]:
     configure_bpmn_persistence(_pool)
     configure_trace_store(PostgresTraceStore(_pool))
     configure_audit_store(PostgresAuditStore(_pool))
-    configure_voiceprint_store(PostgresVoiceprintStore(_pool))
+    configure_profile_store(PostgresProfileStore(_pool))
+    configure_vector_index(None)  # 生产走 Qdrant；未配置时 get_vector_index 回退内存
     _using_postgres = True
     logger.info("Postgres 持久化就绪（AsyncPostgresSaver + 会话索引）")
     return {"mode": "postgres", "dsn": _mask_dsn(dsn), "checkpointer": "async"}
@@ -139,7 +145,8 @@ async def close_persistence() -> None:
     configure_session_store(InMemorySessionStore())
     configure_trace_store(InMemoryTraceStore())
     configure_audit_store(InMemoryAuditStore())
-    configure_voiceprint_store(InMemoryVoiceprintStore())
+    configure_profile_store(InMemoryProfileStore())
+    configure_vector_index(InMemoryVectorIndex())
 
 
 def _mask_dsn(dsn: str) -> str:

@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,7 +18,7 @@ from contracts.runtime_bind import bind_settings, get_bound_settings
 class RuntimeSettings(BaseSettings):
     """未 bind 时的回退配置；路径类字段须由宿主 settings 或环境变量提供。"""
 
-    model_config = SettingsConfigDict(
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_file_encoding="utf-8",
         extra="ignore",
     )

@@ -130,6 +130,7 @@ async def health():
     from app.infrastructure.redis.client import probe_redis
     from app.infrastructure.vector.client import probe_qdrant
     from app.mcp.client import probe_platform_mcp
+    from app.services.voice.voiceprint import probe_voiceprint
 
     qdrant = probe_qdrant()
     redis_info = probe_redis()
@@ -155,6 +156,7 @@ async def health():
         "postgres_enabled": is_postgres_enabled(),
         "qdrant": qdrant,
         "redis": redis_info,
+        "voiceprint": probe_voiceprint(),
         "rag_top_k": settings.rag_top_k,
         # BPMN 灰度开关（本地联调 curl /health 可确认是否命中）
         "feature_flags": {
@@ -312,6 +314,14 @@ async def get_voiceprints():
     return await voiceprints_api.list_voiceprints()
 
 
+@app.get("/api/agent/voiceprints/config")
+async def get_voiceprint_config():
+    """声纹门禁配置（桌面与 Agent 共用 VOICEPRINT_ENABLED）。"""
+    from app.api import voiceprints as voiceprints_api
+
+    return await voiceprints_api.voiceprint_config()
+
+
 @app.post("/api/agent/voiceprints")
 async def post_voiceprint(body: VoiceprintCreateBody):
     """新建声纹用户。"""
@@ -341,11 +351,35 @@ async def post_voiceprint_enroll(
     profile_id: str,
     file: Annotated[UploadFile, File()],
     sample_rate: Annotated[int | None, Form()] = 16000,
+    device_hint: Annotated[str | None, Form()] = "",
+    env_hint: Annotated[str | None, Form()] = "",
 ):
-    """为指定用户录入一段声纹样本（PCM16/WAV）。"""
+    """为指定用户录入一段声纹样本（PCM16/WAV；需累计至最少段数才 enrolled）。"""
     from app.api import voiceprints as voiceprints_api
 
-    return await voiceprints_api.enroll_voiceprint(profile_id, file, sample_rate)
+    return await voiceprints_api.enroll_voiceprint(
+        profile_id,
+        file,
+        sample_rate,
+        device_hint,
+        env_hint,
+    )
+
+
+@app.get("/api/agent/voiceprints/{profile_id}/samples")
+async def get_voiceprint_samples(profile_id: str):
+    """列出用户已录入样本元数据。"""
+    from app.api import voiceprints as voiceprints_api
+
+    return await voiceprints_api.list_samples(profile_id)
+
+
+@app.delete("/api/agent/voiceprints/{profile_id}/samples/{sample_id}")
+async def remove_voiceprint_sample(profile_id: str, sample_id: str):
+    """删除单段声纹模板。"""
+    from app.api import voiceprints as voiceprints_api
+
+    return await voiceprints_api.delete_sample(profile_id, sample_id)
 
 
 @app.post("/api/agent/voiceprints/verify")
@@ -353,11 +387,25 @@ async def post_voiceprint_verify(
     profile_id: Annotated[str, Form()],
     file: Annotated[UploadFile, File()],
     sample_rate: Annotated[int | None, Form()] = 16000,
+    scene: Annotated[str | None, Form()] = "assistant_gate",
 ):
-    """核验当前说话人是否匹配所选声纹用户。"""
+    """1:1 核验当前说话人是否匹配所选声纹用户。"""
     from app.api import voiceprints as voiceprints_api
 
-    return await voiceprints_api.verify_voiceprint(profile_id, file, sample_rate)
+    return await voiceprints_api.verify_voiceprint(profile_id, file, sample_rate, scene)
+
+
+@app.post("/api/agent/voiceprints/identify")
+async def post_voiceprint_identify(
+    file: Annotated[UploadFile, File()],
+    sample_rate: Annotated[int | None, Form()] = 16000,
+    scene: Annotated[str | None, Form()] = "identify_open",
+    top_k: Annotated[int | None, Form()] = None,
+):
+    """1:N 识别说话人（库内 Top-K）。"""
+    from app.api import voiceprints as voiceprints_api
+
+    return await voiceprints_api.identify_voiceprint(file, sample_rate, scene, top_k)
 
 
 @app.post("/api/agent/chat")

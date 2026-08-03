@@ -16,8 +16,11 @@ import argparse
 import subprocess
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 TARGETS = ("platform_mcp", "tests")
+# 显式 --project，避免仓根 pyrightconfig.json（IDE 用）污染本服务 CLI 检查
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _run(cmd: Sequence[str]) -> int:
@@ -45,7 +48,7 @@ def cmd_lint(*, fix: bool = False) -> int:
 
 
 def cmd_typecheck() -> int:
-    return _run(_py_module("basedpyright"))
+    return _run(_py_module("basedpyright", "--project", str(_PROJECT_ROOT)))
 
 
 def cmd_fix() -> int:

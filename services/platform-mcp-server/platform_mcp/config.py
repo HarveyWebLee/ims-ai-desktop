@@ -1,6 +1,7 @@
 """Platform MCP Server 配置。"""
 
 from pathlib import Path
+from typing import ClassVar
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -24,7 +25,7 @@ def _env_files() -> tuple[str, ...]:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_file=_env_files() or None,
         env_file_encoding="utf-8",
         extra="ignore",

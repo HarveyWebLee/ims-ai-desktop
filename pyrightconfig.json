@@ -1,0 +1,32 @@
+{
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.14",
+  "reportMissingTypeStubs": false,
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.venv",
+    "**/apps",
+    "**/packages",
+    "**/deploy",
+    "**/docs",
+    "**/prj-docs",
+    "**/scripts"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "services/platform-agent-service",
+      "extraPaths": ["services/platform-contracts"],
+      "pythonVersion": "3.14"
+    },
+    {
+      "root": "services/platform-mcp-server",
+      "extraPaths": ["services/platform-contracts"],
+      "pythonVersion": "3.14"
+    },
+    {
+      "root": "services/platform-contracts",
+      "pythonVersion": "3.14"
+    }
+  ]
+}

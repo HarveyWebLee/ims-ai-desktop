@@ -39,6 +39,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from typing import Any
 
 # Header：从请求头读取参数；HTTPException：返回 401 等 HTTP 错误
 from fastapi import Header, HTTPException
@@ -81,7 +82,7 @@ async def get_current_user_id(
     return resolve_user_id_from_token(authorization)
 
 
-def decode_jwt_payload(token: str) -> dict:
+def decode_jwt_payload(token: str) -> dict[str, Any]:
     """
     解析 JWT 中间段 payload（Base64URL → JSON，**不验签**）。
 
@@ -109,7 +110,7 @@ def decode_jwt_payload(token: str) -> dict:
         segment += "=" * pad
     try:
         decoded = base64.urlsafe_b64decode(segment.encode("ascii"))
-        data = json.loads(decoded.decode("utf-8"))
+        data: Any = json.loads(decoded.decode("utf-8"))
         return data if isinstance(data, dict) else {}
     except ValueError, json.JSONDecodeError, UnicodeDecodeError:
         return {}

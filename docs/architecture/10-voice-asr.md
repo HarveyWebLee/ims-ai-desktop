@@ -127,7 +127,7 @@ display = join(segments[i].text for i in order) + partial.preview
 ## 7. 声纹门禁（解耦）
 
 - 未选 / 不匹配：不上行 PCM。
-- `VOICEPRINT_ENABLED` / 桌面 `VOICEPRINT_GATE_ENABLED` 控制门禁；与按段纠错无关。
+- 唯一开关：Agent `VOICEPRINT_ENABLED`；桌面启动时拉 `GET /api/agent/voiceprints/config` 同步 UI 门禁。
 - 生产级声纹（预处理 / ERes2Net-Large / Qdrant 多模板 / 1:1·1:N）见 [`11-voiceprint.md`](./11-voiceprint.md)。
 
 ## 8. 配置

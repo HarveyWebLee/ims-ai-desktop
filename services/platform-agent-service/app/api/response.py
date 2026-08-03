@@ -58,7 +58,7 @@ class AgentApiResponse[T](BaseModel):
     message: str
 
 
-def ok(data: Any = None, message: str = "ok") -> dict:
+def ok(data: Any = None, message: str = "ok") -> dict[str, Any]:
     """
     构造成功响应字典。
 
@@ -81,7 +81,7 @@ def ok(data: Any = None, message: str = "ok") -> dict:
     return {"code": 0, "data": data, "message": message}
 
 
-def fail(code: int, message: str, data: Any = None) -> dict:
+def fail(code: int, message: str, data: Any = None) -> dict[str, Any]:
     """
     构造失败响应字典。
 

@@ -9,11 +9,7 @@ import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
 import * as AgentController from "@/services/AgentController";
 import type { VoiceprintProfile } from "@/services/AgentController";
 import ModelSelector from "./ModelSelector";
-import VoiceInput, {
-  VOICEPRINT_GATE_ENABLED,
-  type VoiceCorrectionMeta,
-  type VoiceSegment,
-} from "./VoiceInput";
+import VoiceInput, { type VoiceCorrectionMeta, type VoiceSegment } from "./VoiceInput";
 import { useAiAssistantStore } from "./store";
 import styles from "./index.module.less";
 
@@ -53,6 +49,8 @@ export default function MessageInput({
     isStreaming,
     selectedVoiceprintId,
     setSelectedVoiceprintId,
+    voiceprintEnabled,
+    setVoiceprintEnabled,
     voiceCorrectionHighlightEnabled,
   } = useAiAssistantStore();
   const disabled = inputDisabled || isStreaming;
@@ -82,9 +80,23 @@ export default function MessageInput({
   }, [setSelectedVoiceprintId]);
 
   useEffect(() => {
-    if (!VOICEPRINT_GATE_ENABLED) return;
-    void refreshVoiceprints();
-  }, [refreshVoiceprints]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const cfg = await AgentController.getVoiceprintConfig();
+        if (cancelled) return;
+        setVoiceprintEnabled(Boolean(cfg.enabled));
+        if (cfg.enabled) {
+          await refreshVoiceprints();
+        }
+      } catch {
+        if (!cancelled) setVoiceprintEnabled(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshVoiceprints, setVoiceprintEnabled]);
 
   const clearVoiceAnnotations = useCallback(() => {
     setVoiceSegments([]);
@@ -149,7 +161,7 @@ export default function MessageInput({
 
   const enrolledOptions = voiceprints.map((v) => ({
     value: v.id,
-    label: `${v.display_name}${v.needs_reenroll ? "（需重录）" : v.enrolled ? "" : "（未录入）"}`,
+    label: `${v.display_name}${v.enrolled ? "" : "（未录入）"}`,
     disabled: !v.enrolled,
   }));
 
@@ -222,7 +234,7 @@ export default function MessageInput({
             </div>
             <div className={styles.inputActionsRight}>
               <div className={styles.voiceControlGroup}>
-                {VOICEPRINT_GATE_ENABLED ? (
+                {voiceprintEnabled ? (
                   <Tooltip
                     title={
                       voiceBusy
@@ -275,7 +287,7 @@ export default function MessageInput({
         <p className={styles.inputHint}>
           {hasCorrectionMarks
             ? intl.formatMessage({ id: "aiAssistant.voice.correctionHighlightHint" })
-            : !VOICEPRINT_GATE_ENABLED || selectedVoiceprintId
+            : !voiceprintEnabled || selectedVoiceprintId
               ? intl.formatMessage({ id: "aiAssistant.inputShortcutHint" })
               : intl.formatMessage({
                   id: "aiAssistant.voiceprint.selectRequiredHint",

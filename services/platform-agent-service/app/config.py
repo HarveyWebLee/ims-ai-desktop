@@ -31,6 +31,7 @@ Pydantic 的 BaseSettings 会自动：
 """
 
 from pathlib import Path
+from typing import ClassVar
 
 # pydantic_settings：Pydantic v2 里专门读环境变量的模块
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -63,7 +64,7 @@ class Settings(BaseSettings):
     model_config 是 Pydantic v2 的写法，等价于旧版 class Config。
     """
 
-    model_config = SettingsConfigDict(
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_file=_env_files() or None,
         env_file_encoding="utf-8",
         extra="ignore",  # .env 里有多余字段时不报错
@@ -134,15 +135,28 @@ class Settings(BaseSettings):
     transcribe_correct_max_tokens: int = 48
     # Redis 纠错映射 TTL（秒）
     transcribe_correct_cache_ttl_seconds: int = 30 * 24 * 3600
-    # 声纹门禁：语音输入前须选择已录入用户，并比对通过后才接受 ASR
-    # 嵌入后端为 FunASR ERes2NetV2（192 维）；换 model_id 后须重新录入
-    # 临时默认关闭声纹门禁；与桌面端 VOICEPRINT_GATE_ENABLED 对齐后再开启
+    # 声纹（生产级：ERes2Net-Large 512 + Qdrant 多模板；见 docs/architecture/11-voiceprint.md）
+    # 唯一门禁开关：桌面经 /api/agent/voiceprints/config 同步，无需单独 GATE 常量
     voiceprint_enabled: bool = False
-    # ERes2Net 余弦常见同人 0.5~0.9、异人更低；门禁开启后建议 ≥0.65
-    voiceprint_match_threshold: float = 0.65
-    voiceprint_model_id: str = "iic/speech_eres2netv2_sv_zh-cn_16k-common"
+    voiceprint_model_id: str = "iic/speech_eres2net_large_sv_zh-cn_3dspeaker_16k"
+    voiceprint_embedding_dim: int = 512
     # 空=自动（有 CUDA 用 cuda，否则 cpu）
     voiceprint_device: str = ""
+    voiceprint_enroll_min_samples: int = 3
+    voiceprint_enroll_max_samples: int = 5
+    voiceprint_enroll_min_speech_ms: int = 8000
+    voiceprint_verify_min_speech_ms: int = 2000
+    voiceprint_qdrant_collection: str = "agent_voiceprints"
+    voiceprint_search_top_k: int = 20
+    voiceprint_score_agg: str = "max"
+    voiceprint_threshold_assistant_gate: float = 0.83
+    voiceprint_threshold_meeting: float = 0.87
+    voiceprint_threshold_identify: float = 0.80
+    voiceprint_calibration_path: str = ""
+    voiceprint_redis_ttl_sec: int = 3600
+    voiceprint_vad_enabled: bool = True
+    # DeepFilterNet 需额外环境；与主依赖 numpy 冲突时保持 false（惰性加载，缺包则跳过）
+    voiceprint_denoise_enabled: bool = False
     # 流式分片并行：线程池大小 / 会话 TTL / finish 等待上限
     transcribe_stream_enabled: bool = True
     transcribe_pipeline_workers: int = 4

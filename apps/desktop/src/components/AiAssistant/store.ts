@@ -68,6 +68,10 @@ export interface AiAssistantState {
   selectedModelId: AgentModelId;
   /** 当前选中的声纹用户 ID（语音输入必选） */
   selectedVoiceprintId: string | null;
+  /**
+   * 声纹门禁是否开启（与 Agent VOICEPRINT_ENABLED 同步，运行时拉取，不持久化）
+   */
+  voiceprintEnabled: boolean;
   /** 是否在输入框用下划线标注纠错段并悬停显示原文 */
   voiceCorrectionHighlightEnabled: boolean;
   pendingInterrupt: HitlPayload | null;
@@ -78,6 +82,7 @@ export interface AiAssistantState {
   toggleSidebar: () => void;
   setSelectedModelId: (id: AgentModelId) => void;
   setSelectedVoiceprintId: (id: string | null) => void;
+  setVoiceprintEnabled: (enabled: boolean) => void;
   setVoiceCorrectionHighlightEnabled: (enabled: boolean) => void;
   createNewSession: () => string;
   switchSession: (threadId: string) => void;
@@ -190,6 +195,7 @@ export const useAiAssistantStore = create<AiAssistantState>()(
       isLoadingHistory: false,
       selectedModelId: DEFAULT_AGENT_MODEL_ID as AgentModelId,
       selectedVoiceprintId: null,
+      voiceprintEnabled: false,
       voiceCorrectionHighlightEnabled: false,
       pendingInterrupt: null,
       alarmDetailRecord: null,
@@ -200,6 +206,7 @@ export const useAiAssistantStore = create<AiAssistantState>()(
 
       setSelectedModelId: (id) => set({ selectedModelId: id }),
       setSelectedVoiceprintId: (id) => set({ selectedVoiceprintId: id }),
+      setVoiceprintEnabled: (enabled) => set({ voiceprintEnabled: enabled }),
       setVoiceCorrectionHighlightEnabled: (enabled) =>
         set({ voiceCorrectionHighlightEnabled: enabled }),
 

@@ -1,8 +1,21 @@
 /**
- * 声纹库管理面板（配置页）
+ * 声纹库管理面板：多段录入向导（≥3 段 enrolled）
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, Empty, Form, Input, Modal, Popconfirm, Space, Table, Tag, Tooltip } from "antd";
+import {
+  Button,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
+  Progress,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+} from "antd";
 import { AudioOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useIntl } from "react-intl";
 import { message } from "@/antd/feedback";
@@ -10,8 +23,10 @@ import * as AgentController from "@/services/AgentController";
 import type { VoiceprintProfile } from "@/services/AgentController";
 
 const TARGET_SR = 16000;
-/** 单次录入时长：略长有利于 ERes2Net 嵌入更稳（过长则体验变差） */
-const ENROLL_MS = 4500;
+/** 单段录入时长：服务端要求有效语音约 ≥8s */
+const ENROLL_MS = 10000;
+const ENROLL_MIN_DEFAULT = 3;
+const ENROLL_MAX_DEFAULT = 5;
 
 function floatTo16BitPCM(input: Float32Array, inputSampleRate: number): Int16Array {
   if (inputSampleRate === TARGET_SR) {
@@ -34,11 +49,13 @@ function floatTo16BitPCM(input: Float32Array, inputSampleRate: number): Int16Arr
 }
 
 async function recordPcmBlob(durationMs: number): Promise<Blob> {
+  // 关闭浏览器 NS，避免与服务端 DeepFilterNet 双重降噪损伤音色
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       channelCount: 1,
       echoCancellation: true,
-      noiseSuppression: true,
+      noiseSuppression: false,
+      autoGainControl: true,
     },
   });
   const AudioCtx =
@@ -78,6 +95,10 @@ export default function VoiceprintManagerPanel({ onChanged }: { onChanged?: () =
   const [items, setItems] = useState<VoiceprintProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
+  const [enrollOpen, setEnrollOpen] = useState(false);
+  const [enrollTarget, setEnrollTarget] = useState<VoiceprintProfile | null>(null);
+  const [deviceHint, setDeviceHint] = useState<string>("laptop");
+  const [envHint, setEnvHint] = useState<string>("office");
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<VoiceprintProfile | null>(null);
   const [form] = Form.useForm<{ display_name: string; description?: string }>();
@@ -164,20 +185,55 @@ export default function VoiceprintManagerPanel({ onChanged }: { onChanged?: () =
     }
   };
 
-  const enroll = async (row: VoiceprintProfile) => {
-    if (busyRef.current) return;
+  const openEnroll = (row: VoiceprintProfile) => {
+    setEnrollTarget(row);
+    setDeviceHint("laptop");
+    setEnvHint("office");
+    setEnrollOpen(true);
+  };
+
+  const enrollOne = async () => {
+    if (!enrollTarget || busyRef.current) return;
+    const max = ENROLL_MAX_DEFAULT;
+    if (enrollTarget.sample_count >= max) {
+      message.warning(
+        intl.formatMessage({ id: "aiAssistant.voiceprint.enrollMaxReached" }, { max }),
+      );
+      return;
+    }
     busyRef.current = true;
-    setEnrollingId(row.id);
-    const hide = message.loading(intl.formatMessage({ id: "aiAssistant.voiceprint.enrolling" }), 0);
+    setEnrollingId(enrollTarget.id);
+    const next = enrollTarget.sample_count + 1;
+    const min = enrollTarget.enroll_min ?? ENROLL_MIN_DEFAULT;
+    const hide = message.loading(
+      intl.formatMessage(
+        { id: "aiAssistant.voiceprint.enrollingProgress" },
+        { current: next, min, seconds: Math.round(ENROLL_MS / 1000) },
+      ),
+      0,
+    );
     try {
       const blob = await recordPcmBlob(ENROLL_MS);
-      await AgentController.enrollVoiceprint(row.id, blob, {
+      const updated = await AgentController.enrollVoiceprint(enrollTarget.id, blob, {
         sampleRate: TARGET_SR,
+        deviceHint,
+        envHint,
       });
       hide();
-      message.success(intl.formatMessage({ id: "aiAssistant.voiceprint.enrollOk" }));
+      setEnrollTarget(updated);
+      message.success(
+        updated.enrolled
+          ? intl.formatMessage({ id: "aiAssistant.voiceprint.enrollOk" })
+          : intl.formatMessage(
+              { id: "aiAssistant.voiceprint.enrollPartial" },
+              { count: updated.sample_count, min: updated.enroll_min ?? min },
+            ),
+      );
       await refresh();
       notifyChanged();
+      if (updated.enrolled && updated.sample_count >= max) {
+        setEnrollOpen(false);
+      }
     } catch (err) {
       hide();
       message.error(
@@ -235,15 +291,9 @@ export default function VoiceprintManagerPanel({ onChanged }: { onChanged?: () =
             title: intl.formatMessage({
               id: "aiAssistant.voiceprint.status",
             }),
-            width: 120,
+            width: 140,
             render: (_, row) =>
-              row.needs_reenroll ? (
-                <Tag color="warning">
-                  {intl.formatMessage({
-                    id: "aiAssistant.voiceprint.needsReenroll",
-                  })}
-                </Tag>
-              ) : row.enrolled ? (
+              row.enrolled ? (
                 <Tag color="success">
                   {intl.formatMessage(
                     { id: "aiAssistant.voiceprint.enrolled" },
@@ -252,9 +302,13 @@ export default function VoiceprintManagerPanel({ onChanged }: { onChanged?: () =
                 </Tag>
               ) : (
                 <Tag>
-                  {intl.formatMessage({
-                    id: "aiAssistant.voiceprint.notEnrolled",
-                  })}
+                  {intl.formatMessage(
+                    { id: "aiAssistant.voiceprint.enrollProgress" },
+                    {
+                      count: row.sample_count,
+                      min: row.enroll_min ?? ENROLL_MIN_DEFAULT,
+                    },
+                  )}
                 </Tag>
               ),
           },
@@ -274,7 +328,7 @@ export default function VoiceprintManagerPanel({ onChanged }: { onChanged?: () =
                     size="small"
                     icon={<AudioOutlined />}
                     loading={enrollingId === row.id}
-                    onClick={() => void enroll(row)}
+                    onClick={() => openEnroll(row)}
                   />
                 </Tooltip>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)} />
@@ -316,6 +370,99 @@ export default function VoiceprintManagerPanel({ onChanged }: { onChanged?: () =
             <Input.TextArea maxLength={200} rows={2} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        open={enrollOpen}
+        title={intl.formatMessage(
+          { id: "aiAssistant.voiceprint.enrollWizardTitle" },
+          { name: enrollTarget?.display_name ?? "" },
+        )}
+        onCancel={() => setEnrollOpen(false)}
+        footer={null}
+        destroyOnHidden
+      >
+        {enrollTarget ? (
+          <Space direction="vertical" style={{ width: "100%" }} size="middle">
+            <Progress
+              percent={Math.min(
+                100,
+                Math.round(
+                  (enrollTarget.sample_count / (enrollTarget.enroll_min ?? ENROLL_MIN_DEFAULT)) *
+                    100,
+                ),
+              )}
+              format={() =>
+                `${enrollTarget.sample_count} / ${enrollTarget.enroll_min ?? ENROLL_MIN_DEFAULT}`
+              }
+            />
+            <div>{intl.formatMessage({ id: "aiAssistant.voiceprint.enrollWizardHint" })}</div>
+            <Form layout="vertical">
+              <Form.Item label={intl.formatMessage({ id: "aiAssistant.voiceprint.deviceHint" })}>
+                <Select
+                  value={deviceHint}
+                  onChange={setDeviceHint}
+                  options={[
+                    {
+                      value: "headset",
+                      label: intl.formatMessage({ id: "aiAssistant.voiceprint.device.headset" }),
+                    },
+                    {
+                      value: "laptop",
+                      label: intl.formatMessage({ id: "aiAssistant.voiceprint.device.laptop" }),
+                    },
+                    {
+                      value: "phone",
+                      label: intl.formatMessage({ id: "aiAssistant.voiceprint.device.phone" }),
+                    },
+                    {
+                      value: "meeting",
+                      label: intl.formatMessage({ id: "aiAssistant.voiceprint.device.meeting" }),
+                    },
+                    {
+                      value: "other",
+                      label: intl.formatMessage({ id: "aiAssistant.voiceprint.device.other" }),
+                    },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item label={intl.formatMessage({ id: "aiAssistant.voiceprint.envHint" })}>
+                <Select
+                  value={envHint}
+                  onChange={setEnvHint}
+                  options={[
+                    {
+                      value: "office",
+                      label: intl.formatMessage({ id: "aiAssistant.voiceprint.env.office" }),
+                    },
+                    {
+                      value: "home",
+                      label: intl.formatMessage({ id: "aiAssistant.voiceprint.env.home" }),
+                    },
+                    {
+                      value: "outdoor",
+                      label: intl.formatMessage({ id: "aiAssistant.voiceprint.env.outdoor" }),
+                    },
+                    {
+                      value: "other",
+                      label: intl.formatMessage({ id: "aiAssistant.voiceprint.env.other" }),
+                    },
+                  ]}
+                />
+              </Form.Item>
+            </Form>
+            <Button
+              type="primary"
+              icon={<AudioOutlined />}
+              loading={enrollingId === enrollTarget.id}
+              disabled={enrollTarget.sample_count >= ENROLL_MAX_DEFAULT}
+              onClick={() => void enrollOne()}
+              block
+            >
+              {intl.formatMessage({ id: "aiAssistant.voiceprint.enrollRecordNext" })}
+            </Button>
+          </Space>
+        ) : null}
       </Modal>
     </>
   );
