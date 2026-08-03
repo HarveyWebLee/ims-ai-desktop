@@ -1,9 +1,12 @@
-"""Realtime ASR 跨 VAD 句累加逻辑。"""
+"""Realtime ASR 按段协议辅助函数。"""
 
 from app.services.voice.realtime_bridge import (
-    _display_transcript,
+    _committed_text,
     _join_asr_parts,
     _preview_text,
+    _prior_context,
+    _segment_payload,
+    _segments_snapshot,
 )
 
 
@@ -19,15 +22,62 @@ def test_join_asr_parts_no_space() -> None:
     assert _join_asr_parts("已有", "", "后续") == "已有后续"
 
 
-def test_display_transcript_accumulates_turns() -> None:
-    committed = ["查询近三天的", "门禁记录"]
-    assert _display_transcript(committed) == "查询近三天的门禁记录"
-    assert _display_transcript(committed, "并导出") == "查询近三天的门禁记录并导出"
+def test_committed_text_uses_corrected_segment_text() -> None:
+    segments = [
+        {"seq": 0, "text": "打开冷冻水泵"},
+        {"seq": 1, "text": "并导出"},
+    ]
+    assert _committed_text(segments) == "打开冷冻水泵并导出"
 
 
-def test_new_turn_preview_does_not_drop_committed() -> None:
-    """模拟：第一句 completed 后，第二句 partial 从空开始。"""
-    committed = ["打开设备管理"]
-    # 新 item 的 text+stash 只有后半句
-    preview = _preview_text({"text": "", "stash": "页面"})
-    assert _display_transcript(committed, preview) == "打开设备管理页面"
+def test_prior_context_excludes_current_seq() -> None:
+    segments = [
+        {"seq": 0, "text": "打开设备"},
+        {"seq": 1, "text": "管理页面"},
+        {"seq": 2, "text": "查询报警"},
+    ]
+    assert _prior_context(segments, 2) == "打开设备管理页面"
+    assert _prior_context(segments, 0) == ""
+
+
+def test_segment_payload_and_snapshot() -> None:
+    pending = _segment_payload(
+        seq=0,
+        raw="冷动水泵",
+        text="冷动水泵",
+        status="pending",
+    )
+    assert pending["type"] == "segment"
+    assert pending["status"] == "pending"
+    assert "stage" not in pending
+
+    done = _segment_payload(
+        seq=0,
+        raw="冷动水泵",
+        text="冷冻水泵",
+        status="done",
+        changed=True,
+        stage="dictionary",
+    )
+    snap = _segments_snapshot(
+        [
+            {
+                "seq": 0,
+                "raw": done["raw"],
+                "text": done["text"],
+                "stage": done["stage"],
+                "changed": True,
+                "status": "done",
+            }
+        ]
+    )
+    assert snap == [
+        {
+            "seq": 0,
+            "raw": "冷动水泵",
+            "text": "冷冻水泵",
+            "stage": "dictionary",
+            "changed": True,
+            "status": "done",
+        }
+    ]

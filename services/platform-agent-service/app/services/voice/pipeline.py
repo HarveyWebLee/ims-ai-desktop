@@ -2,6 +2,7 @@
 Multi-stage Correction：Rule → Cache → Dictionary → Vector → LLM。
 
 低成本层优先退出；Dictionary / Vector / LLM 成功后写入 Redis Cache。
+标点中英形态与句末语气由 LLM Prompt 约束；规则层不强制改标点。
 """
 
 from __future__ import annotations
@@ -20,9 +21,13 @@ from app.services.voice.types import CorrectResult
 logger = logging.getLogger(__name__)
 
 
-def multi_stage_correct(raw_text: str) -> CorrectResult:
+def multi_stage_correct(raw_text: str, *, context: str = "") -> CorrectResult:
     """
     对 ASR 原文做多级纠错。
+
+    参数:
+        raw_text: 本段 ASR 原文（纠错与映射都以本段为准）
+        context: 前序已定稿段拼接，仅用于检索 / LLM 参考，不改变输出粒度
 
     返回:
         CorrectResult（含最终文本与停留阶段）
@@ -77,7 +82,7 @@ def multi_stage_correct(raw_text: str) -> CorrectResult:
 
     # Stage 4 Semantic (Vector)
     if settings.transcribe_rag_enabled:
-        semantic_out = apply_semantic_correction(text)
+        semantic_out = apply_semantic_correction(text, context=context)
         if semantic_out and semantic_out != text:
             cache_set(text, semantic_out)
             cache_set(original, semantic_out)
@@ -93,7 +98,7 @@ def multi_stage_correct(raw_text: str) -> CorrectResult:
             )
 
         # Stage 5 LLM（仅必要时）
-        llm_out = apply_llm_correction(text)
+        llm_out = apply_llm_correction(text, reference_hint=context)
         if llm_out and llm_out != text:
             cache_set(text, llm_out)
             cache_set(original, llm_out)

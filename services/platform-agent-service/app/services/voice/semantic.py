@@ -151,11 +151,12 @@ def _sort_entity_terms(terms: list[str]) -> list[str]:
     return sorted(terms, key=_key)
 
 
-def apply_semantic_correction(text: str) -> str | None:
+def apply_semantic_correction(text: str, *, context: str = "") -> str | None:
     """
     向量检索后做近错替换；无法确定时返回 None（交给 LLM）。
 
     检索顺序：实体集合优先，再知识库。
+    context 仅拼进检索 query，替换仍只作用于本段 text。
     """
     raw = (text or "").strip()
     if not raw or not (settings.qdrant_url or "").strip():
@@ -167,9 +168,10 @@ def apply_semantic_correction(text: str) -> str | None:
 
         top_k = max(1, int(settings.transcribe_rag_top_k))
         threshold = float(settings.transcribe_correct_min_score)
+        query = f"{(context or '').strip()} {raw}".strip()
 
         entity_blocks = retrieve_entity_blocks(
-            raw,
+            query,
             top_k=top_k,
             score_threshold=threshold,
         )
@@ -178,7 +180,7 @@ def apply_semantic_correction(text: str) -> str | None:
             return entity_hit
 
         kb_blocks = retrieve_knowledge_blocks(
-            raw,
+            query,
             top_k=top_k,
             score_threshold=threshold,
         )

@@ -135,15 +135,14 @@ class Settings(BaseSettings):
     # Redis 纠错映射 TTL（秒）
     transcribe_correct_cache_ttl_seconds: int = 30 * 24 * 3600
     # 声纹门禁：语音输入前须选择已录入用户，并比对通过后才接受 ASR
-    # 嵌入后端为 SpeechBrain ECAPA-TDNN（192 维）；换算法后须重新录入
-    voiceprint_enabled: bool = True
-    # ECAPA 短窗余弦常见 0.25~0.6；默认 0.25，可按现场 FAR/FRR 微调
-    voiceprint_match_threshold: float = 0.25
-    voiceprint_ecapa_source: str = "speechbrain/spkrec-ecapa-voxceleb"
-    # 空=落到 agent_data_dir/pretrained/spkrec-ecapa-voxceleb
-    voiceprint_ecapa_savedir: str = ""
+    # 嵌入后端为 FunASR ERes2NetV2（192 维）；换 model_id 后须重新录入
+    # 临时默认关闭声纹门禁；与桌面端 VOICEPRINT_GATE_ENABLED 对齐后再开启
+    voiceprint_enabled: bool = False
+    # ERes2Net 余弦常见同人 0.5~0.9、异人更低；门禁开启后建议 ≥0.65
+    voiceprint_match_threshold: float = 0.65
+    voiceprint_model_id: str = "iic/speech_eres2netv2_sv_zh-cn_16k-common"
     # 空=自动（有 CUDA 用 cuda，否则 cpu）
-    voiceprint_ecapa_device: str = ""
+    voiceprint_device: str = ""
     # 流式分片并行：线程池大小 / 会话 TTL / finish 等待上限
     transcribe_stream_enabled: bool = True
     transcribe_pipeline_workers: int = 4

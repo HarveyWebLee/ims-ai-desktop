@@ -38,12 +38,18 @@ export default {
   settings: {
     title: "Settings",
     shortTitle: "Settings",
-    subtitle: "Vectors · Audit · Voiceprints",
-    openTip: "Vector sync, audit log, and voiceprint management",
+    subtitle: "Vectors · Audit · Voice · Voiceprints",
+    openTip: "Vector sync, audit log, voice prefs, and voiceprint management",
     back: "Back to chat",
     tabSync: "Vector sync",
     tabAudit: "Audit log",
+    tabVoice: "Voice",
     tabVoiceprint: "Voiceprints",
+    voiceCorrectionHighlight: "Highlight corrections",
+    voiceCorrectionHighlightDesc:
+      "When on, corrected spans in the input are underlined; hover shows the original ASR text. When off, plain text only.",
+    voiceCorrectionOn: "On",
+    voiceCorrectionOff: "Off",
   },
   send: "Send",
   noSessions: "No session history",
@@ -323,8 +329,9 @@ export default {
     emptyResult: "No speech detected",
     maxDuration: "Maximum recording length reached. Transcribing…",
     idleTimeout: "No speech for 10s — stopped and correcting",
-    correctionChanged: "ASR: {raw} → {text} ({stage})",
-    correctionUnchanged: "ASR unchanged ({stage})",
+    correctionHoverRaw: "Before: {raw}",
+    correctionHighlightHint:
+      "Underlined text was corrected — hover for original; click empty area to edit",
     stage: {
       semantic: "vector",
       dictionary: "dictionary",
@@ -337,7 +344,8 @@ export default {
   voiceprint: {
     title: "Voiceprint library",
     manage: "Voiceprints",
-    manageTip: "Manage voiceprint users: enroll / edit / delete",
+    manageTip:
+      "Manage voiceprint users: enroll / edit / delete (ERes2Net; re-enroll after model changes)",
     add: "Add user",
     addTitle: "Create voiceprint user",
     editTitle: "Edit voiceprint user",
@@ -349,6 +357,7 @@ export default {
     empty: "No voiceprint users yet. Create one and enroll.",
     enrolled: "Enrolled ({count})",
     notEnrolled: "Not enrolled",
+    needsReenroll: "Re-enroll required",
     enrollTip: "Record about 4.5s of continuous speech for enrollment",
     enrolling: "Enrolling — please speak continuously for about 4.5s…",
     enrollOk: "Voiceprint enrolled",

@@ -1,10 +1,10 @@
 """
 Realtime ASR WebSocket 桥接：浏览器 ↔ Agent ↔ DashScope qwen3-asr-flash-realtime。
 
-- 录音中：转发 PCM，并把 transcription.text（text+stash）以 partial 推给前端
-- Server VAD 会按静音切成多个 conversation item；每项的 text/stash/completed
-  只覆盖「当前句」。必须把已完成句累加后再拼当前预览，否则后句会盖掉前句。
-- 停止后：session.finish → 取全文 transcript → multi_stage_correct → final
+按段协议（见 docs/architecture/10-voice-asr.md）：
+- 录音中：转发 PCM；partial 仅推当前未落定句预览
+- VAD 落定一句 → segment(pending) → 异步 multi_stage_correct → segment(done)
+- 停录后：等待 in-flight 段纠错，汇总 final；不再对全文二次纠错
 """
 
 from __future__ import annotations
@@ -43,9 +43,57 @@ def _join_asr_parts(*parts: str) -> str:
     return "".join(out)
 
 
-def _display_transcript(committed: list[str], current_preview: str = "") -> str:
-    """已落定各句 + 当前句预览 → 输入框应展示的全文。"""
-    return _join_asr_parts(*committed, current_preview)
+def _segment_payload(
+    *,
+    seq: int,
+    raw: str,
+    text: str,
+    status: str,
+    changed: bool = False,
+    stage: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "type": "segment",
+        "seq": seq,
+        "raw": raw,
+        "text": text,
+        "status": status,
+        "changed": changed,
+    }
+    if stage is not None:
+        payload["stage"] = stage
+    return payload
+
+
+def _segments_snapshot(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """按 seq 输出可序列化段列表。"""
+    ordered = sorted(segments, key=lambda s: int(s["seq"]))
+    return [
+        {
+            "seq": int(s["seq"]),
+            "raw": str(s.get("raw") or ""),
+            "text": str(s.get("text") or ""),
+            "stage": s.get("stage"),
+            "changed": bool(s.get("changed")),
+            "status": str(s.get("status") or "done"),
+        }
+        for s in ordered
+    ]
+
+
+def _committed_text(segments: list[dict[str, Any]]) -> str:
+    ordered = sorted(segments, key=lambda s: int(s["seq"]))
+    return _join_asr_parts(*(str(s.get("text") or "") for s in ordered))
+
+
+def _prior_context(segments: list[dict[str, Any]], seq: int) -> str:
+    """本段之前已完成（或已有 text）段的拼接，供检索/LLM 上下文。"""
+    prior = [
+        str(s.get("text") or "")
+        for s in sorted(segments, key=lambda x: int(x["seq"]))
+        if int(s["seq"]) < seq and str(s.get("text") or "").strip()
+    ]
+    return _join_asr_parts(*prior)
 
 
 async def handle_realtime_transcribe(websocket: WebSocket) -> None:
@@ -54,9 +102,9 @@ async def handle_realtime_transcribe(websocket: WebSocket) -> None:
       ← {type: ready}
       → {type: audio, data: base64_pcm16}
       → {type: stop}
-      ← {type: partial, text}   # 全文（已确认句 + 当前预览）
-      ← {type: completed, text} # 全文（新一句落定后）
-      ← {type: final, text, stage}
+      ← {type: partial, preview}
+      ← {type: segment, seq, raw, text, status, changed, stage?}
+      ← {type: final, text, segments}
       ← {type: error, message}
     """
     await websocket.accept()
@@ -80,13 +128,90 @@ async def handle_realtime_transcribe(websocket: WebSocket) -> None:
     import websockets
     from websockets.exceptions import ConnectionClosed
 
-    # VAD 多句：committed 存各 item 的 completed；current_preview 为当前 item 的 text+stash
-    committed: list[str] = []
+    segments: list[dict[str, Any]] = []
+    correct_tasks: dict[int, asyncio.Task[None]] = {}
     current_preview = ""
-    last_partial = ""
-    final_transcript = ""
     stop_requested = asyncio.Event()
     upstream_done = asyncio.Event()
+    send_lock = asyncio.Lock()
+
+    async def _safe_send(payload: dict[str, Any]) -> None:
+        async with send_lock:
+            try:
+                await websocket.send_json(payload)
+            except Exception:  # noqa: BLE001
+                logger.debug("realtime send failed type=%s", payload.get("type"))
+
+    async def _run_segment_correct(seq: int, raw: str) -> None:
+        context = _prior_context(segments, seq)
+        try:
+            from app.services.voice.pipeline import multi_stage_correct
+
+            corrected = await asyncio.to_thread(
+                multi_stage_correct,
+                raw,
+                context=context,
+            )
+            text = corrected.text
+            stage = corrected.stage
+            changed = corrected.changed
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("realtime segment correct failed seq=%s: %s", seq, exc)
+            text = raw
+            stage = "passthrough"
+            changed = False
+
+        for item in segments:
+            if int(item["seq"]) == seq:
+                item["text"] = text
+                item["stage"] = stage
+                item["changed"] = changed
+                item["status"] = "done"
+                break
+
+        await _safe_send(
+            _segment_payload(
+                seq=seq,
+                raw=raw,
+                text=text,
+                status="done",
+                changed=changed,
+                stage=stage,
+            )
+        )
+
+    def _schedule_correct(seq: int, raw: str) -> None:
+        task = asyncio.create_task(_run_segment_correct(seq, raw))
+        correct_tasks[seq] = task
+
+        def _cleanup(done: asyncio.Task[None], done_seq: int = seq) -> None:
+            correct_tasks.pop(done_seq, None)
+            _ = done.exception() if done.done() and not done.cancelled() else None
+
+        task.add_done_callback(_cleanup)
+
+    async def _append_segment(raw: str) -> int:
+        seq = len(segments)
+        item = {
+            "seq": seq,
+            "raw": raw,
+            "text": raw,
+            "stage": None,
+            "changed": False,
+            "status": "pending",
+        }
+        segments.append(item)
+        await _safe_send(
+            _segment_payload(
+                seq=seq,
+                raw=raw,
+                text=raw,
+                status="pending",
+                changed=False,
+            )
+        )
+        _schedule_correct(seq, raw)
+        return seq
 
     try:
         async with websockets.connect(
@@ -109,22 +234,21 @@ async def handle_realtime_transcribe(websocket: WebSocket) -> None:
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": 0.0,
-                        # 略放宽，减少一句中间短停顿被切成新 item（仍靠累加兜底）
                         "silence_duration_ms": 800,
                     },
                 },
             }
             await upstream.send(json.dumps(session_update, ensure_ascii=False))
-            await websocket.send_json({"type": "ready", "model": model})
+            await _safe_send({"type": "ready", "model": model})
 
             async def pump_upstream() -> None:
-                nonlocal last_partial, final_transcript, current_preview
+                nonlocal current_preview
                 try:
-                    async for raw in upstream:
-                        if isinstance(raw, bytes):
+                    async for raw_msg in upstream:
+                        if isinstance(raw_msg, bytes):
                             continue
                         try:
-                            data = json.loads(raw)
+                            data = json.loads(raw_msg)
                         except json.JSONDecodeError:
                             continue
                         etype = data.get("type")
@@ -133,25 +257,18 @@ async def handle_realtime_transcribe(websocket: WebSocket) -> None:
                             if not preview:
                                 continue
                             current_preview = preview
-                            display = _display_transcript(committed, current_preview)
-                            last_partial = display
-                            await websocket.send_json({"type": "partial", "text": display})
+                            await _safe_send({"type": "partial", "preview": preview})
                         elif etype == "conversation.item.input_audio_transcription.completed":
                             transcript = str(data.get("transcript") or "").strip()
-                            if transcript:
-                                committed.append(transcript)
                             current_preview = ""
-                            display = _display_transcript(committed)
-                            if display:
-                                final_transcript = display
-                                last_partial = display
-                                await websocket.send_json({"type": "completed", "text": display})
+                            if transcript:
+                                await _append_segment(transcript)
+                            else:
+                                await _safe_send({"type": "partial", "preview": ""})
                         elif etype == "error":
                             err = data.get("error") or {}
                             msg = err.get("message") if isinstance(err, dict) else str(data)
-                            await websocket.send_json(
-                                {"type": "error", "message": msg or "上游 ASR 错误"}
-                            )
+                            await _safe_send({"type": "error", "message": msg or "上游 ASR 错误"})
                         elif etype == "session.finished":
                             break
                 except ConnectionClosed:
@@ -210,7 +327,6 @@ async def handle_realtime_transcribe(websocket: WebSocket) -> None:
 
             await asyncio.gather(pump_upstream(), pump_client())
 
-            # 等待上游收尾（最多数秒）
             try:
                 await asyncio.wait_for(upstream_done.wait(), timeout=8.0)
             except TimeoutError:
@@ -228,39 +344,44 @@ async def handle_realtime_transcribe(websocket: WebSocket) -> None:
             pass
         return
 
-    # 停在半句时可能尚无 completed：优先用含当前预览的 last_partial
-    raw = (last_partial or final_transcript or "").strip()
-    if len(final_transcript) > len(raw):
-        raw = final_transcript
-    if not raw:
-        await websocket.send_json({"type": "final", "text": "", "stage": "empty"})
-        await websocket.close()
-        return
+    # 停在半句：把当前预览升为最后一段并纠错
+    leftover = (current_preview or "").strip()
+    if leftover:
+        await _append_segment(leftover)
+        current_preview = ""
 
-    try:
-        from app.services.voice.pipeline import multi_stage_correct
+    if correct_tasks:
+        wait_timeout = max(3.0, float(settings.transcribe_correct_timeout_seconds) + 4.0)
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*correct_tasks.values(), return_exceptions=True),
+                timeout=wait_timeout,
+            )
+        except TimeoutError:
+            logger.warning("realtime segment correct wait timeout")
+            for seq, task in list(correct_tasks.items()):
+                if not task.done():
+                    task.cancel()
+                for item in segments:
+                    if int(item["seq"]) == seq and item.get("status") != "done":
+                        item["status"] = "done"
+                        item["text"] = str(item.get("raw") or "")
+                        item["stage"] = "passthrough"
+                        item["changed"] = False
+                        await _safe_send(
+                            _segment_payload(
+                                seq=seq,
+                                raw=str(item.get("raw") or ""),
+                                text=str(item.get("text") or ""),
+                                status="done",
+                                changed=False,
+                                stage="passthrough",
+                            )
+                        )
 
-        corrected = await asyncio.to_thread(multi_stage_correct, raw)
-        await websocket.send_json(
-            {
-                "type": "final",
-                "text": corrected.text,
-                "stage": corrected.stage,
-                "raw": corrected.raw or raw,
-                "changed": corrected.changed,
-            }
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("realtime final correct failed: %s", exc)
-        await websocket.send_json(
-            {
-                "type": "final",
-                "text": raw,
-                "stage": "passthrough",
-                "raw": raw,
-                "changed": False,
-            }
-        )
+    snap = _segments_snapshot(segments)
+    final_text = _committed_text(segments)
+    await _safe_send({"type": "final", "text": final_text, "segments": snap})
 
     try:
         await websocket.close()

@@ -15,5 +15,7 @@
 | [06-contracts.md](./06-contracts.md)                       | TS packages + Python `contracts` |
 | [08-dev-guide.md](./08-dev-guide.md)                       | 本地开发 / 质量门禁 / IDE        |
 | [09-platform-db-readonly.md](./09-platform-db-readonly.md) | 达梦只读 / 实体同步              |
+| [10-voice-asr.md](./10-voice-asr.md)                       | 语音转写 / 按段纠错 / 标注       |
+| [11-voiceprint.md](./11-voiceprint.md)                     | 生产级声纹识别（1:1 / 1:N）      |
 
 迭代设想（非编码基准）：[`../roadmap/README.md`](../roadmap/README.md)

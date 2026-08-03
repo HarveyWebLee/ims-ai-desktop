@@ -1,6 +1,6 @@
 /**
- * 语音输入：优先 Realtime ASR（PCM → WS partial 词级回显），失败降级 HTTP 分片并行。
- * 停止后终稿走多级纠错；录音中用 Analyser 驱动话筒音量闪烁。
+ * 语音输入：优先 Realtime ASR（PCM → WS 按段 partial/segment），失败降级 HTTP 分片。
+ * 纠错按 VAD 落定段并发执行；停录只汇总，不再全文二次纠错。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Tooltip } from "antd";
@@ -26,6 +26,11 @@ const VOLUME_GAIN = 9;
 const TARGET_SAMPLE_RATE = 16000;
 /** 连续无有效语音（音量/识别文本）超时后自动结束并纠错 */
 const SILENCE_TIMEOUT_MS = 10_000;
+/**
+ * 声纹门禁开关（临时关闭）：false 时不要求选声纹，录音直接送 ASR 写入输入框。
+ * 重新启用时改回 true，并确保 Agent `VOICEPRINT_ENABLED=true`。
+ */
+export const VOICEPRINT_GATE_ENABLED = false;
 /** 录音中声纹实时核验间隔 */
 const VOICEPRINT_LIVE_CHECK_MS = 1000;
 /** 实时核验最少有效 PCM（秒）；过短易误伤本人 */
@@ -99,14 +104,67 @@ function buildRealtimeWsUrl(): string {
 type VoicePhase = "idle" | "recording" | "transcribing";
 type CaptureMode = "realtime" | "http-chunk" | "oneshot";
 
-/** 语音终稿纠错元信息（供输入区展示 ASR→纠正） */
-export type VoiceCorrectionMeta = {
-  raw?: string;
+export type VoiceSegment = {
+  seq: number;
+  raw: string;
+  text: string;
   stage?: string;
-  changed?: boolean;
+  changed: boolean;
+  status: "pending" | "done";
 };
 
-type VoiceFinalPayload = VoiceCorrectionMeta & { text: string };
+/** 语音终稿（含按段映射） */
+export type VoiceCorrectionMeta = {
+  segments?: VoiceSegment[];
+};
+
+type VoiceFinalPayload = {
+  text: string;
+  segments?: VoiceSegment[];
+};
+
+function joinVoiceParts(...parts: string[]): string {
+  return parts
+    .map((p) => (p || "").trim())
+    .filter(Boolean)
+    .join("");
+}
+
+function upsertSegment(list: VoiceSegment[], next: VoiceSegment): VoiceSegment[] {
+  const copy = [...list];
+  const idx = copy.findIndex((s) => s.seq === next.seq);
+  if (idx >= 0) copy[idx] = next;
+  else copy.push(next);
+  copy.sort((a, b) => a.seq - b.seq);
+  return copy;
+}
+
+function committedFromSegments(segments: VoiceSegment[]): string {
+  return joinVoiceParts(...segments.map((s) => s.text));
+}
+
+function normalizeSegment(data: {
+  seq?: number;
+  raw?: string;
+  text?: string;
+  stage?: string;
+  changed?: boolean;
+  status?: string;
+}): VoiceSegment | null {
+  if (typeof data.seq !== "number") return null;
+  const status = data.status === "pending" ? "pending" : "done";
+  const raw = (data.raw || "").trim();
+  const text = (data.text || raw).trim();
+  if (!raw && !text) return null;
+  return {
+    seq: data.seq,
+    raw,
+    text,
+    stage: data.stage,
+    changed: Boolean(data.changed),
+    status,
+  };
+}
 
 export default function VoiceInput({
   onTranscribed,
@@ -116,7 +174,8 @@ export default function VoiceInput({
   disabled = false,
 }: {
   onTranscribed: (text: string, meta?: VoiceCorrectionMeta) => void;
-  onInterim?: (text: string) => void;
+  /** 实时草稿：已落定段拼接 + 当前句预览；附带段映射供标注 */
+  onInterim?: (payload: { text: string; preview: string; segments: VoiceSegment[] }) => void;
   onRecordingStart?: () => void;
   /** 录音/转写中为 true，供父级禁用声纹切换等 */
   onBusyChange?: (busy: boolean) => void;
@@ -150,6 +209,8 @@ export default function VoiceInput({
   const finalTextRef = useRef<VoiceFinalPayload | null>(null);
   const finalWaitersRef = useRef<Array<(payload: VoiceFinalPayload) => void>>([]);
   const lastPartialRef = useRef("");
+  const previewRef = useRef("");
+  const segmentsRef = useRef<VoiceSegment[]>([]);
   const lastActivityAtRef = useRef(0);
   const silenceWatchRef = useRef<number | null>(null);
   const stoppingRef = useRef(false);
@@ -333,6 +394,7 @@ export default function VoiceInput({
   );
 
   const gateByVoiceprint = useCallback(async (): Promise<boolean> => {
+    if (!VOICEPRINT_GATE_ENABLED) return true;
     const profileId = activeVoiceprintIdRef.current || selectedVoiceprintId;
     if (!profileId) {
       message.warning(intl.formatMessage({ id: "aiAssistant.voiceprint.selectRequired" }));
@@ -373,15 +435,42 @@ export default function VoiceInput({
     }
   }, [buildVerifyPcmBlob, intl, selectedVoiceprintId]);
 
+  const emitVoiceDraft = useCallback(
+    (opts?: { preview?: string; segments?: VoiceSegment[] }) => {
+      if (opts?.segments) {
+        segmentsRef.current = opts.segments;
+      }
+      if (opts?.preview !== undefined) {
+        previewRef.current = opts.preview;
+      }
+      const committed = committedFromSegments(segmentsRef.current);
+      const preview = previewRef.current;
+      const next = joinVoiceParts(committed, preview);
+      if (next && next !== lastPartialRef.current) {
+        noteVoiceActivity();
+      }
+      lastPartialRef.current = next;
+      if (!voiceprintLiveOkRef.current) return;
+      matchedInterimRef.current = next;
+      setInterimText(next);
+      // 每次 partial/segment 都回推，保证 ASR 与纠错替换实时进输入框
+      onInterim?.({
+        text: next,
+        preview,
+        segments: [...segmentsRef.current],
+      });
+    },
+    [noteVoiceActivity, onInterim],
+  );
+
   const applyVoiceprintGate = useCallback(
     (open: boolean, opts?: { score?: number; threshold?: number }) => {
       const wasOpen = voiceprintLiveOkRef.current;
       if (open) {
         voiceprintLiveOkRef.current = true;
         voiceprintEverMatchedRef.current = true;
-        if (!wasOpen && matchedInterimRef.current) {
-          setInterimText(matchedInterimRef.current);
-          onInterim?.(matchedInterimRef.current);
+        if (!wasOpen) {
+          emitVoiceDraft();
         }
         return;
       }
@@ -389,7 +478,11 @@ export default function VoiceInput({
       voiceprintLiveOkRef.current = false;
       lastPartialRef.current = matchedInterimRef.current;
       setInterimText(matchedInterimRef.current);
-      onInterim?.(matchedInterimRef.current);
+      onInterim?.({
+        text: matchedInterimRef.current,
+        preview: "",
+        segments: segmentsRef.current,
+      });
       if (wasOpen) {
         const now = Date.now();
         if (now - filterHintAtRef.current >= VOICEPRINT_FILTER_HINT_MS) {
@@ -406,7 +499,7 @@ export default function VoiceInput({
         }
       }
     },
-    [intl, onInterim],
+    [emitVoiceDraft, intl, onInterim],
   );
 
   const runLiveVoiceprintCheck = useCallback(async () => {
@@ -449,6 +542,7 @@ export default function VoiceInput({
 
   const startLiveVoiceprintWatch = useCallback(() => {
     clearLiveVoiceprintWatch();
+    if (!VOICEPRINT_GATE_ENABLED) return;
     liveVoiceprintTimerRef.current = window.setInterval(() => {
       void runLiveVoiceprintCheck();
     }, VOICEPRINT_LIVE_CHECK_MS);
@@ -467,23 +561,6 @@ export default function VoiceInput({
     return catalog?.supportsAudio ? selectedModelId : undefined;
   }, [selectedModelId]);
 
-  const pushInterim = useCallback(
-    (text: string) => {
-      if (!text?.trim()) return;
-      const next = text.trim();
-      if (next !== lastPartialRef.current) {
-        noteVoiceActivity();
-      }
-      lastPartialRef.current = next;
-      // 仅匹配时段写入输入框；不匹配时段直接滤掉
-      if (!voiceprintLiveOkRef.current) return;
-      matchedInterimRef.current = next;
-      setInterimText(next);
-      onInterim?.(next);
-    },
-    [noteVoiceActivity, onInterim],
-  );
-
   const resolveFinal = useCallback((payload: VoiceFinalPayload | string) => {
     const next: VoiceFinalPayload = typeof payload === "string" ? { text: payload } : payload;
     finalTextRef.current = next;
@@ -500,7 +577,10 @@ export default function VoiceInput({
           return;
         }
         const timer = window.setTimeout(() => {
-          resolve({ text: lastPartialRef.current || "" });
+          resolve({
+            text: lastPartialRef.current || "",
+            segments: segmentsRef.current,
+          });
         }, timeoutMs);
         finalWaitersRef.current.push((payload) => {
           window.clearTimeout(timer);
@@ -517,6 +597,70 @@ export default function VoiceInput({
       wsRef.current = ws;
       finalTextRef.current = null;
       lastPartialRef.current = "";
+      previewRef.current = "";
+      segmentsRef.current = [];
+
+      const handleWsPayload = (data: {
+        type?: string;
+        text?: string;
+        preview?: string;
+        message?: string;
+        seq?: number;
+        raw?: string;
+        stage?: string;
+        changed?: boolean;
+        status?: string;
+        segments?: Array<{
+          seq?: number;
+          raw?: string;
+          text?: string;
+          stage?: string;
+          changed?: boolean;
+          status?: string;
+        }>;
+      }) => {
+        if (data.type === "partial") {
+          emitVoiceDraft({ preview: (data.preview || "").trim() });
+          return;
+        }
+        if (data.type === "segment") {
+          const seg = normalizeSegment(data);
+          if (!seg) return;
+          const next = upsertSegment(segmentsRef.current, seg);
+          // 新段落定后清空当前句预览
+          emitVoiceDraft({
+            segments: next,
+            preview: seg.status === "pending" ? "" : previewRef.current,
+          });
+          return;
+        }
+        if (data.type === "final") {
+          const segs = (data.segments || [])
+            .map((s) => normalizeSegment(s))
+            .filter((s): s is VoiceSegment => Boolean(s));
+          if (segs.length) {
+            segmentsRef.current = segs;
+          }
+          previewRef.current = "";
+          resolveFinal({
+            text: (data.text || committedFromSegments(segmentsRef.current)).trim(),
+            segments: segmentsRef.current,
+          });
+          return;
+        }
+        if (data.type === "error") {
+          message.error(
+            intl.formatMessage(
+              { id: "aiAssistant.voice.transcribeFailed" },
+              { error: data.message || "error" },
+            ),
+          );
+          resolveFinal({
+            text: lastPartialRef.current || "",
+            segments: segmentsRef.current,
+          });
+        }
+      };
 
       await new Promise<void>((resolve, reject) => {
         const timer = window.setTimeout(() => reject(new Error("ws timeout")), 8000);
@@ -531,67 +675,37 @@ export default function VoiceInput({
           try {
             const data = JSON.parse(String(ev.data)) as {
               type?: string;
-              text?: string;
               message?: string;
+              preview?: string;
+              text?: string;
+              seq?: number;
               raw?: string;
               stage?: string;
               changed?: boolean;
+              status?: string;
+              segments?: VoiceSegment[];
             };
             if (data.type === "ready") {
               window.clearTimeout(timer);
               resolve();
-            } else if (data.type === "partial" && data.text) {
-              pushInterim(data.text);
-            } else if (data.type === "completed" && data.text) {
-              pushInterim(data.text);
-            } else if (data.type === "final") {
-              resolveFinal({
-                text: data.text || "",
-                raw: data.raw,
-                stage: data.stage,
-                changed: data.changed,
-              });
-            } else if (data.type === "error") {
+              return;
+            }
+            if (data.type === "error") {
               window.clearTimeout(timer);
               reject(new Error(data.message || "realtime error"));
+              return;
             }
+            handleWsPayload(data);
           } catch {
             /* ignore */
           }
         };
       });
 
-      // 继续监听后续 partial/final
       ws.onmessage = (ev) => {
         try {
-          const data = JSON.parse(String(ev.data)) as {
-            type?: string;
-            text?: string;
-            message?: string;
-            raw?: string;
-            stage?: string;
-            changed?: boolean;
-          };
-          if (data.type === "partial" && data.text) {
-            pushInterim(data.text);
-          } else if (data.type === "completed" && data.text) {
-            pushInterim(data.text);
-          } else if (data.type === "final") {
-            resolveFinal({
-              text: data.text || "",
-              raw: data.raw,
-              stage: data.stage,
-              changed: data.changed,
-            });
-          } else if (data.type === "error") {
-            message.error(
-              intl.formatMessage(
-                { id: "aiAssistant.voice.transcribeFailed" },
-                { error: data.message || "error" },
-              ),
-            );
-            resolveFinal({ text: lastPartialRef.current || "" });
-          }
+          const data = JSON.parse(String(ev.data)) as Parameters<typeof handleWsPayload>[0];
+          handleWsPayload(data);
         } catch {
           /* ignore */
         }
@@ -653,7 +767,7 @@ export default function VoiceInput({
       processor.connect(mute);
       mute.connect(ctx.destination);
     },
-    [appendVerifyPcm, applyVoiceLevel, intl, pushInterim, resolveFinal],
+    [appendVerifyPcm, applyVoiceLevel, emitVoiceDraft, intl, resolveFinal],
   );
 
   const enqueueHttpChunk = useCallback(
@@ -671,12 +785,22 @@ export default function VoiceInput({
         filename: `chunk-${seq}.${mimeToExtension(mime)}`,
       })
         .then((res) => {
-          if (res.interim_text) pushInterim(res.interim_text);
+          if (!res.interim_text) return;
+          // HTTP 降级：累计纠错快照视为单段映射
+          const seg: VoiceSegment = {
+            seq: 0,
+            raw: res.interim_text,
+            text: res.interim_text,
+            stage: res.interim_stage ?? undefined,
+            changed: false,
+            status: "done",
+          };
+          emitVoiceDraft({ segments: [seg], preview: "" });
         })
         .catch(() => undefined);
       inflightRef.current.push(task);
     },
-    [pushInterim, resolveModelId],
+    [emitVoiceDraft, resolveModelId],
   );
 
   const startHttpChunkCapture = useCallback(
@@ -755,9 +879,7 @@ export default function VoiceInput({
         wsRef.current = null;
         const text = (finalPayload.text.trim() || matchedInterimRef.current).trim();
         onTranscribed(text, {
-          raw: finalPayload.raw,
-          stage: finalPayload.stage,
-          changed: finalPayload.changed,
+          segments: finalPayload.segments ?? segmentsRef.current,
         });
         return;
       }
@@ -776,11 +898,10 @@ export default function VoiceInput({
         if (sessionId) {
           const result = await transcribeStreamFinish(sessionId);
           sessionIdRef.current = null;
-          onTranscribed(result.text?.trim() ?? "", {
-            raw: result.raw,
-            stage: result.stage,
-            changed: result.changed,
-          });
+          const segments = (result.segments || [])
+            .map((s) => normalizeSegment(s))
+            .filter((s): s is VoiceSegment => Boolean(s));
+          onTranscribed(result.text?.trim() ?? "", { segments });
           return;
         }
       }
@@ -796,17 +917,16 @@ export default function VoiceInput({
         modelId: resolveModelId(),
         filename: `recording.${mimeToExtension(mime)}`,
       });
-      onTranscribed(result.text?.trim() ?? "", {
-        raw: result.raw,
-        stage: result.stage,
-        changed: result.changed,
-      });
+      const segments = (result.segments || [])
+        .map((s) => normalizeSegment(s))
+        .filter((s): s is VoiceSegment => Boolean(s));
+      onTranscribed(result.text?.trim() ?? "", { segments });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       message.error(
         intl.formatMessage({ id: "aiAssistant.voice.transcribeFailed" }, { error: msg }),
       );
-      onTranscribed(lastPartialRef.current || "");
+      onTranscribed(lastPartialRef.current || "", { segments: segmentsRef.current });
     } finally {
       try {
         wsRef.current?.close();
@@ -872,23 +992,26 @@ export default function VoiceInput({
       message.error(intl.formatMessage({ id: "aiAssistant.voice.notSupported" }));
       return;
     }
-    if (!selectedVoiceprintId) {
+    if (VOICEPRINT_GATE_ENABLED && !selectedVoiceprintId) {
       message.warning(intl.formatMessage({ id: "aiAssistant.voiceprint.selectRequired" }));
       return;
     }
     try {
       stoppingRef.current = false;
-      activeVoiceprintIdRef.current = selectedVoiceprintId;
+      activeVoiceprintIdRef.current = VOICEPRINT_GATE_ENABLED ? selectedVoiceprintId : null;
       modeRef.current = "realtime";
       sessionIdRef.current = null;
       seqRef.current = 0;
       inflightRef.current = [];
       setInterimText("");
       lastPartialRef.current = "";
+      previewRef.current = "";
+      segmentsRef.current = [];
       finalTextRef.current = null;
       pcmVerifyChunksRef.current = [];
-      voiceprintLiveOkRef.current = false;
-      voiceprintEverMatchedRef.current = false;
+      // 门禁关闭时直接放行 ASR；开启时默认关闭，等实时核验通过后再送
+      voiceprintLiveOkRef.current = !VOICEPRINT_GATE_ENABLED;
+      voiceprintEverMatchedRef.current = !VOICEPRINT_GATE_ENABLED;
       matchedInterimRef.current = "";
       voiceprintVerifyInflightRef.current = false;
       filterHintAtRef.current = 0;
@@ -901,6 +1024,14 @@ export default function VoiceInput({
         },
       });
       streamRef.current = stream;
+
+      // 先锁定底稿并进入 recording，再开 ASR，保证 partial/纠错全程实时写回输入框
+      startedAtRef.current = Date.now();
+      setElapsedSec(0);
+      setPhase("recording");
+      onRecordingStart?.();
+      startSilenceWatch();
+      startLiveVoiceprintWatch();
 
       try {
         await startRealtimeCapture(stream);
@@ -960,13 +1091,6 @@ export default function VoiceInput({
           }
         }
       }
-
-      startedAtRef.current = Date.now();
-      setElapsedSec(0);
-      setPhase("recording");
-      onRecordingStart?.();
-      startSilenceWatch();
-      startLiveVoiceprintWatch();
 
       clearElapsedTimer();
       elapsedTimerRef.current = window.setInterval(() => {

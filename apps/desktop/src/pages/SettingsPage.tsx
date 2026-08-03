@@ -1,5 +1,5 @@
 /**
- * 配置与管理页：向量库同步 / 审计日志 / 声纹库
+ * 配置与管理页：向量库同步 / 审计日志 / 语音偏好 / 声纹库
  */
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { Button, Layout, Tabs, Typography, theme } from "antd";
@@ -7,6 +7,7 @@ import { useIntl } from "react-intl";
 import EntitySyncPanel from "@/components/AiAssistant/EntitySyncPanel";
 import AuditLogPanel from "@/components/AiAssistant/AuditLogDrawer";
 import VoiceprintManagerPanel from "@/components/AiAssistant/VoiceprintManagerModal";
+import VoicePrefsPanel from "@/components/AiAssistant/VoicePrefsPanel";
 import styles from "@/components/AiAssistant/index.module.less";
 
 const { Header, Content } = Layout;
@@ -52,6 +53,11 @@ export default function SettingsPage({ onBack }: { onBack: () => void }) {
                 key: "audit",
                 label: intl.formatMessage({ id: "aiAssistant.settings.tabAudit" }),
                 children: <AuditLogPanel />,
+              },
+              {
+                key: "voice",
+                label: intl.formatMessage({ id: "aiAssistant.settings.tabVoice" }),
+                children: <VoicePrefsPanel />,
               },
               {
                 key: "voiceprint",

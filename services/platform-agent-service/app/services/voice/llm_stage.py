@@ -67,20 +67,21 @@ def apply_llm_correction(text: str, *, reference_hint: str = "") -> str | None:
 
         top_k = max(1, int(settings.transcribe_rag_top_k))
         threshold = float(settings.transcribe_correct_min_score)
+        query = f"{(reference_hint or '').strip()} {raw}".strip()
         # 实体优先：下发指令场景优先注入设备名/编码
         entity_blocks = retrieve_entity_blocks(
-            raw,
+            query,
             top_k=top_k,
             score_threshold=threshold,
         )
         kb_blocks = retrieve_knowledge_blocks(
-            raw,
+            query,
             top_k=top_k,
             score_threshold=threshold,
         )
         ref_parts: list[str] = []
         if reference_hint:
-            ref_parts.append(reference_hint)
+            ref_parts.append(f"【上文】{reference_hint.strip()}")
         max_chars = max(40, int(settings.transcribe_correct_snippet_chars))
         idx = 1
         for block in entity_blocks[:3]:

@@ -1,4 +1,4 @@
-"""声纹特征与内存库单测（默认 mock ECAPA，避免单测强依赖模型下载）。"""
+"""声纹特征与内存库单测（默认 mock 嵌入器，避免单测强依赖模型下载）。"""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from app.services.voice.voiceprint_features import (
+    DEFAULT_MODEL_ID,
     EMBEDDING_DIM,
     cosine_similarity,
     merge_embeddings,
@@ -36,11 +37,9 @@ def _fake_embedding_from_pcm(audio_bytes: bytes, *, sample_rate: int | None = No
     samples = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32)
     if samples.size < 16:
         raise ValueError("音频过短")
-    # 按频率桶取均值，映射到固定维
     n = EMBEDDING_DIM
     chunks = np.array_split(np.abs(samples), n)
     vec = np.array([float(np.mean(c)) if len(c) else 0.0 for c in chunks], dtype=np.float64)
-    # 加入主导频率特征，拉开不同音调差异
     spec = np.abs(np.fft.rfft(samples[: min(len(samples), 4096)]))
     peak = int(np.argmax(spec))
     vec = vec + 0.01 * np.sin(np.linspace(0, peak, n))
@@ -49,10 +48,14 @@ def _fake_embedding_from_pcm(audio_bytes: bytes, *, sample_rate: int | None = No
 
 
 @pytest.fixture
-def mock_ecapa(monkeypatch: pytest.MonkeyPatch):
+def mock_encoder(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         "app.services.voice.voiceprint_service.extract_embedding",
         _fake_embedding_from_pcm,
+    )
+    monkeypatch.setattr(
+        "app.services.voice.voiceprint_service.current_model_id",
+        lambda: DEFAULT_MODEL_ID,
     )
 
 
@@ -72,8 +75,8 @@ def test_cosine_similarity_identity() -> None:
     assert cosine_similarity(v, [0.0] * 64) == 0.0
 
 
-def test_voiceprint_crud_enroll_verify(monkeypatch: pytest.MonkeyPatch, mock_ecapa) -> None:
-    del mock_ecapa
+def test_voiceprint_crud_enroll_verify(monkeypatch: pytest.MonkeyPatch, mock_encoder) -> None:
+    del mock_encoder
     store = InMemoryVoiceprintStore()
     configure_voiceprint_store(store)
     monkeypatch.setattr(
@@ -87,14 +90,19 @@ def test_voiceprint_crud_enroll_verify(monkeypatch: pytest.MonkeyPatch, mock_eca
 
     created = create_voiceprint(display_name="张三", description="值班员")
     assert created["display_name"] == "张三"
+    assert created["model_id"] == ""
     assert any(i["id"] == created["id"] for i in list_voiceprints())
 
-    enroll_voiceprint(created["id"], _tone_pcm(440.0))
+    enrolled = enroll_voiceprint(created["id"], _tone_pcm(440.0))
+    assert enrolled["model_id"] == DEFAULT_MODEL_ID
+    assert enrolled["enrolled"] is True
+    assert enrolled["needs_reenroll"] is False
     enroll_voiceprint(created["id"], _tone_pcm(450.0))
 
     ok = verify_voiceprint(created["id"], _tone_pcm(445.0))
     assert ok["matched"] is True
     assert ok["score"] >= 0.5
+    assert ok["model_id"] == DEFAULT_MODEL_ID
 
     bad = verify_voiceprint(created["id"], _tone_pcm(1800.0))
     assert "matched" in bad
@@ -115,8 +123,8 @@ def test_verify_requires_enrollment(monkeypatch: pytest.MonkeyPatch) -> None:
         assert "尚未录入" in str(exc)
 
 
-def test_verify_rejects_legacy_embedding_dim(monkeypatch: pytest.MonkeyPatch, mock_ecapa) -> None:
-    del mock_ecapa
+def test_verify_rejects_legacy_model_id(monkeypatch: pytest.MonkeyPatch, mock_encoder) -> None:
+    del mock_encoder
     store = InMemoryVoiceprintStore()
     configure_voiceprint_store(store)
     monkeypatch.setattr(
@@ -124,17 +132,43 @@ def test_verify_rejects_legacy_embedding_dim(monkeypatch: pytest.MonkeyPatch, mo
         True,
     )
     created = create_voiceprint(display_name="旧模板")
-    store.save_embedding(created["id"], embedding=[0.1] * 64, sample_count=1)
+    store.save_embedding(
+        created["id"],
+        embedding=[0.1] * EMBEDDING_DIM,
+        sample_count=1,
+        model_id="speechbrain/spkrec-ecapa-voxceleb",
+    )
+    listed = list_voiceprints()
+    item = next(i for i in listed if i["id"] == created["id"])
+    assert item["needs_reenroll"] is True
+    assert item["enrolled"] is False
     try:
         verify_voiceprint(created["id"], _tone_pcm(400.0))
-        raise AssertionError("应拒绝旧维度模板")
+        raise AssertionError("应拒绝旧模型模板")
     except VoiceprintError as exc:
         assert "不兼容" in str(exc)
 
 
+def test_enroll_resets_when_model_changes(monkeypatch: pytest.MonkeyPatch, mock_encoder) -> None:
+    del mock_encoder
+    store = InMemoryVoiceprintStore()
+    configure_voiceprint_store(store)
+    created = create_voiceprint(display_name="迁移用户")
+    store.save_embedding(
+        created["id"],
+        embedding=[0.1] * EMBEDDING_DIM,
+        sample_count=3,
+        model_id="legacy-model",
+    )
+    updated = enroll_voiceprint(created["id"], _tone_pcm(440.0))
+    assert updated["sample_count"] == 1
+    assert updated["model_id"] == DEFAULT_MODEL_ID
+    assert updated["needs_reenroll"] is False
+
+
 @pytest.mark.integration
-def test_ecapa_extract_embedding_real_model() -> None:
-    """需联网下载/已缓存 HuggingFace 权重；日常单测可跳过。"""
+def test_eres2net_extract_embedding_real_model() -> None:
+    """需联网下载/已缓存 ModelScope 权重；日常单测可跳过。"""
     from app.services.voice.voiceprint_features import extract_embedding
 
     emb = extract_embedding(_tone_pcm(220.0, seconds=1.5))

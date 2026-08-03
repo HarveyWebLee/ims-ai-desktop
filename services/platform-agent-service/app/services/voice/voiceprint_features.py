@@ -1,26 +1,36 @@
-"""声纹特征：SpeechBrain ECAPA-TDNN 说话人嵌入。"""
+"""声纹特征：FunASR + ModelScope ERes2NetV2 说话人嵌入。"""
 
 from __future__ import annotations
 
 import logging
 import math
 import struct
+import tempfile
 import threading
+import wave
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import torch
 
-# speechbrain/spkrec-ecapa-voxceleb 输出 192 维
+# iic/speech_eres2netv2_sv_zh-cn_16k-common 输出 192 维
 EMBEDDING_DIM = 192
 _TARGET_SR = 16000
+DEFAULT_MODEL_ID = "iic/speech_eres2netv2_sv_zh-cn_16k-common"
 
 logger = logging.getLogger(__name__)
 
-_classifier_lock = threading.Lock()
-_classifier: Any | None = None
+_model_lock = threading.Lock()
+_sv_model: Any | None = None
+_sv_model_id: str | None = None
+
+
+def current_model_id() -> str:
+    from app.config import settings
+
+    configured = (settings.voiceprint_model_id or "").strip()
+    return configured or DEFAULT_MODEL_ID
 
 
 def _pcm16_mono_samples(
@@ -63,73 +73,56 @@ def _pcm16_mono_samples(
     return samples, sr
 
 
-def _resolve_savedir() -> Path:
-    from app.config import settings
-
-    configured = (settings.voiceprint_ecapa_savedir or "").strip()
-    if configured:
-        path = Path(configured)
-    else:
-        path = Path(settings.agent_data_dir) / "pretrained" / "spkrec-ecapa-voxceleb"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+def _write_wav_pcm16(path: Path, samples: np.ndarray, *, sample_rate: int) -> None:
+    pcm = np.clip(samples * 32767.0, -32768, 32767).astype(np.int16)
+    with wave.open(str(path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(pcm.tobytes())
 
 
 def _resolve_device() -> str:
+    import torch
+
     from app.config import settings
 
-    configured = (settings.voiceprint_ecapa_device or "").strip().lower()
+    configured = (settings.voiceprint_device or "").strip().lower()
     if configured in {"cpu", "cuda"}:
         if configured == "cuda" and not torch.cuda.is_available():
-            logger.warning("VOICEPRINT_ECAPA_DEVICE=cuda 但 CUDA 不可用，回退 CPU")
+            logger.warning("VOICEPRINT_DEVICE=cuda 但 CUDA 不可用，回退 CPU")
             return "cpu"
         return configured
     return "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def get_ecapa_classifier() -> Any:
-    """懒加载 SpeechBrain ECAPA EncoderClassifier（进程内单例）。"""
-    global _classifier
-    if _classifier is not None:
-        return _classifier
-    with _classifier_lock:
-        if _classifier is not None:
-            return _classifier
-        from speechbrain.inference.speaker import EncoderClassifier
-        from speechbrain.utils.fetching import LocalStrategy
+def get_sv_model() -> Any:
+    """懒加载 FunASR ERes2NetV2（进程内单例；model_id 变更时重建）。"""
+    global _sv_model, _sv_model_id
+    model_id = current_model_id()
+    if _sv_model is not None and _sv_model_id == model_id:
+        return _sv_model
+    with _model_lock:
+        if _sv_model is not None and _sv_model_id == model_id:
+            return _sv_model
+        from funasr import AutoModel
 
-        from app.config import settings
-
-        source = (settings.voiceprint_ecapa_source or "").strip() or (
-            "speechbrain/spkrec-ecapa-voxceleb"
-        )
-        savedir = _resolve_savedir()
         device = _resolve_device()
-        logger.info(
-            "加载 ECAPA 声纹模型 source=%s savedir=%s device=%s",
-            source,
-            savedir,
-            device,
-        )
-        # Windows 无管理员/开发者模式时无法创建 symlink，改用 COPY
-        loaded = EncoderClassifier.from_hparams(
-            source=source,
-            savedir=str(savedir),
-            run_opts={"device": device},
-            local_strategy=LocalStrategy.COPY,
-        )
+        logger.info("加载 ERes2Net 声纹模型 model_id=%s device=%s", model_id, device)
+        loaded = AutoModel(model=model_id, device=device, disable_update=True)
         if loaded is None:
-            raise RuntimeError("ECAPA 声纹模型加载失败")
-        loaded.eval()
-        _classifier = loaded
+            raise RuntimeError("ERes2Net 声纹模型加载失败")
+        _sv_model = loaded
+        _sv_model_id = model_id
         return loaded
 
 
-def reset_ecapa_classifier_for_tests() -> None:
+def reset_sv_model_for_tests() -> None:
     """测试用：清空已加载模型。"""
-    global _classifier
-    with _classifier_lock:
-        _classifier = None
+    global _sv_model, _sv_model_id
+    with _model_lock:
+        _sv_model = None
+        _sv_model_id = None
 
 
 def extract_embedding(
@@ -138,31 +131,46 @@ def extract_embedding(
     sample_rate: int | None = None,
 ) -> list[float]:
     """
-    从 PCM/WAV 提取 L2 归一化 ECAPA 说话人嵌入（192 维）。
+    从 PCM/WAV 提取 L2 归一化 ERes2Net 说话人嵌入（默认 192 维）。
 
-    首次调用会从 Hugging Face 拉取预训练权重到本地 savedir。
+    首次调用会从 ModelScope 拉取预训练权重到本地缓存。
     """
-    samples, _sr = _pcm16_mono_samples(audio_bytes, sample_rate=sample_rate)
+    samples, sr = _pcm16_mono_samples(audio_bytes, sample_rate=sample_rate)
     energy = float(np.sqrt(np.mean(np.square(samples))))
     if energy < 1e-4:
         raise ValueError("音频能量过低，请靠近麦克风重新录入")
 
-    waveform = torch.from_numpy(samples).unsqueeze(0)  # [1, time]
-    classifier = get_ecapa_classifier()
-    with torch.inference_mode():
-        emb = classifier.encode_batch(waveform)
-    vec = emb.squeeze().detach().cpu().float().numpy().reshape(-1)
-    if vec.size != EMBEDDING_DIM:
-        # 兼容少数自定义 checkpoint 维度
-        if vec.size > EMBEDDING_DIM:
-            vec = vec[:EMBEDDING_DIM]
-        else:
-            vec = np.pad(vec, (0, EMBEDDING_DIM - vec.size))
-    norm = float(np.linalg.norm(vec))
-    if norm < 1e-8:
-        raise ValueError("无法从音频提取有效声纹特征")
-    vec = vec / norm
-    return [float(x) for x in vec.tolist()]
+    tmp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        _write_wav_pcm16(tmp_path, samples, sample_rate=sr if sr > 0 else _TARGET_SR)
+
+        model = get_sv_model()
+        with _model_lock:
+            raw = model.generate(input=str(tmp_path))
+        if not raw or not isinstance(raw, list) or "spk_embedding" not in raw[0]:
+            raise ValueError("无法从音频提取有效声纹特征")
+        emb = raw[0]["spk_embedding"]
+        if hasattr(emb, "detach"):
+            emb = emb.detach().cpu().numpy()
+        vec = np.asarray(emb, dtype=np.float64).reshape(-1)
+        if vec.size != EMBEDDING_DIM:
+            if vec.size > EMBEDDING_DIM:
+                vec = vec[:EMBEDDING_DIM]
+            else:
+                vec = np.pad(vec, (0, EMBEDDING_DIM - vec.size))
+        norm = float(np.linalg.norm(vec))
+        if norm < 1e-8:
+            raise ValueError("无法从音频提取有效声纹特征")
+        vec = vec / norm
+        return [float(x) for x in vec.tolist()]
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                logger.debug("清理临时声纹 WAV 失败 path=%s", tmp_path, exc_info=True)
 
 
 def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:

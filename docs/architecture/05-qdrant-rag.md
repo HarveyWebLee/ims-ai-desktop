@@ -202,11 +202,11 @@ ctx = store.format_context(hits, max_chars=4000)  # 拼进 Prompt 用
 
 Agent 侧：
 
-| 入口                      | 行为                                                                                                        |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `assemble_context`        | 调用 `retrieve_knowledge_blocks(user_message)`，注入参考知识                                                |
-| `retrieve_knowledge` 工具 | Agent 主动检索，返回 JSON hits                                                                              |
-| 语音转写后纠错            | `POST /api/agent/transcribe`：多级纠错；`WS /api/agent/transcribe/realtime`：词级 partial 回显，stop 后纠错 |
+| 入口                      | 行为                                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `assemble_context`        | 调用 `retrieve_knowledge_blocks(user_message)`，注入参考知识                                       |
+| `retrieve_knowledge` 工具 | Agent 主动检索，返回 JSON hits                                                                     |
+| 语音转写后纠错            | 见 [`10-voice-asr.md`](./10-voice-asr.md)：Realtime **按段**并发纠错；HTTP/Oneshot 回传 `segments` |
 
 相关环境变量（转写纠错 / 流式并行 / Realtime，默认开启）：
 
@@ -228,9 +228,8 @@ TRANSCRIBE_REALTIME_MODEL=qwen3-asr-flash-realtime
 TRANSCRIBE_REALTIME_WS_URL=wss://dashscope.aliyuncs.com/api-ws/v1/realtime
 ```
 
-流水线：`Rule → Redis Cache → Dictionary → Vector → LLM`（低成本优先退出；**仅终稿**）。  
-Realtime：浏览器 PCM → Agent WS 代理 → DashScope，`text+stash` 作 partial 写入输入框。  
-HTTP 分片 `/transcribe/stream/*` 仍作降级。  
+流水线：`Rule → Redis Cache → Dictionary → Vector → LLM`（低成本优先退出；**按 ASR 落定段触发**，Realtime **无**终稿全文再纠）。  
+协议与桌面标注开关：[`10-voice-asr.md`](./10-voice-asr.md)。  
 实现：`app/services/voice/`；词典：`app/data/asr_dictionary.json`。
 
 ### 5.2 浏览 / 计数（非语义）

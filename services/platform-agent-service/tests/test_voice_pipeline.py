@@ -13,6 +13,21 @@ class TestRuleCorrection:
     def test_fullwidth_digits(self):
         assert apply_rule_correction("近１２３天") == "近123天"
 
+    def test_keeps_cjk_punctuation(self):
+        src = "查询近三天门禁报警，并导出。"
+        assert apply_rule_correction(src) == src
+
+    def test_keeps_ascii_punctuation(self):
+        src = "查询报警,并导出."
+        assert apply_rule_correction(src) == src
+
+    def test_keeps_decimal_dot(self):
+        assert apply_rule_correction("温度3.14度") == "温度3.14度"
+
+    def test_collapse_duplicate_commas_keeps_style(self):
+        assert apply_rule_correction("报警，，导出") == "报警，导出"
+        assert apply_rule_correction("alarm,,export") == "alarm,export"
+
 
 class TestMultiStagePipeline:
     @patch("app.services.voice.pipeline.settings")

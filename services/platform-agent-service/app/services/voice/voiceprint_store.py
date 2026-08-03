@@ -23,16 +23,21 @@ class VoiceprintProfile:
     description: str = ""
     embedding: list[float] = field(default_factory=list)
     sample_count: int = 0
+    model_id: str = ""
     created_at: str = ""
     updated_at: str = ""
 
-    def to_public_dict(self) -> dict[str, Any]:
+    def to_public_dict(self, *, current_model_id: str = "") -> dict[str, Any]:
+        enrolled = self.sample_count > 0 and bool(self.embedding)
+        model_ok = (not enrolled) or (bool(self.model_id) and self.model_id == current_model_id)
         return {
             "id": self.id,
             "display_name": self.display_name,
             "description": self.description,
             "sample_count": self.sample_count,
-            "enrolled": self.sample_count > 0 and bool(self.embedding),
+            "enrolled": enrolled and model_ok,
+            "model_id": self.model_id,
+            "needs_reenroll": enrolled and not model_ok,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -92,6 +97,7 @@ class InMemoryVoiceprintStore:
         *,
         embedding: list[float],
         sample_count: int,
+        model_id: str,
     ) -> VoiceprintProfile | None:
         with self._lock:
             profile = self._items.get(profile_id)
@@ -99,6 +105,7 @@ class InMemoryVoiceprintStore:
                 return None
             profile.embedding = list(embedding)
             profile.sample_count = int(sample_count)
+            profile.model_id = (model_id or "").strip()
             profile.updated_at = _utcnow().isoformat()
             return profile
 
@@ -111,7 +118,7 @@ class PostgresVoiceprintStore:
         with self._pool.connection() as conn:
             rows = conn.execute(
                 """
-                SELECT id, display_name, description, embedding, sample_count,
+                SELECT id, display_name, description, embedding, sample_count, model_id,
                        created_at, updated_at
                 FROM agent_voiceprints
                 ORDER BY updated_at DESC
@@ -123,7 +130,7 @@ class PostgresVoiceprintStore:
         with self._pool.connection() as conn:
             row = conn.execute(
                 """
-                SELECT id, display_name, description, embedding, sample_count,
+                SELECT id, display_name, description, embedding, sample_count, model_id,
                        created_at, updated_at
                 FROM agent_voiceprints WHERE id = %s
                 """,
@@ -138,9 +145,11 @@ class PostgresVoiceprintStore:
         with self._pool.connection() as conn:
             row = conn.execute(
                 """
-                INSERT INTO agent_voiceprints (id, display_name, description, embedding, sample_count)
-                VALUES (%s, %s, %s, '[]'::jsonb, 0)
-                RETURNING id, display_name, description, embedding, sample_count, created_at, updated_at
+                INSERT INTO agent_voiceprints
+                    (id, display_name, description, embedding, sample_count, model_id)
+                VALUES (%s, %s, %s, '[]'::jsonb, 0, '')
+                RETURNING id, display_name, description, embedding, sample_count, model_id,
+                          created_at, updated_at
                 """,
                 (profile_id, name, desc),
             ).fetchone()
@@ -166,7 +175,8 @@ class PostgresVoiceprintStore:
                 UPDATE agent_voiceprints
                 SET display_name = %s, description = %s, updated_at = NOW()
                 WHERE id = %s
-                RETURNING id, display_name, description, embedding, sample_count, created_at, updated_at
+                RETURNING id, display_name, description, embedding, sample_count, model_id,
+                          created_at, updated_at
                 """,
                 (name, desc, profile_id),
             ).fetchone()
@@ -183,6 +193,7 @@ class PostgresVoiceprintStore:
         *,
         embedding: list[float],
         sample_count: int,
+        model_id: str,
     ) -> VoiceprintProfile | None:
         import json
 
@@ -190,11 +201,12 @@ class PostgresVoiceprintStore:
             row = conn.execute(
                 """
                 UPDATE agent_voiceprints
-                SET embedding = %s::jsonb, sample_count = %s, updated_at = NOW()
+                SET embedding = %s::jsonb, sample_count = %s, model_id = %s, updated_at = NOW()
                 WHERE id = %s
-                RETURNING id, display_name, description, embedding, sample_count, created_at, updated_at
+                RETURNING id, display_name, description, embedding, sample_count, model_id,
+                          created_at, updated_at
                 """,
-                (json.dumps(embedding), int(sample_count), profile_id),
+                (json.dumps(embedding), int(sample_count), (model_id or "").strip(), profile_id),
             ).fetchone()
         return self._row_to_profile(row) if row else None
 
@@ -213,6 +225,7 @@ class PostgresVoiceprintStore:
             description=str(row.get("description") or ""),
             embedding=[float(x) for x in emb],
             sample_count=int(row.get("sample_count") or 0),
+            model_id=str(row.get("model_id") or ""),
             created_at=created.isoformat() if hasattr(created, "isoformat") else str(created or ""),
             updated_at=updated.isoformat() if hasattr(updated, "isoformat") else str(updated or ""),
         )

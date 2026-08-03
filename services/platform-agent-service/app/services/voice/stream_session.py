@@ -170,16 +170,29 @@ class StreamSession:
         latest = self.latest_outcome()
         if latest and latest.text.strip():
             self.close()
+            raw = (latest.raw_asr or "").strip()
+            text = latest.text.strip()
+            changed = text != raw
             return {
-                "text": latest.text.strip(),
-                "raw": (latest.raw_asr or "").strip(),
+                "text": text,
+                "raw": raw,
                 "stage": latest.stage,
-                "changed": latest.text.strip() != (latest.raw_asr or "").strip(),
+                "changed": changed,
                 "seq": latest.seq,
                 "source": "parallel_chunks",
+                "segments": [
+                    {
+                        "seq": 0,
+                        "raw": raw,
+                        "text": text,
+                        "stage": latest.stage,
+                        "changed": changed,
+                        "status": "done",
+                    }
+                ],
             }
 
-        # 无可用分片结果：全量再转一次
+        # 无可用分片结果：全量再转一次（仍只产出单段，不做额外「全文再纠」语义）
         if not snapshot:
             self.close()
             return {
@@ -189,6 +202,7 @@ class StreamSession:
                 "changed": False,
                 "seq": None,
                 "source": "empty",
+                "segments": [],
             }
 
         from app.services.transcription import asr_bytes_only
@@ -208,6 +222,16 @@ class StreamSession:
             "changed": corrected.changed,
             "seq": None,
             "source": "final_full",
+            "segments": [
+                {
+                    "seq": 0,
+                    "raw": corrected.raw,
+                    "text": corrected.text,
+                    "stage": corrected.stage,
+                    "changed": corrected.changed,
+                    "status": "done",
+                }
+            ],
         }
 
     def close(self) -> None:

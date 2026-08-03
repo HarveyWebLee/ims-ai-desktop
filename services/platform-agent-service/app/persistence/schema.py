@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS agent_voiceprints (
     description TEXT NOT NULL DEFAULT '',
     embedding JSONB NOT NULL DEFAULT '[]',
     sample_count INT NOT NULL DEFAULT 0,
+    model_id TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -83,6 +84,12 @@ _DROP_LEGACY_PENDING_DDL = """
 DROP TABLE IF EXISTS agent_thread_pending;
 """
 
+# 已有库补列（CREATE IF NOT EXISTS 不会改旧表结构）
+_VOICEPRINT_MODEL_ID_DDL = """
+ALTER TABLE agent_voiceprints
+    ADD COLUMN IF NOT EXISTS model_id TEXT NOT NULL DEFAULT '';
+"""
+
 
 def setup_app_tables(conn) -> None:
     """
@@ -93,3 +100,4 @@ def setup_app_tables(conn) -> None:
     """
     conn.execute(AGENT_APP_DDL)
     conn.execute(_DROP_LEGACY_PENDING_DDL)
+    conn.execute(_VOICEPRINT_MODEL_ID_DDL)

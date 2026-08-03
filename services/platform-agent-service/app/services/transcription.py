@@ -5,6 +5,7 @@
 --------
 把侧栏录到的音频字节转成中文文本，再当作普通用户消息进入 chat 流程。
 ASR 成功后走多级纠错（Rule → Redis Cache → Dictionary → Vector → LLM）。
+Realtime 路径按 VAD 落定段并发纠错，见 docs/architecture/10-voice-asr.md。
 
 在 Agent 流程中的位置
 --------------------

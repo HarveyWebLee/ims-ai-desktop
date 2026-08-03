@@ -10,7 +10,7 @@ import * as AgentController from "@/services/AgentController";
 import type { VoiceprintProfile } from "@/services/AgentController";
 
 const TARGET_SR = 16000;
-/** 单次录入时长：略长有利于 ECAPA 嵌入更稳（过长则体验变差） */
+/** 单次录入时长：略长有利于 ERes2Net 嵌入更稳（过长则体验变差） */
 const ENROLL_MS = 4500;
 
 function floatTo16BitPCM(input: Float32Array, inputSampleRate: number): Int16Array {
@@ -237,7 +237,13 @@ export default function VoiceprintManagerPanel({ onChanged }: { onChanged?: () =
             }),
             width: 120,
             render: (_, row) =>
-              row.enrolled ? (
+              row.needs_reenroll ? (
+                <Tag color="warning">
+                  {intl.formatMessage({
+                    id: "aiAssistant.voiceprint.needsReenroll",
+                  })}
+                </Tag>
+              ) : row.enrolled ? (
                 <Tag color="success">
                   {intl.formatMessage(
                     { id: "aiAssistant.voiceprint.enrolled" },

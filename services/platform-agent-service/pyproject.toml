@@ -32,10 +32,11 @@ dependencies = [
     "fastmcp>=2.3.0",
     # 共享运行时契约（HITL / preflight / catalog；工具执行面仅经 MCP Client）
     "contracts",
-    # 声纹：SpeechBrain ECAPA-TDNN（torch 2.13；torchaudio 暂无 PyPI 最高 2.11 兼容）
+    # 声纹：FunASR + ModelScope ERes2NetV2（torch 2.13）
     "torch==2.13.0",
     "torchaudio>=2.1.0",
-    "speechbrain>=1.0.0",
+    "modelscope>=1.20.0",
+    "funasr>=1.1.0",
 ]
 
 [project.optional-dependencies]

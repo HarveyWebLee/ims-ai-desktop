@@ -1,4 +1,4 @@
-"""声纹业务：录入、核验。"""
+"""声纹业务：录入、核验（FunASR ERes2NetV2）。"""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from app.config import settings
 from app.services.voice.voiceprint_features import (
     EMBEDDING_DIM,
     cosine_similarity,
+    current_model_id,
     extract_embedding,
     merge_embeddings,
 )
@@ -18,8 +19,13 @@ class VoiceprintError(Exception):
     """声纹业务错误。"""
 
 
+def _public(profile: VoiceprintProfile) -> dict[str, Any]:
+    return profile.to_public_dict(current_model_id=current_model_id())
+
+
 def list_voiceprints() -> list[dict[str, Any]]:
-    return [p.to_public_dict() for p in get_voiceprint_store().list_profiles()]
+    mid = current_model_id()
+    return [p.to_public_dict(current_model_id=mid) for p in get_voiceprint_store().list_profiles()]
 
 
 def create_voiceprint(*, display_name: str, description: str = "") -> dict[str, Any]:
@@ -27,7 +33,7 @@ def create_voiceprint(*, display_name: str, description: str = "") -> dict[str, 
     if not name:
         raise VoiceprintError("显示名称不能为空")
     profile = get_voiceprint_store().create(display_name=name, description=description)
-    return profile.to_public_dict()
+    return _public(profile)
 
 
 def update_voiceprint(
@@ -43,7 +49,7 @@ def update_voiceprint(
     )
     if profile is None:
         raise VoiceprintError("声纹用户不存在")
-    return profile.to_public_dict()
+    return _public(profile)
 
 
 def delete_voiceprint(profile_id: str) -> None:
@@ -65,21 +71,25 @@ def enroll_voiceprint(
         incoming = extract_embedding(audio_bytes, sample_rate=sample_rate)
     except ValueError as exc:
         raise VoiceprintError(str(exc)) from exc
-    # 旧版频谱嵌入（非 192 维）与 ECAPA 不兼容，重新开始累计
+
+    model_id = current_model_id()
+    # 旧 ECAPA / 其它 model_id / 非当前维度：重新累计
     prior_count = profile.sample_count
     prior_emb = profile.embedding
-    if prior_emb and len(prior_emb) != EMBEDDING_DIM:
+    if prior_emb and (len(prior_emb) != EMBEDDING_DIM or (profile.model_id or "") != model_id):
         prior_count = 0
         prior_emb = None
+
     merged = merge_embeddings(prior_emb, incoming, count=prior_count)
     updated = store.save_embedding(
         profile_id,
         embedding=merged,
         sample_count=prior_count + 1,
+        model_id=model_id,
     )
     if updated is None:
         raise VoiceprintError("声纹用户不存在")
-    return updated.to_public_dict()
+    return _public(updated)
 
 
 def verify_voiceprint(
@@ -102,8 +112,9 @@ def verify_voiceprint(
         raise VoiceprintError("声纹用户不存在")
     if profile.sample_count <= 0 or not profile.embedding:
         raise VoiceprintError("该用户尚未录入声纹，请先完成录入")
-    if len(profile.embedding) != EMBEDDING_DIM:
-        raise VoiceprintError("声纹模板与当前 ECAPA 算法不兼容，请重新录入")
+    model_id = current_model_id()
+    if (profile.model_id or "") != model_id or len(profile.embedding) != EMBEDDING_DIM:
+        raise VoiceprintError("声纹模板与当前 ERes2Net 算法不兼容，请重新录入")
     try:
         probe = extract_embedding(audio_bytes, sample_rate=sample_rate)
     except ValueError as exc:
@@ -116,6 +127,7 @@ def verify_voiceprint(
         "threshold": threshold,
         "profile_id": profile.id,
         "display_name": profile.display_name,
+        "model_id": model_id,
         "skipped": False,
     }
 

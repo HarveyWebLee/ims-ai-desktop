@@ -49,6 +49,16 @@ async def transcribe_audio(
             "stage": result.stage,
             "changed": result.changed,
             "model_id": model_id,
+            "segments": [
+                {
+                    "seq": 0,
+                    "raw": result.raw,
+                    "text": result.text,
+                    "stage": result.stage,
+                    "changed": result.changed,
+                    "status": "done",
+                }
+            ],
         }
     )
 
@@ -141,5 +151,6 @@ async def stream_finish(
             "changed": bool(result.get("changed")),
             "source": result.get("source"),
             "seq": result.get("seq"),
+            "segments": result.get("segments") or [],
         }
     )

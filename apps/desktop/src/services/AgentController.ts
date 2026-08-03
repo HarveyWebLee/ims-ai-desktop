@@ -381,6 +381,14 @@ export async function transcribeAudio(
   raw?: string;
   stage?: string;
   changed?: boolean;
+  segments?: Array<{
+    seq: number;
+    raw: string;
+    text: string;
+    stage?: string;
+    changed?: boolean;
+    status?: string;
+  }>;
 }> {
   const form = new FormData();
   form.append("file", file, options?.filename ?? "audio.webm");
@@ -460,6 +468,14 @@ export async function transcribeStreamFinish(sessionId: string): Promise<{
   stage?: string;
   changed?: boolean;
   source?: string;
+  segments?: Array<{
+    seq: number;
+    raw: string;
+    text: string;
+    stage?: string;
+    changed?: boolean;
+    status?: string;
+  }>;
 }> {
   const form = new FormData();
   form.append("session_id", sessionId);
@@ -506,13 +522,15 @@ export async function triggerEntitySync(options?: { tables?: string }): Promise<
   return parseJsonResponse(res);
 }
 
-/** 声纹用户 */
+/** 声纹用户（ERes2Net；换 model_id 后 needs_reenroll=true） */
 export interface VoiceprintProfile {
   id: string;
   display_name: string;
   description?: string;
   sample_count: number;
   enrolled: boolean;
+  model_id?: string;
+  needs_reenroll?: boolean;
   created_at?: string;
   updated_at?: string;
 }

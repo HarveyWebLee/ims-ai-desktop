@@ -47,17 +47,19 @@
 
 ## 5. 文档索引
 
-| 编号 | 文件                                                       | 主题                       |
-| ---- | ---------------------------------------------------------- | -------------------------- |
-| 01   | [01-system-context.md](./01-system-context.md)             | 组件、端口、部署           |
-| 02   | [02-mcp-platform-server.md](./02-mcp-platform-server.md)   | Platform MCP Server        |
-| 03   | [03-agent-runtime.md](./03-agent-runtime.md)               | 父图 / SSE / HITL / Plan   |
-| 04   | [04-agent-mcp-gateway.md](./04-agent-mcp-gateway.md)       | 对外 Agent MCP             |
-| 05   | [05-qdrant-rag.md](./05-qdrant-rag.md)                     | Qdrant RAG                 |
-| 06   | [06-contracts.md](./06-contracts.md)                       | packages 契约              |
-| 08   | [08-dev-guide.md](./08-dev-guide.md)                       | 本地开发 / 质量门禁 / IDE  |
-| 09   | [09-platform-db-readonly.md](./09-platform-db-readonly.md) | 平台达梦只读               |
-| —    | [../roadmap/README.md](../roadmap/README.md)               | 迭代设想（非编码唯一依据） |
+| 编号 | 文件                                                       | 主题                        |
+| ---- | ---------------------------------------------------------- | --------------------------- |
+| 01   | [01-system-context.md](./01-system-context.md)             | 组件、端口、部署            |
+| 02   | [02-mcp-platform-server.md](./02-mcp-platform-server.md)   | Platform MCP Server         |
+| 03   | [03-agent-runtime.md](./03-agent-runtime.md)               | 父图 / SSE / HITL / Plan    |
+| 04   | [04-agent-mcp-gateway.md](./04-agent-mcp-gateway.md)       | 对外 Agent MCP              |
+| 05   | [05-qdrant-rag.md](./05-qdrant-rag.md)                     | Qdrant RAG                  |
+| 06   | [06-contracts.md](./06-contracts.md)                       | packages 契约               |
+| 08   | [08-dev-guide.md](./08-dev-guide.md)                       | 本地开发 / 质量门禁 / IDE   |
+| 09   | [09-platform-db-readonly.md](./09-platform-db-readonly.md) | 平台达梦只读                |
+| 10   | [10-voice-asr.md](./10-voice-asr.md)                       | 语音转写 / 按段纠错 / 标注  |
+| 11   | [11-voiceprint.md](./11-voiceprint.md)                     | 生产级声纹识别（1:1 / 1:N） |
+| —    | [../roadmap/README.md](../roadmap/README.md)               | 迭代设想（非编码唯一依据）  |
 
 ## 6. 技术选型（固定）
 

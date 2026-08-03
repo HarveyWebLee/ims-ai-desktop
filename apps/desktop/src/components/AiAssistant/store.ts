@@ -68,6 +68,8 @@ export interface AiAssistantState {
   selectedModelId: AgentModelId;
   /** 当前选中的声纹用户 ID（语音输入必选） */
   selectedVoiceprintId: string | null;
+  /** 是否在输入框用下划线标注纠错段并悬停显示原文 */
+  voiceCorrectionHighlightEnabled: boolean;
   pendingInterrupt: HitlPayload | null;
   alarmDetailRecord: Record<string, unknown> | null;
 
@@ -76,6 +78,7 @@ export interface AiAssistantState {
   toggleSidebar: () => void;
   setSelectedModelId: (id: AgentModelId) => void;
   setSelectedVoiceprintId: (id: string | null) => void;
+  setVoiceCorrectionHighlightEnabled: (enabled: boolean) => void;
   createNewSession: () => string;
   switchSession: (threadId: string) => void;
   setSessions: (sessions: AiSession[]) => void;
@@ -187,6 +190,7 @@ export const useAiAssistantStore = create<AiAssistantState>()(
       isLoadingHistory: false,
       selectedModelId: DEFAULT_AGENT_MODEL_ID as AgentModelId,
       selectedVoiceprintId: null,
+      voiceCorrectionHighlightEnabled: false,
       pendingInterrupt: null,
       alarmDetailRecord: null,
 
@@ -196,6 +200,8 @@ export const useAiAssistantStore = create<AiAssistantState>()(
 
       setSelectedModelId: (id) => set({ selectedModelId: id }),
       setSelectedVoiceprintId: (id) => set({ selectedVoiceprintId: id }),
+      setVoiceCorrectionHighlightEnabled: (enabled) =>
+        set({ voiceCorrectionHighlightEnabled: enabled }),
 
       createNewSession: () => {
         const threadId = uuidv4();
@@ -495,6 +501,7 @@ export const useAiAssistantStore = create<AiAssistantState>()(
       partialize: (s) => ({
         selectedModelId: s.selectedModelId,
         selectedVoiceprintId: s.selectedVoiceprintId,
+        voiceCorrectionHighlightEnabled: s.voiceCorrectionHighlightEnabled,
         sidebarOpen: s.sidebarOpen,
         sidebarWidth: s.sidebarWidth,
       }),
@@ -506,6 +513,7 @@ export const useAiAssistantStore = create<AiAssistantState>()(
           selectedModelId: resolvePersistedModelId(p.selectedModelId),
           selectedVoiceprintId:
             typeof p.selectedVoiceprintId === "string" ? p.selectedVoiceprintId : null,
+          voiceCorrectionHighlightEnabled: Boolean(p.voiceCorrectionHighlightEnabled),
         };
       },
     },

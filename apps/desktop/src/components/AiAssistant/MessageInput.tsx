@@ -1,5 +1,6 @@
 /**
- * 文本输入与发送：卡片式输入区，底部左侧模型选择、右侧语音与发送
+ * 文本输入与发送：卡片式输入区，底部左侧模型选择、右侧语音与发送。
+ * 语音按段纠错；ASR 与纠错均实时写回输入框；可选下划线标注纠错段。
  */
 import { Button, Input, Select, Tooltip } from "antd";
 import { SendOutlined } from "@ant-design/icons";
@@ -8,7 +9,11 @@ import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
 import * as AgentController from "@/services/AgentController";
 import type { VoiceprintProfile } from "@/services/AgentController";
 import ModelSelector from "./ModelSelector";
-import VoiceInput, { type VoiceCorrectionMeta } from "./VoiceInput";
+import VoiceInput, {
+  VOICEPRINT_GATE_ENABLED,
+  type VoiceCorrectionMeta,
+  type VoiceSegment,
+} from "./VoiceInput";
 import { useAiAssistantStore } from "./store";
 import styles from "./index.module.less";
 
@@ -22,23 +27,6 @@ function joinBaseAndVoice(base: string, voice: string): string {
   return `${b} ${v}`;
 }
 
-function stageLabelId(stage?: string): string {
-  switch (stage) {
-    case "semantic":
-      return "aiAssistant.voice.stage.semantic";
-    case "dictionary":
-      return "aiAssistant.voice.stage.dictionary";
-    case "llm":
-      return "aiAssistant.voice.stage.llm";
-    case "cache":
-      return "aiAssistant.voice.stage.cache";
-    case "rule":
-      return "aiAssistant.voice.stage.rule";
-    default:
-      return "aiAssistant.voice.stage.none";
-  }
-}
-
 export default function MessageInput({
   onSend,
   disabled: inputDisabled,
@@ -49,19 +37,35 @@ export default function MessageInput({
 }) {
   const intl = useIntl();
   const [text, setText] = useState("");
-  const [correction, setCorrection] = useState<(VoiceCorrectionMeta & { text: string }) | null>(
-    null,
-  );
+  const [voiceSegments, setVoiceSegments] = useState<VoiceSegment[]>([]);
+  const [voicePreview, setVoicePreview] = useState("");
+  /** 本轮录音开始时锁定的键盘文案（标注层拼接用，手动编辑后清除） */
+  const [lockedVoiceBase, setLockedVoiceBase] = useState("");
+  /** view：可悬停下划线；edit：普通 TextArea（点击标注层后进入） */
+  const [annotationMode, setAnnotationMode] = useState<"view" | "edit">("edit");
   const [voiceprints, setVoiceprints] = useState<VoiceprintProfile[]>([]);
   const textRef = useRef(text);
   textRef.current = text;
   /** 开始录音时锁定的已有文案；中间结果 / 终稿拼在其后 */
   const voiceBaseRef = useRef("");
   const [voiceBusy, setVoiceBusy] = useState(false);
-  const { isStreaming, selectedVoiceprintId, setSelectedVoiceprintId } = useAiAssistantStore();
+  const {
+    isStreaming,
+    selectedVoiceprintId,
+    setSelectedVoiceprintId,
+    voiceCorrectionHighlightEnabled,
+  } = useAiAssistantStore();
   const disabled = inputDisabled || isStreaming;
   const voiceprintSelectDisabled = disabled || voiceBusy;
   const canSend = Boolean(text.trim()) && !disabled;
+
+  const hasCorrectionMarks =
+    voiceCorrectionHighlightEnabled && voiceSegments.some((s) => s.changed && s.text.trim());
+  // 开标注时：录音/转写全程用标注层实时回显；关标注则只用 TextArea
+  const showAnnotationOverlay =
+    voiceCorrectionHighlightEnabled &&
+    annotationMode === "view" &&
+    (voiceBusy || voiceSegments.length > 0 || Boolean(voicePreview.trim()));
 
   const refreshVoiceprints = useCallback(async () => {
     try {
@@ -78,14 +82,22 @@ export default function MessageInput({
   }, [setSelectedVoiceprintId]);
 
   useEffect(() => {
+    if (!VOICEPRINT_GATE_ENABLED) return;
     void refreshVoiceprints();
   }, [refreshVoiceprints]);
+
+  const clearVoiceAnnotations = useCallback(() => {
+    setVoiceSegments([]);
+    setVoicePreview("");
+    setLockedVoiceBase("");
+    setAnnotationMode("edit");
+  }, []);
 
   const handleSend = () => {
     if (!canSend) return;
     onSend(text);
     setText("");
-    setCorrection(null);
+    clearVoiceAnnotations();
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -95,72 +107,114 @@ export default function MessageInput({
     }
   };
 
-  const handleRecordingStart = () => {
-    voiceBaseRef.current = textRef.current.trim();
-    setCorrection(null);
-  };
+  const handleRecordingStart = useCallback(() => {
+    const base = textRef.current.trim();
+    voiceBaseRef.current = base;
+    setLockedVoiceBase(base);
+    setVoiceSegments([]);
+    setVoicePreview("");
+    setAnnotationMode(voiceCorrectionHighlightEnabled ? "view" : "edit");
+  }, [voiceCorrectionHighlightEnabled]);
 
-  const handleInterim = (interim: string) => {
-    if (!interim.trim()) return;
-    setText(joinBaseAndVoice(voiceBaseRef.current, interim));
-  };
+  const handleInterim = useCallback(
+    (payload: { text: string; preview: string; segments: VoiceSegment[] }) => {
+      const draft = payload.text.trim();
+      setText(joinBaseAndVoice(voiceBaseRef.current, draft));
+      setVoiceSegments(payload.segments);
+      setVoicePreview(payload.preview || "");
+      if (voiceCorrectionHighlightEnabled) {
+        setAnnotationMode("view");
+      }
+    },
+    [voiceCorrectionHighlightEnabled],
+  );
 
-  const handleTranscribed = (transcribed: string, meta?: VoiceCorrectionMeta) => {
-    if (!transcribed.trim()) {
-      setText(voiceBaseRef.current);
+  const handleTranscribed = useCallback(
+    (transcribed: string, meta?: VoiceCorrectionMeta) => {
+      if (!transcribed.trim()) {
+        setText(voiceBaseRef.current);
+        voiceBaseRef.current = "";
+        clearVoiceAnnotations();
+        return;
+      }
+      setText(joinBaseAndVoice(voiceBaseRef.current, transcribed));
       voiceBaseRef.current = "";
-      setCorrection(null);
-      return;
-    }
-    setText(joinBaseAndVoice(voiceBaseRef.current, transcribed));
-    voiceBaseRef.current = "";
-    if (meta && (meta.raw || meta.stage)) {
-      setCorrection({ ...meta, text: transcribed });
-    } else {
-      setCorrection(null);
-    }
-  };
-
-  const correctionHint = (() => {
-    if (!correction) return null;
-    const stage = intl.formatMessage({ id: stageLabelId(correction.stage) });
-    const raw = (correction.raw || "").trim();
-    const finalText = (correction.text || "").trim();
-    if (correction.changed && raw && raw !== finalText) {
-      return intl.formatMessage(
-        { id: "aiAssistant.voice.correctionChanged" },
-        { raw, text: finalText, stage },
-      );
-    }
-    return intl.formatMessage({ id: "aiAssistant.voice.correctionUnchanged" }, { stage });
-  })();
+      const segs = meta?.segments ?? [];
+      setVoiceSegments(segs);
+      setVoicePreview("");
+      setAnnotationMode(voiceCorrectionHighlightEnabled && segs.length > 0 ? "view" : "edit");
+    },
+    [clearVoiceAnnotations, voiceCorrectionHighlightEnabled],
+  );
 
   const enrolledOptions = voiceprints.map((v) => ({
     value: v.id,
-    label: `${v.display_name}${v.enrolled ? "" : "（未录入）"}`,
+    label: `${v.display_name}${v.needs_reenroll ? "（需重录）" : v.enrolled ? "" : "（未录入）"}`,
     disabled: !v.enrolled,
   }));
+
+  const basePrefix = lockedVoiceBase.trim();
 
   return (
     <div className={styles.inputArea}>
       <div className={styles.inputAreaInner}>
         <div className={styles.inputComposer}>
           <div className={styles.inputComposerBody}>
-            <TextArea
-              className={styles.inputTextarea}
-              value={text}
-              onChange={(e) => {
-                setText(e.target.value);
-                if (correction) setCorrection(null);
-              }}
-              onKeyDown={onKeyDown}
-              placeholder={intl.formatMessage({
-                id: "aiAssistant.inputPlaceholder",
-              })}
-              autoSize={{ minRows: 3, maxRows: 8 }}
-              disabled={disabled}
-              variant="borderless"
-            />
+            <div className={styles.annotatedInputWrap}>
+              {showAnnotationOverlay ? (
+                <div
+                  className={styles.annotateBackdrop}
+                  onClick={() => {
+                    if (!voiceBusy) setAnnotationMode("edit");
+                  }}
+                  role="presentation"
+                >
+                  {basePrefix ? <span>{basePrefix} </span> : null}
+                  {voiceSegments.map((seg) =>
+                    seg.changed && seg.text ? (
+                      <Tooltip
+                        key={seg.seq}
+                        title={intl.formatMessage(
+                          { id: "aiAssistant.voice.correctionHoverRaw" },
+                          { raw: seg.raw || seg.text },
+                        )}
+                      >
+                        <span className={styles.correctedMark} onClick={(e) => e.stopPropagation()}>
+                          {seg.text}
+                        </span>
+                      </Tooltip>
+                    ) : (
+                      <span key={seg.seq}>{seg.text}</span>
+                    ),
+                  )}
+                  {voicePreview ? (
+                    <span className={styles.voicePreviewMark}>{voicePreview}</span>
+                  ) : null}
+                </div>
+              ) : null}
+              <TextArea
+                className={
+                  showAnnotationOverlay
+                    ? `${styles.inputTextarea} ${styles.inputTextareaOverlay}`
+                    : styles.inputTextarea
+                }
+                value={text}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  clearVoiceAnnotations();
+                }}
+                onKeyDown={onKeyDown}
+                onFocus={() => {
+                  if (showAnnotationOverlay && !voiceBusy) setAnnotationMode("edit");
+                }}
+                placeholder={intl.formatMessage({
+                  id: "aiAssistant.inputPlaceholder",
+                })}
+                autoSize={{ minRows: 3, maxRows: 8 }}
+                disabled={disabled}
+                variant="borderless"
+              />
+            </div>
           </div>
           <div className={styles.inputToolbar}>
             <div className={styles.inputActionsLeft}>
@@ -168,29 +222,31 @@ export default function MessageInput({
             </div>
             <div className={styles.inputActionsRight}>
               <div className={styles.voiceControlGroup}>
-                <Tooltip
-                  title={
-                    voiceBusy
-                      ? intl.formatMessage({ id: "aiAssistant.voiceprint.lockDuringVoice" })
-                      : undefined
-                  }
-                >
-                  <Select
-                    className={styles.voiceprintSelect}
-                    size="small"
-                    variant="borderless"
-                    placeholder={intl.formatMessage({
-                      id: "aiAssistant.voiceprint.selectPlaceholder",
-                    })}
-                    value={selectedVoiceprintId ?? undefined}
-                    onChange={(id) => setSelectedVoiceprintId(id)}
-                    options={enrolledOptions}
-                    allowClear={!voiceBusy}
-                    disabled={voiceprintSelectDisabled}
-                    popupMatchSelectWidth={false}
-                    style={{ minWidth: 132 }}
-                  />
-                </Tooltip>
+                {VOICEPRINT_GATE_ENABLED ? (
+                  <Tooltip
+                    title={
+                      voiceBusy
+                        ? intl.formatMessage({ id: "aiAssistant.voiceprint.lockDuringVoice" })
+                        : undefined
+                    }
+                  >
+                    <Select
+                      className={styles.voiceprintSelect}
+                      size="small"
+                      variant="borderless"
+                      placeholder={intl.formatMessage({
+                        id: "aiAssistant.voiceprint.selectPlaceholder",
+                      })}
+                      value={selectedVoiceprintId ?? undefined}
+                      onChange={(id) => setSelectedVoiceprintId(id)}
+                      options={enrolledOptions}
+                      allowClear={!voiceBusy}
+                      disabled={voiceprintSelectDisabled}
+                      popupMatchSelectWidth={false}
+                      style={{ minWidth: 132 }}
+                    />
+                  </Tooltip>
+                ) : null}
                 <VoiceInput
                   onRecordingStart={handleRecordingStart}
                   onInterim={handleInterim}
@@ -216,25 +272,15 @@ export default function MessageInput({
           </div>
         </div>
 
-        {correctionHint ? (
-          <p
-            className={
-              correction?.changed
-                ? `${styles.inputHint} ${styles.voiceCorrectionHint}`
-                : styles.inputHint
-            }
-          >
-            {correctionHint}
-          </p>
-        ) : (
-          <p className={styles.inputHint}>
-            {selectedVoiceprintId
+        <p className={styles.inputHint}>
+          {hasCorrectionMarks
+            ? intl.formatMessage({ id: "aiAssistant.voice.correctionHighlightHint" })
+            : !VOICEPRINT_GATE_ENABLED || selectedVoiceprintId
               ? intl.formatMessage({ id: "aiAssistant.inputShortcutHint" })
               : intl.formatMessage({
                   id: "aiAssistant.voiceprint.selectRequiredHint",
                 })}
-          </p>
-        )}
+        </p>
       </div>
     </div>
   );
