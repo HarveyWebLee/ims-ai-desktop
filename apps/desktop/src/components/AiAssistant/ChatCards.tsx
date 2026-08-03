@@ -68,12 +68,17 @@ export function AssistantMessageCard({
   const hitlRejected =
     !hitlInteractive &&
     !!interruptBlock &&
-    executionBlocks.some(
-      (b) =>
-        b.type === "tool_call" &&
-        b.status === "cancelled" &&
-        b.tool === interruptBlock.payload.tool,
-    );
+    (interruptBlock.resolution === "rejected" ||
+      interruptBlock.resolution === "superseded" ||
+      executionBlocks.some(
+        (b) =>
+          b.type === "tool_call" &&
+          b.status === "cancelled" &&
+          (!interruptBlock.payload.tool || b.tool === interruptBlock.payload.tool),
+      ));
+
+  const hitlAborted =
+    !hitlInteractive && !!interruptBlock && interruptBlock.resolution === "aborted";
 
   const hitlPayload = interruptBlock ? (interruptBlock.payload as HitlPayload) : null;
   const hideMessagePlan = shouldHideMessagePlanForInteractiveHitl(hitlPayload, !!hitlInteractive);
@@ -159,6 +164,8 @@ export function AssistantMessageCard({
             payload={interruptBlock.payload as HitlPayload}
             interactive={!!hitlInteractive}
             rejected={hitlRejected}
+            aborted={hitlAborted}
+            resumable={!!hitlInteractive && !message.streaming}
             loading={hitlLoading}
             onSubmit={onHitlSubmit}
             onConfirm={onHitlConfirm}

@@ -63,11 +63,49 @@ class TestAlarmFilterScope:
         assert api == _ALARM_API_UNPROCESSED
         assert codes == []
 
+    def test_resolve_unprocessed_from_list_status(self):
+        api, codes = resolve_alarm_filter_scope({"status": ["unprocessed"]})
+        assert api == _ALARM_API_UNPROCESSED
+        assert codes == []
+
+    def test_resolve_list_status_fallback(self):
+        api, codes = resolve_alarm_filter_scope({}, status_fallback=["1", "2"])
+        assert api == _ALARM_API_LIST
+        assert codes == ["1", "2"]
+
     def test_export_status_full_unprocessed(self):
         assert export_status_codes_for_scope(_ALARM_API_UNPROCESSED, []) == ["1", "2"]
 
     def test_export_status_pending_within_unprocessed(self):
         assert export_status_codes_for_scope(_ALARM_API_UNPROCESSED, ["1"]) == ["1"]
+
+
+class TestQueryAlarmsArgsAcceptList:
+    """回归：LLM/HITL 传 status=list 时不得被 pydantic 挡在门外。"""
+
+    def test_args_schema_accepts_status_list(self):
+        from platform_mcp.runtime.tools.alarm import query_alarms
+
+        schema = getattr(query_alarms, "args_schema", None)
+        assert schema is not None
+        model = schema.model_validate(
+            {
+                "status": ["unprocessed"],
+                "alarm_level": ["rank-1"],
+                "alarm_category_id": ["cat-1", "cat-2"],
+            }
+        )
+        assert model.status == ["unprocessed"]
+        assert model.alarm_level == ["rank-1"]
+        assert model.alarm_category_id == ["cat-1", "cat-2"]
+
+    def test_args_schema_still_accepts_status_string(self):
+        from platform_mcp.runtime.tools.alarm import query_alarms
+
+        schema = getattr(query_alarms, "args_schema", None)
+        assert schema is not None
+        model = schema.model_validate({"status": "未确认"})
+        assert model.status == "未确认"
 
 
 class TestResolvePlatformAlarmTimes:

@@ -149,6 +149,113 @@ def _client_action_from_result(result: str) -> dict[str, Any] | None:
     return actions[0] if actions else None
 
 
+def _result_user_cancelled(result: str) -> bool:
+    """识别 HITL 取消（兼容旧版把 user_cancelled 塞进 data 的结果）。"""
+    parsed = _parse_tool_result(result)
+    if not parsed:
+        return False
+    if parsed.get("user_cancelled"):
+        return True
+    data = parsed.get("data")
+    return isinstance(data, dict) and bool(data.get("user_cancelled"))
+
+
+def _result_unauthorized_write(result: str) -> bool:
+    """识别写工具缺 JWT 的失败结果（reject abandon 误清鉴权时的典型噪音）。"""
+    parsed = _parse_tool_result(result)
+    if not parsed:
+        return False
+    summary = str(parsed.get("summary") or "")
+    if "Authorization: Bearer" in summary or "写操作需要 Authorization" in summary:
+        return True
+    data = parsed.get("data")
+    return isinstance(data, dict) and data.get("error") == "unauthorized"
+
+
+def _text_looks_like_auth_failure(text: str) -> bool:
+    t = (text or "").strip()
+    if not t:
+        return False
+    needles = (
+        "身份验证令牌",
+        "Authorization",
+        "Bearer JWT",
+        "操作未授权",
+        "未授权",
+        "访问凭证",
+    )
+    return any(n in t for n in needles)
+
+
+_CANCEL_REPLY = "已取消操作。如需调整，请重新描述您的需求。"
+
+
+def sanitize_assistant_blocks_after_hitl_cancel(
+    blocks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    历史回显：本轮若已有用户取消的工具结果，去掉其后的鉴权失败重试与误导文案，
+    并保证出现统一取消说明（与实时 reject SSE 对齐）。
+    """
+    if not blocks:
+        return blocks
+
+    has_cancelled_tool = any(
+        isinstance(b, dict)
+        and b.get("type") == "tool_call"
+        and _result_user_cancelled(str(b.get("result") or ""))
+        for b in blocks
+    )
+    if not has_cancelled_tool:
+        return blocks
+
+    out: list[dict[str, Any]] = []
+    cancelled_seen = False
+    for b in blocks:
+        if not isinstance(b, dict):
+            continue
+        if b.get("type") == "tool_call":
+            result = str(b.get("result") or "")
+            if _result_user_cancelled(result):
+                cancelled_seen = True
+                parsed = _parse_tool_result(result) or {}
+                tool_name = str(b.get("tool") or "unknown")
+                data = parsed.get("data")
+                if isinstance(data, dict) and data.get("tool"):
+                    tool_name = str(data["tool"])
+                out.append(
+                    {
+                        **b,
+                        "status": "cancelled",
+                        "result": json.dumps(
+                            {
+                                "ok": False,
+                                "summary": str(parsed.get("summary") or "已取消操作"),
+                                "user_cancelled": True,
+                                "data": {"tool": tool_name},
+                            },
+                            ensure_ascii=False,
+                        ),
+                    }
+                )
+                continue
+            if cancelled_seen and _result_unauthorized_write(result):
+                continue
+            out.append(b)
+            continue
+        if b.get("type") == "text":
+            content = str(b.get("content") or "")
+            if cancelled_seen and _text_looks_like_auth_failure(content):
+                continue
+            out.append(b)
+            continue
+        out.append(b)
+
+    if cancelled_seen and not any(isinstance(b, dict) and b.get("type") == "text" for b in out):
+        out.append({"type": "text", "content": _CANCEL_REPLY})
+    return out
+
+
 def checkpoint_messages_to_ui(messages: list[Any]) -> list[dict[str, Any]]:
     """
     将 checkpoint 消息序列转为前端 blocks 结构。
@@ -213,24 +320,26 @@ def checkpoint_messages_to_ui(messages: list[Any]) -> list[dict[str, Any]]:
                     tool_name = tc.get("name") or "unknown"
                     args = tc.get("args") if isinstance(tc.get("args"), dict) else {}
                     result = tool_results.get(tc_id, "")
+                    status = "cancelled" if _result_user_cancelled(result) else "done"
                     tool_block: dict[str, Any] = {
                         "type": "tool_call",
                         "tool": tool_name,
                         "args": args,
-                        "status": "done",
+                        "status": status,
                         "result": result,
                     }
                     if tc_id:
                         tool_block["tool_call_id"] = tc_id
                     blocks.append(tool_block)
-                    for client_action in _client_actions_from_result(result):
-                        blocks.append(
-                            {
-                                "type": "client_action",
-                                "action": client_action,
-                                "status": "done",
-                            }
-                        )
+                    if status != "cancelled":
+                        for client_action in _client_actions_from_result(result):
+                            blocks.append(
+                                {
+                                    "type": "client_action",
+                                    "action": client_action,
+                                    "status": "done",
+                                }
+                            )
                 i = j  # 跳过已处理的 ToolMessage
             else:
                 i += 1
@@ -241,6 +350,13 @@ def checkpoint_messages_to_ui(messages: list[Any]) -> list[dict[str, Any]]:
 
         # 孤立的 ToolMessage（无对应 AIMessage）跳过
         i += 1
+
+    for item in ui:
+        if item.get("role") != "assistant":
+            continue
+        raw_blocks = item.get("blocks")
+        if isinstance(raw_blocks, list):
+            item["blocks"] = sanitize_assistant_blocks_after_hitl_cancel(raw_blocks)
 
     return ui
 

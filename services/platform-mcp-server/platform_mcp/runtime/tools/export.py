@@ -134,7 +134,7 @@ def execute_alarm_export(
     *,
     start_time: str,
     end_time: str,
-    status: str = "",
+    status: str | list[str] = "",
     filter_params: dict[str, Any] | None = None,
     require_confirm: bool = True,
 ) -> str:
@@ -169,7 +169,7 @@ def execute_alarm_export(
     start_fmt = to_platform_time(str(start_time))
     end_fmt = to_platform_time(str(end_time))
     filters = filter_params or {}
-    alarm_level = str(filters.get("alarm_rank_id") or "")
+    alarm_level = filters.get("alarm_rank_id") or filters.get("alarm_level") or ""
 
     list_api, status_codes = resolve_alarm_filter_scope(filters, status_fallback=status)
     export_status = export_status_codes_for_scope(list_api, status_codes)
@@ -492,7 +492,7 @@ def download_file(
     resource: str = "alarm_report",
     start_time: str = "",
     end_time: str = "",
-    status: str = "",
+    status: str | list[str] = "",
     device_code: str = "",
     device_name: str = "",
     sentry_id: str = "",
@@ -591,8 +591,12 @@ def download_file(
 
     from platform_mcp.runtime.tools.alarm import resolve_alarm_device_filter
 
-    status_val = str(params.get("status") or status)
+    status_raw = params.get("status")
+    if status_raw is None or status_raw == "" or status_raw == []:
+        status_raw = status
     filter_params: dict[str, Any] = dict(params)
+    if status_raw not in (None, "", []):
+        filter_params["status"] = status_raw
 
     _codes, device_err = resolve_alarm_device_filter(
         filter_params,
@@ -606,7 +610,7 @@ def download_file(
     return execute_alarm_export(
         start_time=start_time,
         end_time=end_time,
-        status=status_val,
+        status=status_raw if status_raw not in (None, "") else "",
         filter_params=filter_params,
         require_confirm=True,
     )

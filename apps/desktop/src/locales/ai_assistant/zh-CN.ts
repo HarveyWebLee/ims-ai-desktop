@@ -9,6 +9,17 @@ export default {
   closeSidebar: "收起侧栏",
   newChat: "新会话",
   logout: "退出",
+  abort: "停止生成",
+  runMode: {
+    tip: "运行模式：只读仅查询；确认执行时写操作需您批准；自主模式跳过写操作确认（缺参仍会询问）",
+    readonly: "只读",
+    confirm: "确认",
+    autonomous: "自主",
+  },
+  planFirst: {
+    label: "先计划",
+    tip: "开启后，多步任务先展示计划并确认，再执行写操作（对齐 Plan Mode）",
+  },
   entitySync: {
     button: "同步向量库",
     tooltip: "将配置的业务表（达梦只读）同步到向量库",
@@ -85,6 +96,7 @@ export default {
       rate_limit: "模型请求过于频繁，请稍后再试",
       model_unavailable: "模型服务暂不可用，请稍后重试或切换其他模型",
       network: "无法连接模型服务，请检查网络或代理",
+      mcp_unavailable: "平台工具服务（MCP）不可用，请确认已启动后再试",
       unknown: "模型服务调用失败，请稍后重试",
     },
     hint: {
@@ -94,6 +106,8 @@ export default {
       rate_limit: "请等待 1～2 分钟后重试，或切换到负载更低的模型。",
       model_unavailable: "可在侧栏尝试切换 qwen3.7-plus 等默认模型。",
       network: "请确认本机可访问模型 API，且代理配置正确。",
+      mcp_unavailable:
+        "请先启动 platform-mcp-server（默认 http://127.0.0.1:8010），或检查 PLATFORM_MCP_URL 后重试。",
       unknown: "请稍后重试；若持续失败，请查看 Agent 服务日志或联系管理员。",
     },
   },
@@ -139,7 +153,7 @@ export default {
     planPreview: "执行步骤预览",
     devicePreviewTitle: "目标设备信息",
     batchConfirmHint: "批量确认告警为高风险操作，请仔细核对后再执行",
-    scrollToForm: "请在下方表单中补充参数后点击「确认并继续」",
+    scrollToForm: "请在下方表单中补充参数后点击「确认并继续」，或点击「取消」放弃",
     device: {
       hint: "请按条件筛选后，单选要下发指令的设备",
       selected: "已选：{name}（{code}）",
@@ -224,7 +238,10 @@ export default {
       confirmTitle: "请确认是否继续",
       planConfirmTitle: "请确认任务计划",
       completed: "已提交确认",
-      rejected: "已取消",
+      rejected: "已拒绝",
+      aborted: "已中止",
+      resumable: "会话在此暂停，可继续确认或补参",
+      waiting: "等待确认",
     },
   },
   plan: {

@@ -5,10 +5,19 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEFAULT_AGENT_MODEL_ID, getCatalogItem } from "@ims/agent-core/model-catalog";
-import type { AgentModelId, PlanStep, TraceEvent } from "@ims/shared-types";
+import type { AgentModelId, AgentRunMode, PlanStep, TraceEvent } from "@ims/shared-types";
 import type { AiMessage, AiSession, HitlPayload } from "./types";
 import { reconcilePlanStepsWithToolBlocks } from "./utils/planGraphUtils";
 import { v4 as uuidv4 } from "uuid";
+
+const DEFAULT_RUN_MODE: AgentRunMode = "confirm";
+
+function resolvePersistedRunMode(value: unknown): AgentRunMode {
+  if (value === "readonly" || value === "confirm" || value === "autonomous") {
+    return value;
+  }
+  return DEFAULT_RUN_MODE;
+}
 
 /** 在消息块中定位待更新的 tool_call：优先 toolCallId，否则按工具名取最近匹配状态 */
 function findToolCallBlockIndex(
@@ -66,6 +75,10 @@ export interface AiAssistantState {
   /** 正在拉取历史会话消息（切换会话期间不展示欢迎空态） */
   isLoadingHistory: boolean;
   selectedModelId: AgentModelId;
+  /** 会话运行模式：只读 / 确认执行 / 自主 */
+  runMode: AgentRunMode;
+  /** 显式「先计划后执行」：多步任务先 plan_confirm 再调写工具 */
+  planFirst: boolean;
   /** 当前选中的声纹用户 ID（语音输入必选） */
   selectedVoiceprintId: string | null;
   /**
@@ -81,6 +94,8 @@ export interface AiAssistantState {
   setSidebarWidth: (width: number) => void;
   toggleSidebar: () => void;
   setSelectedModelId: (id: AgentModelId) => void;
+  setRunMode: (mode: AgentRunMode) => void;
+  setPlanFirst: (enabled: boolean) => void;
   setSelectedVoiceprintId: (id: string | null) => void;
   setVoiceprintEnabled: (enabled: boolean) => void;
   setVoiceCorrectionHighlightEnabled: (enabled: boolean) => void;
@@ -98,6 +113,11 @@ export interface AiAssistantState {
   ) => void;
   /** 用户批准/拒绝或 HITL 已结束后移除 interrupt 块 */
   clearAssistantInterruptBlock: (messageId: string) => void;
+  /** 将 interrupt 块标为终态（保留卡片展示，不可再交互） */
+  resolveAssistantInterruptBlock: (
+    messageId: string,
+    resolution: "rejected" | "aborted" | "superseded",
+  ) => void;
   completeAssistantToolCall: (
     messageId: string,
     tool: string,
@@ -194,6 +214,8 @@ export const useAiAssistantStore = create<AiAssistantState>()(
       isStreaming: false,
       isLoadingHistory: false,
       selectedModelId: DEFAULT_AGENT_MODEL_ID as AgentModelId,
+      runMode: DEFAULT_RUN_MODE,
+      planFirst: false,
       selectedVoiceprintId: null,
       voiceprintEnabled: false,
       voiceCorrectionHighlightEnabled: false,
@@ -205,6 +227,8 @@ export const useAiAssistantStore = create<AiAssistantState>()(
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
       setSelectedModelId: (id) => set({ selectedModelId: id }),
+      setRunMode: (mode) => set({ runMode: mode }),
+      setPlanFirst: (enabled) => set({ planFirst: Boolean(enabled) }),
       setSelectedVoiceprintId: (id) => set({ selectedVoiceprintId: id }),
       setVoiceprintEnabled: (enabled) => set({ voiceprintEnabled: enabled }),
       setVoiceCorrectionHighlightEnabled: (enabled) =>
@@ -297,6 +321,19 @@ export const useAiAssistantStore = create<AiAssistantState>()(
               ? { ...m, blocks: m.blocks.filter((b) => b.type !== "interrupt") }
               : m,
           ),
+        })),
+
+      resolveAssistantInterruptBlock: (messageId, resolution) =>
+        set((s) => ({
+          messages: s.messages.map((m) => {
+            if (m.id !== messageId) return m;
+            return {
+              ...m,
+              blocks: m.blocks.map((b) =>
+                b.type === "interrupt" && !b.resolution ? { ...b, resolution } : b,
+              ),
+            };
+          }),
         })),
 
       completeAssistantToolCall: (messageId, tool, result, finalStatus = "done", toolCallId) =>
@@ -507,6 +544,8 @@ export const useAiAssistantStore = create<AiAssistantState>()(
       name: "ai-assistant-store",
       partialize: (s) => ({
         selectedModelId: s.selectedModelId,
+        runMode: s.runMode,
+        planFirst: s.planFirst,
         selectedVoiceprintId: s.selectedVoiceprintId,
         voiceCorrectionHighlightEnabled: s.voiceCorrectionHighlightEnabled,
         sidebarOpen: s.sidebarOpen,
@@ -518,6 +557,8 @@ export const useAiAssistantStore = create<AiAssistantState>()(
           ...current,
           ...p,
           selectedModelId: resolvePersistedModelId(p.selectedModelId),
+          runMode: resolvePersistedRunMode(p.runMode),
+          planFirst: Boolean(p.planFirst),
           selectedVoiceprintId:
             typeof p.selectedVoiceprintId === "string" ? p.selectedVoiceprintId : null,
           voiceCorrectionHighlightEnabled: Boolean(p.voiceCorrectionHighlightEnabled),

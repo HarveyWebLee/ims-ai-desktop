@@ -149,13 +149,13 @@ export function buildDeviceCommandWorkspace(resultJson: string): DeviceCommandWo
     return null;
   }
 
-  const summary = String(parsed.summary ?? "").trim();
-  const userCancelled = parsed.user_cancelled === true;
-  const ok = userCancelled ? false : Boolean(parsed.ok);
   const data =
     parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data)
       ? (parsed.data as Record<string, unknown>)
       : {};
+  const summary = String(parsed.summary ?? "").trim();
+  const userCancelled = parsed.user_cancelled === true || data.user_cancelled === true;
+  const ok = userCancelled ? false : Boolean(parsed.ok);
 
   const autoRetryRaw = data.auto_retry as { from?: string; to?: string } | undefined;
   const autoRetry =
@@ -342,18 +342,26 @@ export function resolveWorkspaceFromMessage(
 
   let lastOk: WorkspaceContent | null = null;
   let lastDeviceCommand: WorkspaceContent | null = null;
+  let lastCancelledDeviceCommand: WorkspaceContent | null = null;
   for (const block of message.blocks) {
     if (block.type !== "tool_call") continue;
-    if (block.status !== "done" || !block.result) continue;
+    if (!block.result) continue;
+    // cancelled 也参与解析，避免历史里被后续鉴权失败盖住
+    if (block.status !== "done" && block.status !== "cancelled") continue;
     const workspace = workspaceFromToolEnd(block.tool, block.result, block.args);
     if (!workspace) continue;
     if (workspace.kind === "device_command") {
-      lastDeviceCommand = workspace;
+      if (workspace.userCancelled) {
+        lastCancelledDeviceCommand = workspace;
+      } else {
+        lastDeviceCommand = workspace;
+      }
       continue;
     }
     if (workspace.ok) {
       lastOk = workspace;
     }
   }
-  return lastDeviceCommand ?? lastOk;
+  // 同轮有取消结果时优先展示取消，不展示其后的鉴权失败卡
+  return lastCancelledDeviceCommand ?? lastDeviceCommand ?? lastOk;
 }

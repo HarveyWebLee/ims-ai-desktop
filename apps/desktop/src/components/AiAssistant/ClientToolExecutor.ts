@@ -48,6 +48,7 @@ export async function executeClientAction(
     switch (action.action) {
       case "navigate": {
         console.warn("[desktop] skip navigate:", action.path, action.query);
+        message.info("桌面端已跳过页面跳转（将由平台处理）");
         return {
           ok: true,
           summary: "桌面端已跳过页面跳转（将由平台 WS 处理）",
@@ -56,6 +57,7 @@ export async function executeClientAction(
 
       case "openModal": {
         console.warn("[desktop] skip openModal:", action.modal, action.params);
+        message.info("桌面端已跳过打开详情（将由平台处理）");
         return {
           ok: true,
           summary: "桌面端已跳过打开详情（将由平台 WS 处理）",

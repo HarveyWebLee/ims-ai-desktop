@@ -16,10 +16,22 @@
 
 1. `bash scripts/up.sh` → `bash scripts/all.sh`
 2. 桌面端登录成功，可发消息并收到 SSE 流式回复
-3. 触发需确认工具 → HITL 卡出现 → 批准续跑 / 拒绝后状态清理
-4. 中止流式：loading 结束，无残留 streaming
-5. 新会话 / 切换历史：无上一轮 Plan / interrupt 污染
-6. `curl -s localhost:8008/health` 正常；MCP `:8010` 可达
+3. 触发需确认工具 → HITL 卡出现 → 批准续跑 / 拒绝后状态清理（拒绝后卡片显示「已拒绝」，可继续发新消息）
+4. 中止流式：点停止按钮 → loading 结束，无残留 streaming / HITL / running 工具
+5. 新会话 / 切换历史：无上一轮 Plan / interrupt 污染；有 pending interrupt 的历史会话显示「可续跑」并可继续确认
+6. MCP 不可达时：明确「MCP 不可用」类错误提示（非 unknown）
+7. `curl -s localhost:8008/health` 正常；MCP `:8010` 可达
+8. Playbook（可选）：发「处理未确认告警」/「导出告警」→ Agent 按规程查询/导出（步骤可复现；改 `app/playbooks` 后重启生效）
+9. 先计划：打开「先计划」开关 → 发「查近三天告警然后导出」→ 出现 plan_confirm → 批准后才执行导出
+
+## 残留态矩阵（P0）
+
+| 路径        | pendingInterrupt | interrupt 块    | Plan 未完成步 | loading |
+| ----------- | ---------------- | --------------- | ------------- | ------- |
+| Stop/abort  | 清               | 终态 aborted    | skipped       | 关      |
+| reject      | 清               | 终态 rejected   | skipped       | 关      |
+| 新消息顶替  | 清               | 终态 superseded | skipped       | 新回合  |
+| resume 批准 | 清块后续跑       | 清后执行        | 推进          | 流式    |
 
 ## 改动类型与必测对照
 

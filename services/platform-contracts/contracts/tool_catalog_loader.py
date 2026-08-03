@@ -192,6 +192,52 @@ def get_tools_by_risk(*levels: str) -> frozenset[str]:
     return frozenset(names)
 
 
+def is_write_tool(tool_name: str) -> bool:
+    """
+    写工具判定：存在 required_permissions，或 risk_level 为 medium/high。
+
+    用于会话运行模式 readonly 门控与工具子集裁剪。
+    """
+    manifest = get_tool_manifest(tool_name)
+    if not manifest:
+        return False
+    perms = manifest.get("required_permissions")
+    if isinstance(perms, list) and any(str(p).strip() for p in perms):
+        return True
+    risk = str(manifest.get("risk_level") or "low").lower()
+    return risk in {"medium", "high"}
+
+
+def get_tool_domains(tool_name: str) -> frozenset[str]:
+    """读取 catalog domains 标签。"""
+    manifest = get_tool_manifest(tool_name)
+    if not manifest:
+        return frozenset()
+    raw = manifest.get("domains")
+    if not isinstance(raw, list):
+        return frozenset()
+    return frozenset(str(d).strip().lower() for d in raw if str(d).strip())
+
+
+def get_tools_by_domains(*domains: str) -> frozenset[str]:
+    """按 domains 标签筛选工具名（任一标签命中即纳入）。"""
+    wanted = {d.strip().lower() for d in domains if d and str(d).strip()}
+    if not wanted:
+        return frozenset()
+    names: set[str] = set()
+    for tool in load_tool_catalog():
+        name = str(tool.get("name") or "")
+        if not name:
+            continue
+        raw = tool.get("domains")
+        if not isinstance(raw, list):
+            continue
+        tool_domains = {str(d).strip().lower() for d in raw if str(d).strip()}
+        if tool_domains & wanted:
+            names.add(name)
+    return frozenset(names)
+
+
 def catalog_property_to_hitl_field(name: str, prop: dict[str, Any]) -> dict[str, Any]:
     """将 catalog JSON Schema 属性转为最简 HITL 字段（string/select）。"""
     field: dict[str, Any] = {

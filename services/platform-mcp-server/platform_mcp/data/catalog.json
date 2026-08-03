@@ -24,7 +24,10 @@
     "side": "client",
     "risk_level": "low",
     "enabled": true,
-    "client_action": "navigate"
+    "client_action": "navigate",
+    "domains": [
+      "nav"
+    ]
   },
   {
     "name": "pause",
@@ -44,7 +47,10 @@
     "side": "client",
     "risk_level": "low",
     "enabled": true,
-    "client_action": "pause"
+    "client_action": "pause",
+    "domains": [
+      "nav"
+    ]
   },
   {
     "name": "open_alarm_detail",
@@ -64,11 +70,14 @@
     "side": "client",
     "risk_level": "low",
     "enabled": true,
-    "client_action": "openModal"
+    "client_action": "openModal",
+    "domains": [
+      "alarm"
+    ]
   },
   {
     "name": "query_alarms",
-    "description": "帮使用者查询告警列表（仅查询/统计，不导出文件）。当使用者询问某时段、某类型、某设备的告警数量或列表时使用（含「近三天报警记录」「查某某设备报警」等说法）；「未处理告警」传 status=未处理；「未确认/待确认告警」传 status=未确认；某设备报警传 device_name（原话设备名）或 device_code。**必须立即调用本工具**；使用者已说相对时间时原样传入 start_time。若未明确时间范围，start_time/end_time 留空，由 HITL 表单补选。若使用者说「导出」「下载」请改用 download_file，禁止用本工具代替导出。",
+    "description": "帮使用者查询告警列表（仅查询/统计，不导出文件）。当使用者询问某时段、某类型、某设备的告警数量或列表时使用（含「近三天报警记录」「查某某设备报警」等说法）；「未处理告警」传 status=未处理 或 [\"unprocessed\"]；「未确认/待确认告警」传 status=未确认 或 [\"1\"]；status / alarm_level / alarm_rank_id / alarm_category_id 均支持字符串或字符串数组多选。某设备报警传 device_name（原话设备名）或 device_code。**必须立即调用本工具**；使用者已说相对时间时原样传入 start_time。若未明确时间范围，start_time/end_time 留空，由 HITL 表单补选。若使用者说「导出」「下载」请改用 download_file，禁止用本工具代替导出。",
     "parameters": {
       "type": "object",
       "properties": {
@@ -81,12 +90,60 @@
           "description": "结束时间，**通常留空**。相对范围（如近三天）由服务端根据 start_time 自动推算，无需填写。"
         },
         "alarm_level": {
-          "type": "string",
-          "description": "告警级别筛选，可选"
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "报警级别筛选，可选；可传单个字符串或字符串数组（多选），对应平台 alarmRankId[]"
+        },
+        "alarm_rank_id": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "报警级别 ID，可选；与 alarm_level 等价，可多选；HITL 回填优先用本字段"
+        },
+        "alarm_category_id": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "报警类型 ID，可选；可传单个字符串或字符串数组（多选）"
         },
         "status": {
-          "type": "string",
-          "description": "告警状态筛选，可选。「未处理」=待确认+已确认(走未处理专口)；「未确认/待确认」=仅待确认；「已确认」「已处理」按字面筛选。"
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "告警状态筛选，可选；可传字符串或字符串数组（多选）。「未处理」/unprocessed=待确认+已确认(走未处理专口)；「未确认/待确认」/1=仅待确认；「已确认」/2、「已处理」/3 按码筛选。"
         },
         "device_code": {
           "type": "string",
@@ -103,6 +160,9 @@
     "risk_level": "low",
     "enabled": true,
     "platform_api": "POST /api/app/alarm/getAlarmList",
+    "domains": [
+      "alarm"
+    ],
     "hitl_fields": [
       {
         "name": "time_range",
@@ -192,63 +252,30 @@
     "side": "server",
     "risk_level": "low",
     "enabled": true,
-    "platform_api": "POST /api/app/alarm/getAlarmList"
+    "platform_api": "POST /api/app/alarm/getAlarmList",
+    "domains": [
+      "alarm"
+    ]
   },
   {
     "name": "download_file",
     "description": "帮使用者**下载/导出**平台报表文件（Excel）。**必须立即调用**；使用者已说相对时间时原样传入 start_time；未明确时间时 start_time/end_time 留空，由 HITL 补选。resource 必填：告警/报警导出用 alarm_report（禁止用 query_alarms 代替）；岗哨交接/哨位交接导出用 sentry_handover；值班信息导出用 duty_info；值班管理导出用 duty_manage（勿与值班信息混淆）；出入信息/出入记录导出用 acs_record。支持相对时间：今天、昨天、近三天等。",
     "parameters": {
       "type": "object",
-      "properties": {
-        "resource": {
-          "type": "string",
-          "description": "导出类型：alarm_report=告警；sentry_handover=岗哨交接；duty_info=值班信息；duty_manage=值班管理；acs_record=出入信息",
-          "enum": [
-            "alarm_report",
-            "sentry_handover",
-            "duty_info",
-            "duty_manage",
-            "acs_record"
-          ]
-        },
-        "start_time": {
-          "type": "string",
-          "description": "时间范围，可填相对描述如「近三天」；使用者已说相对时间时原样传入，end_time 通常留空"
-        },
-        "end_time": {
-          "type": "string",
-          "description": "结束时间，相对范围可留空，由服务端推算"
-        },
-        "status": {
-          "type": "string",
-          "description": "仅 alarm_report：告警状态筛选，可选。语义同 query_alarms：未处理/未确认/已确认/已处理"
-        },
-        "device_code": {
-          "type": "string",
-          "description": "仅 alarm_report：设备编码筛选，可选；与 device_name 二选一"
-        },
-        "device_name": {
-          "type": "string",
-          "description": "仅 alarm_report：设备名称筛选，可选；与 device_code 二选一"
-        },
-        "sentry_id": {
-          "type": "string",
-          "description": "仅 sentry_handover：岗哨 ID 筛选，可选；未指定则导出时间范围内全部"
-        },
-        "person_id": {
-          "type": "string",
-          "description": "仅 acs_record：人员 ID 筛选，可选；未指定则导出时间范围内全部"
-        }
-      },
-      "required": [
-        "resource"
-      ]
+      "properties": {},
+      "required": []
     },
     "side": "server",
     "risk_level": "medium",
     "enabled": true,
     "platform_api": "GET /api/app/alarm/exportAlarm",
     "client_action": "download",
+    "domains": [
+      "export",
+      "alarm",
+      "duty",
+      "acs"
+    ],
     "hitl_fields": [
       {
         "name": "time_range",
@@ -332,24 +359,7 @@
     "description": "帮使用者**批量确认告警**（高风险写操作，执行前须使用者 HITL 批准）。当使用者要求**确认**告警时使用（待确认→已确认）。**禁止**用于「处理/批量处理」场景（已确认→已处理请用 batch_process_alarms）。**一次请求只调用本工具一次**；本工具会拉取列表并在 HITL 卡片展示摘要，**禁止**先 query_alarms 再重复调用。平台：1=待确认、2=已确认、3=已处理；未处理=1+2。确认仅操作待确认(1)。alarm_ids 与 start_time/end_time 筛选二选一：有明确编号时传 alarm_ids，否则传时间范围。",
     "parameters": {
       "type": "object",
-      "properties": {
-        "alarm_ids": {
-          "type": "string",
-          "description": "逗号分隔的告警编号；使用者已给出具体编号时使用，与下方时间筛选二选一"
-        },
-        "start_time": {
-          "type": "string",
-          "description": "开始时间。可填 ISO8601 或相对描述如「近三天」「昨天」；按筛选批量确认时必填"
-        },
-        "end_time": {
-          "type": "string",
-          "description": "结束时间；相对范围可留空，由服务端推算"
-        },
-        "status": {
-          "type": "string",
-          "description": "可选。「未处理」=待确认+已确认(1+2)；「待确认/未确认」=仅1。批量确认时未处理会先筛出待确认"
-        }
-      },
+      "properties": {},
       "required": []
     },
     "side": "server",
@@ -358,6 +368,9 @@
     "platform_api": "POST /api/app/alarm/confirmAlarm",
     "required_permissions": [
       "alarm:confirm"
+    ],
+    "domains": [
+      "alarm"
     ],
     "hitl_fields": [
       {
@@ -444,24 +457,7 @@
     "description": "帮使用者**批量处理告警**（高风险写操作，执行前须 HITL 批准）。当使用者要求**处理/批量处理**告警时使用。适用于**待确认(1)或已确认(2)**，执行后变为已处理(3)，调用 processAlarm。待确认可直接处理（等同平台「立即处理」）；已确认只能处理、不能再次确认。**禁止**用于仅需「确认」的场景（请用 batch_confirm_alarms）。说「未处理」时走 getAlarmUnprocessList，处理其中全部待确认+已确认。alarm_ids 与 start_time/end_time 筛选二选一。",
     "parameters": {
       "type": "object",
-      "properties": {
-        "alarm_ids": {
-          "type": "string",
-          "description": "逗号分隔的告警编号；与下方时间筛选二选一"
-        },
-        "start_time": {
-          "type": "string",
-          "description": "开始时间，相对描述如「近三天」"
-        },
-        "end_time": {
-          "type": "string",
-          "description": "结束时间，相对范围可留空"
-        },
-        "status": {
-          "type": "string",
-          "description": "可选。「未处理」=待确认+已确认；也可指定「待确认」「已确认」"
-        }
-      },
+      "properties": {},
       "required": []
     },
     "side": "server",
@@ -470,6 +466,9 @@
     "platform_api": "POST /api/app/alarm/processAlarm",
     "required_permissions": [
       "alarm:process"
+    ],
+    "domains": [
+      "alarm"
     ],
     "hitl_fields": [
       {
@@ -579,7 +578,10 @@
     "side": "server",
     "risk_level": "low",
     "enabled": true,
-    "platform_api": "POST /api/app/device/getDeviceList"
+    "platform_api": "POST /api/app/device/getDeviceList",
+    "domains": [
+      "device"
+    ]
   },
   {
     "name": "get_device_detail",
@@ -602,6 +604,9 @@
     "risk_level": "low",
     "enabled": true,
     "platform_api": "GET /api/app/device/getDeviceByCode/{deviceCode}",
+    "domains": [
+      "device"
+    ],
     "hitl_fields": [
       {
         "name": "device_code",
@@ -654,6 +659,9 @@
     "risk_level": "low",
     "enabled": true,
     "platform_api": "POST /api/app/device/getVarListByCode",
+    "domains": [
+      "device"
+    ],
     "hitl_fields": [
       {
         "name": "device_code",
@@ -721,6 +729,9 @@
     "required_permissions": [
       "device:control"
     ],
+    "domains": [
+      "device"
+    ],
     "hitl_fields": [
       {
         "name": "device_code",
@@ -779,6 +790,9 @@
     "risk_level": "low",
     "enabled": true,
     "platform_api": "POST /api/app/realData/getRealDataList",
+    "domains": [
+      "device"
+    ],
     "hitl_fields": [
       {
         "name": "variable_name",
@@ -832,6 +846,9 @@
     "risk_level": "low",
     "enabled": true,
     "platform_api": "POST /api/app/sysMonitor/getDevVarDataList",
+    "domains": [
+      "device"
+    ],
     "hitl_fields": [
       {
         "name": "variable_name",
@@ -882,6 +899,10 @@
     "side": "client",
     "risk_level": "low",
     "enabled": true,
-    "client_action": "navigate"
+    "client_action": "navigate",
+    "domains": [
+      "device",
+      "nav"
+    ]
   }
 ]

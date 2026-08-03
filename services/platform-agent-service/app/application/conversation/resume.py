@@ -12,8 +12,11 @@ from contracts.context import (
     current_auth_token,
     current_hitl_confirm_bypass,
     current_message_id,
+    current_plan_first,
+    current_run_mode,
     current_thread_id,
     current_turn_suppressed_tools,
+    normalize_run_mode,
     safe_reset_contextvar,
 )
 
@@ -59,6 +62,8 @@ async def stream_resume_core(
     auth_token: str | None = None,
     user_id: str | None = None,
     mid: str | None = None,
+    run_mode: str | None = None,
+    plan_first: bool = False,
 ) -> AsyncIterator[AgentEvent]:
     """执行 HITL 续跑：仅 ``Command(resume=...)`` 路径。"""
     from app.graph.stream_envelope import wrap_stream_with_plan_trace
@@ -81,6 +86,9 @@ async def stream_resume_core(
     tid = current_thread_id.set(thread_id)
     turn_mid = await _resolve_resume_mid(thread_id, mid)
     mid_token = current_message_id.set(turn_mid) if turn_mid else None
+    mode = normalize_run_mode(run_mode)
+    mode_token = current_run_mode.set(mode)
+    plan_first_token = current_plan_first.set(bool(plan_first))
     from contracts.agent_debug import agent_debug
 
     agent_debug(
@@ -88,6 +96,8 @@ async def stream_resume_core(
         thread_id=thread_id,
         has_auth=bool(auth_token),
         mid=turn_mid,
+        run_mode=mode,
+        plan_first=bool(plan_first),
     )
     expected_resume_tool = extract_expected_hitl_tool(resume_value)
     suppressed_token = None
@@ -103,9 +113,11 @@ async def stream_resume_core(
             bypass_token = current_hitl_confirm_bypass.set(True)
 
     from app.services.session_store import session_store
+    from app.services.tool_subset import get_remembered_thread_tool_subset
 
     prior_msgs = session_store.get_user_messages(thread_id, limit=1)
     resume_user_msg = prior_msgs[-1] if prior_msgs else "继续执行"
+    tool_names = get_remembered_thread_tool_subset(thread_id)
 
     plan_for_wrap = None
     plan_graph_for_wrap = None
@@ -129,6 +141,7 @@ async def stream_resume_core(
             thread_id=thread_id,
             mid=turn_mid,
             resume_type=(resume_payload.get("type") if isinstance(resume_payload, dict) else None),
+            tool_subset=sorted(tool_names) if tool_names else None,
         )
         agent_debug(
             "flow.checkpoint.before_resume",
@@ -163,6 +176,7 @@ async def stream_resume_core(
             model_id=model_id,
             input_payload=Command(resume=resume_payload),
             auth_token=auth_token,
+            tool_names=tool_names,
         ):
             if event[0] in ("done", "error"):
                 saw_terminal = True
@@ -208,6 +222,8 @@ async def stream_resume_core(
         safe_reset_contextvar(current_thread_id, tid, label="current_thread_id")
         if mid_token is not None:
             safe_reset_contextvar(current_message_id, mid_token, label="current_message_id")
+        safe_reset_contextvar(current_run_mode, mode_token, label="current_run_mode")
+        safe_reset_contextvar(current_plan_first, plan_first_token, label="current_plan_first")
         if bypass_token is not None:
             safe_reset_contextvar(
                 current_hitl_confirm_bypass,
@@ -224,6 +240,8 @@ async def stream_resume(
     auth_token: str | None = None,
     user_id: str | None = None,
     mid: str | None = None,
+    run_mode: str | None = None,
+    plan_first: bool = False,
 ) -> AsyncIterator[AgentEvent]:
     """执行完整 HITL 续跑事件流。"""
     async for event in stream_resume_core(
@@ -233,5 +251,7 @@ async def stream_resume(
         auth_token=auth_token,
         user_id=user_id,
         mid=mid,
+        run_mode=run_mode,
+        plan_first=plan_first,
     ):
         yield event

@@ -172,6 +172,25 @@ class ToolExecutionPipeline:
                 interrupt=preflight.interrupt,
             )
 
+        from contracts.context import current_run_mode
+        from contracts.tool_catalog_loader import is_write_tool
+
+        if current_run_mode.get() == "readonly" and is_write_tool(enriched.tool_name):
+            from app.services.tool_subset import deny_readonly_write_summary
+
+            return PreparedToolExecution(
+                request=normalized_request,
+                denied_result=tool_result(
+                    ok=False,
+                    summary=deny_readonly_write_summary(enriched.tool_name),
+                    data={
+                        "error_code": "run_mode_readonly",
+                        "tool": enriched.tool_name,
+                        "non_retryable": True,
+                    },
+                ),
+            )
+
         decision = self._authorization_policy.authorize(normalized_request)
         agent_debug(
             "flow.tool.authorization",

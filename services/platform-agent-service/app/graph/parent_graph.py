@@ -37,7 +37,7 @@ RouteKind = Literal[
     "end",
 ]
 
-_parent_graph_cache: dict[str, Any] = {}
+_parent_graph_cache: dict[tuple[str, str], Any] = {}
 
 
 class ParentState(TypedDict, total=False):
@@ -73,11 +73,14 @@ async def classify_node(state: ParentState) -> dict[str, Any]:
     """意图路由 + Plan/设备门控预判，写入下一跳 route。
 
     ``AGENT_INTENT_AI_FIRST=true``（默认）时旁路门控，恒路由 ``react``；
-    ``false`` 时保留 chat_direct / plan_confirm / device_gate 原路径。
+    请求 ``plan_first=true`` 时覆盖旁路，恢复 plan_confirm / device_gate；
+    ``AGENT_INTENT_AI_FIRST=false`` 时保留 chat_direct / plan_confirm / device_gate 原路径。
     """
     from app.config import settings
+    from contracts.context import current_plan_first
 
-    if settings.agent_intent_ai_first:
+    plan_first = bool(current_plan_first.get())
+    if settings.agent_intent_ai_first and not plan_first:
         return {"route": "react"}
 
     ctx = _ctx_from_state(state)
@@ -626,15 +629,23 @@ def _route_after_device_gate(state: ParentState) -> RouteKind:
     return "end"
 
 
-def build_parent_graph(*, model_id: str):
-    """编译父 StateGraph；按 model_id 缓存子图（react/chat 绑定不同 create_agent）。"""
+def build_parent_graph(*, model_id: str, tool_names: frozenset[str] | None = None):
+    """编译父 StateGraph；按 model_id + 工具子集指纹缓存子图。"""
     from app.graph.agent_factory import get_agent, get_chat_agent
+    from app.services.tool_subset import tool_subset_fingerprint
 
-    cache_key = model_id or "__default__"
+    mid = model_id or "__default__"
+    if tool_names is None:
+        from app.tools.registry import get_agent_tools
+
+        fp = tool_subset_fingerprint(frozenset(t.name for t in get_agent_tools()))
+    else:
+        fp = tool_subset_fingerprint(tool_names)
+    cache_key = (mid, fp)
     if cache_key in _parent_graph_cache:
         return _parent_graph_cache[cache_key]
 
-    react_agent = get_agent(model_id)
+    react_agent = get_agent(model_id, tool_names=tool_names)
     chat_agent = get_chat_agent(model_id)
 
     workflow = StateGraph(ParentState)
@@ -681,7 +692,10 @@ def build_parent_graph(*, model_id: str):
     compiled = workflow.compile(checkpointer=_get_checkpointer())
     _parent_graph_cache[cache_key] = compiled
     logger.info(
-        "父 StateGraph 已编译: model_id=%s nodes=%s", model_id, list(compiled.get_graph().nodes)
+        "父 StateGraph 已编译: model_id=%s tool_fp=%s nodes=%s",
+        model_id,
+        fp[:120],
+        list(compiled.get_graph().nodes),
     )
     return compiled
 

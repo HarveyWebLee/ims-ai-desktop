@@ -243,17 +243,17 @@ flowchart TD
 
 ### P0 Done
 
-- [ ] 用户可切换只读 / 确认 / 自主，且后端强制生效
-- [ ] 默认绑定工具为子集或分级；全量工具不再是唯一策略
-- [ ] reject / abort / 新消息后无 HITL、Plan、loading 残留
-- [ ] interrupt 态在 UI 可解释、可续跑
+- [x] 用户可切换只读 / 确认 / 自主，且后端强制生效（P0-1）
+- [x] 默认绑定工具为子集或分级；全量工具不再是唯一策略（P0-2）
+- [x] reject / abort / 新消息后无 HITL、Plan、loading 残留（P0-3）
+- [x] interrupt 态在 UI 可解释、可续跑（P0-4；P0-5 含 MCP 不可达话术）
 
 ### P1 Done
 
-- [ ] 至少 2 个高频场景有可版本化 playbook，且任务成功率可测提升
-- [ ] 用户可选「先计划后执行」
+- [x] 至少 2 个高频场景有可版本化 playbook，且任务成功率可测提升（P1-1：`alarm-dispose` / `batch-export`；成功率需联调观测）
+- [x] 用户可选「先计划后执行」（P1-2：桌面 `planFirst` → 请求 `plan_first`，覆盖 AI-first 走 `plan_confirm`）
 - [ ] 至少 3 类高频工具有结构化卡片
-- [ ] 知识/playbook 更新可不发版或轻发版生效
+- [ ] 知识/playbook 更新可不发版或轻发版生效（P1-1 外部 `AGENT_PLAYBOOK_DIR` 已支持热更目录；P1-5 补全 RAG 运营）
 
 ### P2 Done（按立项裁剪）
 
@@ -301,6 +301,10 @@ flowchart TD
 
 ## 修订记录
 
-| 日期       | 说明                                              |
-| ---------- | ------------------------------------------------- |
-| 2026-07-31 | 初稿：Cursor 摘要、与本仓差异矩阵、P0–P2 优化计划 |
+| 日期       | 说明                                                           |
+| ---------- | -------------------------------------------------------------- |
+| 2026-07-31 | 初稿：Cursor 摘要、与本仓差异矩阵、P0–P2 优化计划              |
+| 2026-08-03 | P0-1 / P0-2 落地：会话 run_mode + catalog domains 工具子集注入 |
+| 2026-08-03 | P0-3/4/5：abort Stop、HITL 终态/可续跑、mcp_unavailable        |
+| 2026-08-03 | P1-1：运行时 Playbook（alarm-dispose / batch-export）注入      |
+| 2026-08-03 | P1-2：显式 Plan（plan_first 覆盖 AI-first → plan_confirm）     |

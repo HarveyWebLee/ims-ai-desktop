@@ -12,8 +12,11 @@ from app.services.prompt_assembly import build_system_prompt, extract_user_displ
 
 
 @pytest.fixture(autouse=True)
-def _disable_rag_injection():
-    """单测不连本机 Qdrant，避免知识库命中污染 llm_user_message 断言。"""
+def _disable_rag_and_playbook_injection(monkeypatch: pytest.MonkeyPatch):
+    """单测不连本机 Qdrant / 不注入 Playbook，避免污染 llm_user_message 断言。"""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "agent_playbook_enabled", False)
     with patch("app.rag.context.retrieve_knowledge_blocks", return_value=[]):
         yield
 

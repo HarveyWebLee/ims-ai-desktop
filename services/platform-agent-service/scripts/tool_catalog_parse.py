@@ -311,6 +311,9 @@ def parse_tool_object(
     perms = _parse_string_list_field(block, "required_permissions")
     if perms:
         item["required_permissions"] = perms
+    domains = _parse_string_list_field(block, "domains")
+    if domains:
+        item["domains"] = domains
     constants = hitl_constants or {}
     hitl = _parse_hitl_fields(block, constants=constants)
     if hitl:

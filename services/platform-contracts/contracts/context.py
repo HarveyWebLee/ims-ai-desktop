@@ -31,6 +31,8 @@ ContextVar ≈ 每个请求自带的小书包：set 一次，深层 tool/helper 
 - current_turn_suppressed_tools：本轮忽略的 stale 工具（如误触发的 download_file）
 - current_stream_message_skip：stream 仅发增量消息，避免简历历史 tool SSE
 - current_model_id：worker 线程读 checkpoint 用
+- current_run_mode：会话运行模式 readonly | confirm | autonomous
+- current_plan_first：显式「先计划后执行」，覆盖 AI-first 旁路以走 plan_confirm
 """
 
 from __future__ import annotations  # 允许在类型注解中引用尚未定义的类型（Python 3.7+ 特性）
@@ -38,6 +40,8 @@ from __future__ import annotations  # 允许在类型注解中引用尚未定义
 # contextvars：Python 标准库，提供「按异步任务隔离」的变量
 from contextvars import ContextVar, Token
 from typing import Any
+
+DEFAULT_RUN_MODE = "confirm"
 
 # 当前 Agent 请求携带的平台 Authorization 头（格式通常为 "Bearer <JWT>"）
 # 与前端 App 的 requestTo 透传方式保持一致，供 platform_client 调用平台 API
@@ -55,6 +59,12 @@ current_hitl_confirm_bypass: ContextVar[bool] = ContextVar(
     default=False,
 )
 
+# 用户拒绝 HITL 后的 drain：禁止 Agent 继续调用 MCP（避免取消后带着 JWT 重试写工具）
+current_hitl_reject_drain: ContextVar[bool] = ContextVar(
+    "current_hitl_reject_drain",
+    default=False,
+)
+
 # 本轮 chat 应忽略的 stale 工具（如导航新意图下误触发的 download_file）
 current_turn_suppressed_tools: ContextVar[frozenset[str]] = ContextVar(
     "current_turn_suppressed_tools",
@@ -69,6 +79,20 @@ current_stream_message_skip: ContextVar[int] = ContextVar(
 
 # 当前模型 ID（stream worker 线程内读取 checkpoint interrupt 用）
 current_model_id: ContextVar[str | None] = ContextVar("current_model_id", default=None)
+
+# 会话运行模式：readonly | confirm | autonomous（默认 confirm）
+current_run_mode: ContextVar[str] = ContextVar("current_run_mode", default=DEFAULT_RUN_MODE)
+
+# 显式 Plan：true 时即使 AI-first 也走 plan_confirm 门控（多步/写步骤先出计划再执行）
+current_plan_first: ContextVar[bool] = ContextVar("current_plan_first", default=False)
+
+
+def normalize_run_mode(value: str | None) -> str:
+    """将请求字段规范为合法 run_mode；非法或缺省 → confirm。"""
+    mode = (value or "").strip().lower()
+    if mode in ("readonly", "confirm", "autonomous"):
+        return mode
+    return DEFAULT_RUN_MODE
 
 
 def safe_reset_contextvar(

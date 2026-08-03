@@ -9,6 +9,17 @@ export default {
   closeSidebar: "Collapse sidebar",
   newChat: "New Chat",
   logout: "Log out",
+  abort: "Stop generating",
+  runMode: {
+    tip: "Run mode: Read-only queries only; Confirm requires approval for writes; Autonomous skips write confirmations (missing params still prompt)",
+    readonly: "Read-only",
+    confirm: "Confirm",
+    autonomous: "Auto",
+  },
+  planFirst: {
+    label: "Plan first",
+    tip: "When on, multi-step tasks show a plan for approval before write tools run",
+  },
   entitySync: {
     button: "Sync vectors",
     tooltip: "Sync configured business tables (Dameng read-only) into the vector store",
@@ -87,6 +98,7 @@ export default {
       rate_limit: "Too many requests. Please try again later",
       model_unavailable: "Model service is unavailable. Try another model",
       network: "Cannot reach the model service. Check network or proxy",
+      mcp_unavailable: "Platform MCP tools are unavailable. Start the MCP server and retry",
       unknown: "Model service call failed. Please try again later",
     },
     hint: {
@@ -96,6 +108,8 @@ export default {
       rate_limit: "Wait 1–2 minutes or switch to a lighter model.",
       model_unavailable: "Try switching to qwen3.7-plus or another model in the sidebar.",
       network: "Ensure this machine can reach the model API endpoint.",
+      mcp_unavailable:
+        "Start platform-mcp-server (default http://127.0.0.1:8010) or check PLATFORM_MCP_URL.",
       unknown:
         "Please retry later. If it persists, check Agent service logs or contact an administrator.",
     },
@@ -142,7 +156,8 @@ export default {
     planPreview: "Planned steps",
     devicePreviewTitle: "Target device",
     batchConfirmHint: "Batch alarm confirmation is high-risk. Please verify before proceeding.",
-    scrollToForm: 'Please fill in the form below and click "Confirm and continue".',
+    scrollToForm:
+      'Fill in the form below and click "Confirm and continue", or click "Cancel" to abort.',
     device: {
       hint: "Filter devices, then select one to control",
       selected: "Selected: {name} ({code})",
@@ -227,7 +242,10 @@ export default {
       confirmTitle: "Please confirm to proceed",
       planConfirmTitle: "Confirm task plan",
       completed: "Confirmed",
-      rejected: "Cancelled",
+      rejected: "Rejected",
+      aborted: "Stopped",
+      resumable: "Paused here — you can continue confirming or fill in parameters",
+      waiting: "Waiting for confirmation",
     },
   },
   plan: {

@@ -28,6 +28,8 @@ import { assistantMessageHasVisibleContent } from "../chatCardUtils";
 import {
   applyPendingInterruptToMessages,
   findPendingInterruptFromMessages,
+  finalizeTurnResidue,
+  isActiveInterruptBlock,
   resolveActiveHitlMessageId,
   shouldPreserveHitlOnStreamDone,
 } from "../utils/hitlInterruptUtils";
@@ -43,6 +45,8 @@ export function useAgentStream() {
   const {
     currentThreadId,
     selectedModelId,
+    runMode,
+    planFirst,
     setStreaming,
     setMessages,
     appendAssistantBlock,
@@ -538,6 +542,21 @@ export function useAgentStream() {
     async (content: string) => {
       if (!content.trim()) return;
 
+      const priorState = useAiAssistantStore.getState();
+      // 新意图：收束上一轮未结束的 HITL / 流式残留
+      const prevAssistant = [...priorState.messages].reverse().find((m) => m.role === "assistant");
+      if (prevAssistant) {
+        const hasActiveHitl = prevAssistant.blocks.some((b) => isActiveInterruptBlock(b));
+        const hasRunning = prevAssistant.blocks.some(
+          (b) =>
+            b.type === "tool_call" &&
+            (b.status === "running" || b.status === "awaiting_hitl" || b.status === "pending"),
+        );
+        if (hasActiveHitl || hasRunning || prevAssistant.streaming) {
+          finalizeTurnResidue(prevAssistant.id, "superseded");
+        }
+      }
+
       const priorUserMessages = useAiAssistantStore
         .getState()
         .messages.filter((m) => m.role === "user")
@@ -607,6 +626,8 @@ export function useAgentStream() {
             mid,
             message: content.trim(),
             model_id: selectedModelId,
+            run_mode: runMode,
+            plan_first: planFirst,
             // 桌面端无宿主路由，固定根路径供后端 client_action 等上下文使用
             metadata: { current_path: "/" },
             recent_user_messages: priorUserMessages,
@@ -644,6 +665,8 @@ export function useAgentStream() {
       currentThreadId,
       finalizeAssistantMessage,
       selectedModelId,
+      runMode,
+      planFirst,
       setStreaming,
       intl,
       updateAssistantText,
@@ -776,6 +799,8 @@ export function useAgentStream() {
             thread_id: currentThreadId,
             mid: sourceMid,
             model_id: selectedModelId,
+            run_mode: runMode,
+            plan_first: planFirst,
             decisions: [{ type: "respond", args: resumeArgs }],
           },
           resumeHandlers,
@@ -803,6 +828,8 @@ export function useAgentStream() {
       intl,
       patchAssistantMessage,
       selectedModelId,
+      runMode,
+      planFirst,
       setPendingInterrupt,
       setStreaming,
       updateAssistantPlanStep,
@@ -836,46 +863,11 @@ export function useAgentStream() {
           (interruptBlock?.type === "interrupt" ? interruptBlock.payload.mid : undefined) ??
           pending?.mid;
         if (m && interruptBlock?.type === "interrupt" && !approved) {
-          // 清除该条消息可能残留的流式 loading（如 plan 执行中断后未复位）
-          finalizeAssistantMessage(m.id);
-          clearAssistantInterruptBlock(m.id);
-          const hitlTool = interruptBlock.payload.tool;
-          if (hitlTool) {
-            completeAssistantToolCall(m.id, hitlTool, undefined, "cancelled");
-          }
-          if (interruptBlock.payload.type === "plan_confirm") {
-            m.planSteps?.forEach((step) => {
-              if (step.status === "awaiting_confirm") {
-                updateAssistantPlanStep(m.id, step.id, "skipped", {
-                  hitl: {
-                    ...(step.hitl ?? {}),
-                    type: "plan_confirm",
-                    resolution: "rejected",
-                  },
-                  resultSummary: intl.formatMessage({
-                    id: "aiAssistant.card.hitl.rejected",
-                  }),
-                });
-              }
-            });
-          } else {
-            const hitlStep = m.planSteps?.find(
-              (s) =>
-                s.tool === hitlTool && (s.status === "awaiting_hitl" || s.status === "running"),
-            );
-            if (hitlStep) {
-              updateAssistantPlanStep(m.id, hitlStep.id, "skipped", {
-                hitl: {
-                  ...(hitlStep.hitl ?? {}),
-                  type: interruptBlock.payload.type,
-                  resolution: "rejected",
-                },
-                resultSummary: intl.formatMessage({
-                  id: "aiAssistant.card.tool.cancelled",
-                }),
-              });
-            }
-          }
+          finalizeTurnResidue(m.id, "rejected", {
+            resultSummary: intl.formatMessage({
+              id: "aiAssistant.card.hitl.rejected",
+            }),
+          });
         }
       }
 
@@ -912,6 +904,8 @@ export function useAgentStream() {
               thread_id: currentThreadId,
               mid: sourceMid,
               model_id: selectedModelId,
+              run_mode: runMode,
+              plan_first: planFirst,
               decisions: [{ type: "reject" }],
             },
             {
@@ -1035,6 +1029,8 @@ export function useAgentStream() {
             thread_id: currentThreadId,
             mid: sourceMid,
             model_id: selectedModelId,
+            run_mode: runMode,
+            plan_first: planFirst,
             decisions: [
               {
                 type: approved ? "approve" : "reject",
@@ -1066,6 +1062,8 @@ export function useAgentStream() {
       loadSessions,
       patchAssistantMessage,
       selectedModelId,
+      runMode,
+      planFirst,
       setPendingInterrupt,
       setStreaming,
       updateAssistantPlanStep,
@@ -1075,8 +1073,23 @@ export function useAgentStream() {
 
   const abortStream = useCallback(() => {
     abortRef.current?.abort();
-    setStreaming(false);
-  }, [setStreaming]);
+    const state = useAiAssistantStore.getState();
+    const streamingMsg = [...state.messages]
+      .reverse()
+      .find(
+        (m) =>
+          m.role === "assistant" &&
+          (m.streaming || m.blocks.some((b) => isActiveInterruptBlock(b))),
+      );
+    if (streamingMsg) {
+      finalizeTurnResidue(streamingMsg.id, "aborted", {
+        resultSummary: intl.formatMessage({ id: "aiAssistant.card.hitl.aborted" }),
+      });
+    } else {
+      state.setPendingInterrupt(null);
+      setStreaming(false);
+    }
+  }, [intl, setStreaming]);
 
   return {
     sendMessage,

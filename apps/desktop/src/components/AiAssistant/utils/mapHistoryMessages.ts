@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { ClientAction } from "@ims/shared-types";
 import type { AiMessage, AiMessageBlock } from "../types";
 import { extractUserDisplayText } from "./extractUserDisplayText";
+import { parseToolResultUserCancelled } from "./parseToolResult";
 import { resolveWorkspaceFromMessage } from "./workspaceFromTool";
 
 /** 服务端返回的单条历史消息 */
@@ -103,6 +104,17 @@ export function mapHistoryToMessages(history: ThreadHistoryMessage[]): AiMessage
       blocks = (item.blocks as Record<string, unknown>[])
         .map((b) => normalizeBlock(b))
         .filter((b): b is AiMessageBlock => b != null);
+    }
+
+    // 历史 tool_call：user_cancelled → status cancelled（与实时 reject 终态对齐）
+    if (role === "assistant" && blocks.length) {
+      blocks = blocks.map((block) => {
+        if (block.type !== "tool_call" || !block.result) return block;
+        if (parseToolResultUserCancelled(block.result)) {
+          return { ...block, status: "cancelled" as const };
+        }
+        return block;
+      });
     }
 
     if (!blocks.length) continue;

@@ -6,17 +6,25 @@
  */
 import type { HitlPayload } from "@ims/shared-types";
 import type { AiMessage, AiMessageBlock } from "../types";
+import { useAiAssistantStore } from "../store";
 
 /** 父图级 HITL：不依赖 tool_call 块即可挂起 */
 export function isGraphLevelHitlType(type: HitlPayload["type"] | string | undefined): boolean {
   return type === "plan_confirm" || type === "ask_params" || type === "confirm";
 }
 
-/** 从消息块中取 interrupt payload */
+/** 从消息块中取 interrupt payload（跳过已终态块） */
 export function findInterruptPayload(blocks: AiMessageBlock[]): HitlPayload | null {
-  const block = blocks.find((b) => b.type === "interrupt");
+  const block = blocks.find((b) => b.type === "interrupt" && !b.resolution);
   if (block?.type !== "interrupt") return null;
   return block.payload;
+}
+
+/** interrupt 块是否仍可交互（无 resolution） */
+export function isActiveInterruptBlock(
+  block: AiMessageBlock | undefined | null,
+): block is Extract<AiMessageBlock, { type: "interrupt" }> {
+  return !!block && block.type === "interrupt" && !block.resolution;
 }
 
 /**
@@ -51,7 +59,11 @@ export function resolveActiveHitlMessageId(
   if (mid) {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const m = messages[i];
-      if (m.role === "assistant" && m.mid === mid && m.blocks.some((b) => b.type === "interrupt")) {
+      if (
+        m.role === "assistant" &&
+        m.mid === mid &&
+        m.blocks.some((b) => isActiveInterruptBlock(b))
+      ) {
         return m.id;
       }
     }
@@ -65,7 +77,7 @@ export function resolveActiveHitlMessageId(
 
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const m = messages[i];
-    if (m.role === "assistant" && m.blocks.some((b) => b.type === "interrupt")) {
+    if (m.role === "assistant" && m.blocks.some((b) => isActiveInterruptBlock(b))) {
       return m.id;
     }
   }
@@ -220,4 +232,75 @@ export function shouldHideMessagePlanForInteractiveHitl(
   interactive: boolean,
 ): boolean {
   return interactive && hitlPayload?.type === "plan_confirm";
+}
+
+export type TurnResidueReason = "aborted" | "rejected" | "superseded";
+
+/**
+ * 将助手消息上的 HITL / 运行中工具 / 未完成 Plan 收束为终态（对称路径共用）。
+ * 通过 zustand getState 直接改 store，供 abort / reject / 新消息复用。
+ */
+export function finalizeTurnResidue(
+  messageId: string,
+  reason: TurnResidueReason,
+  options?: { resultSummary?: string },
+): void {
+  const store = useAiAssistantStore.getState();
+
+  const msg = store.messages.find((m) => m.id === messageId);
+  if (!msg || msg.role !== "assistant") {
+    store.setPendingInterrupt(null);
+    store.setStreaming(false);
+    return;
+  }
+
+  store.setPendingInterrupt(null);
+
+  const interruptBlock = msg.blocks.find((b) => b.type === "interrupt");
+  if (interruptBlock?.type === "interrupt" && !interruptBlock.resolution) {
+    store.resolveAssistantInterruptBlock(messageId, reason);
+    const hitlTool = interruptBlock.payload.tool;
+    if (hitlTool) {
+      store.completeAssistantToolCall(messageId, hitlTool, undefined, "cancelled");
+    }
+  }
+
+  // 重新取消息，避免上面已改 tool 后用旧快照漏标
+  const latest = useAiAssistantStore.getState().messages.find((m) => m.id === messageId);
+  for (const block of latest?.blocks ?? []) {
+    if (
+      block.type === "tool_call" &&
+      (block.status === "running" || block.status === "awaiting_hitl" || block.status === "pending")
+    ) {
+      store.completeAssistantToolCall(
+        messageId,
+        block.tool,
+        undefined,
+        "cancelled",
+        block.toolCallId,
+      );
+    }
+  }
+
+  const summary = options?.resultSummary;
+  const planMsg = useAiAssistantStore.getState().messages.find((m) => m.id === messageId);
+  for (const step of planMsg?.planSteps ?? []) {
+    if (
+      step.status === "pending" ||
+      step.status === "running" ||
+      step.status === "awaiting_hitl" ||
+      step.status === "awaiting_confirm"
+    ) {
+      store.updateAssistantPlanStep(messageId, step.id, "skipped", {
+        hitl: {
+          ...(step.hitl ?? {}),
+          resolution: reason === "rejected" ? "rejected" : "cancelled",
+        },
+        ...(summary ? { resultSummary: summary } : {}),
+      });
+    }
+  }
+
+  store.finalizeAssistantMessage(messageId);
+  store.setStreaming(false);
 }

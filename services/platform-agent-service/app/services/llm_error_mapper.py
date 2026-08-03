@@ -45,6 +45,7 @@ _USER_MESSAGES: dict[str, str] = {
     "rate_limit": "模型请求过于频繁，请稍后再试",
     "model_unavailable": "模型服务暂不可用，请稍后重试或切换其他模型",
     "network": "无法连接模型服务，请检查网络或代理配置",
+    "mcp_unavailable": "平台工具服务（MCP）不可用，请确认已启动后再试",
     "unknown": "模型服务调用失败，请稍后重试",
 }
 
@@ -58,6 +59,10 @@ _HINTS: dict[str, str] = {
     "rate_limit": "请等待 1～2 分钟后重试，或切换到负载更低的模型。",
     "model_unavailable": "可在侧栏尝试切换 qwen3.7-plus 等默认模型。",
     "network": "请确认本机可访问模型 API 地址，且未错误配置代理。",
+    "mcp_unavailable": (
+        "请先启动 platform-mcp-server（默认 http://127.0.0.1:8010），"
+        "或检查 PLATFORM_MCP_URL 配置后重试。"
+    ),
 }
 
 
@@ -170,6 +175,15 @@ def classify_llm_exception(exc: BaseException) -> tuple[str, int | None, str | N
 
     if "connection" in lower or "timeout" in lower or "connect" in lower:
         return "network", http_status, err_type or None
+
+    if (
+        "platform mcp" in lower
+        or "mcp 不可用" in text
+        or "mcp不可用" in text
+        or "platform-mcp-server" in lower
+        or ("mcp" in lower and ("8010" in lower or "不可用" in text or "unavailable" in lower))
+    ):
+        return "mcp_unavailable", http_status, err_type or None
 
     return "unknown", http_status, err_type or None
 

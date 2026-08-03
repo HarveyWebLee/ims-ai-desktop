@@ -178,14 +178,15 @@ class Settings(BaseSettings):
 
     # Platform MCP Server（双层 MCP）
     platform_mcp_url: str = "http://127.0.0.1:8010/mcp"
-    # true：Platform MCP 不可达时启动预热失败直接退出；false 仅允许进程起来（仍不绑 raw）
-    agent_mcp_required: bool = True
+    # false（默认）：MCP 未就绪时 Agent 仍可启动，对话调工具时再报 mcp_unavailable
+    # true：启动预热失败则进程退出（适合生产「MCP 必达」部署）
+    agent_mcp_required: bool = False
     # 额外 MCP 服务器 JSON，例：
     # {"filesystem":{"transport":"stdio","command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}
     agent_mcp_extra_servers_json: str = ""
     # Agent MCP Gateway 共享密钥；可与 Bearer JWT 二选一。空=不接受密钥头，仍须 Bearer
     agent_mcp_gateway_key: str = ""
-    # 启动时预热 Platform MCP 工具列表
+    # 启动时预热 Platform MCP 工具列表（失败是否退出见 agent_mcp_required）
     agent_mcp_warmup_on_start: bool = True
     # MCP 工具列表缓存 TTL（秒）；0=仅手动 clear / 进程重启才刷新
     agent_mcp_cache_ttl_seconds: int = 300
@@ -209,6 +210,15 @@ class Settings(BaseSettings):
     vector_upsert_batch_size: int = 64
     # 每轮被动 RAG 注入条数
     rag_top_k: int = 4
+
+    # 运行时 Playbook（Skills 等价）：按意图注入 llm_user_message；改 md 后可热重载缓存
+    agent_playbook_enabled: bool = True
+    # 空=使用 app/playbooks；可指向外部目录以便运营热更而不改代码树
+    agent_playbook_dir: str = ""
+    # 单轮最多注入几份（通常 1；导出+告警重叠时可 2）
+    agent_playbook_max_matches: int = 2
+    # true=监听目录 .md 变更并 reload 内存缓存（不重启进程）
+    agent_playbook_watch: bool = True
 
     # 知识库：图片视觉抽取（DashScope VL → 文本 → Embedding）
     knowledge_vision_enabled: bool = True

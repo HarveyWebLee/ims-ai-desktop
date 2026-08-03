@@ -6,18 +6,20 @@ import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import { useAiAssistantStore } from "./store";
 import { useAgentStream } from "./hooks/useAgentStream";
+import { isActiveInterruptBlock } from "./utils/hitlInterruptUtils";
 import styles from "./index.module.less";
 
 export default function ChatPanel() {
   const { messages, isStreaming, isLoadingHistory, pendingInterrupt } = useAiAssistantStore();
-  const { sendMessage, loadSessions, submitHitlResume, submitHitlConfirm } = useAgentStream();
+  const { sendMessage, loadSessions, submitHitlResume, submitHitlConfirm, abortStream } =
+    useAgentStream();
 
   const messageAreaRef = useRef<HTMLDivElement>(null);
 
-  /** 是否存在待处理 HITL（store 或消息块） */
+  /** 是否存在待处理 HITL（store 或未终态 interrupt 块） */
   const hasPendingHitl =
     !!pendingInterrupt ||
-    messages.some((m) => m.role === "assistant" && m.blocks.some((b) => b.type === "interrupt"));
+    messages.some((m) => m.role === "assistant" && m.blocks.some((b) => isActiveInterruptBlock(b)));
 
   useEffect(() => {
     loadSessions();
@@ -44,7 +46,8 @@ export default function ChatPanel() {
 
       <MessageInput
         onSend={sendMessage}
-        disabled={isStreaming || isLoadingHistory || hasPendingHitl}
+        onAbort={abortStream}
+        disabled={isLoadingHistory || hasPendingHitl}
       />
     </div>
   );

@@ -117,3 +117,62 @@ def test_checkpoint_messages_to_ui_merges_same_mid_react_turn():
     assert types.count("tool_call") == 2
     assert types.count("text") == 1
     assert ui[1]["blocks"][-1]["type"] == "text"
+
+
+def test_checkpoint_messages_to_ui_sanitizes_auth_noise_after_cancel():
+    """HITL 取消后若 checkpoint 残留鉴权失败重试，历史回显应去掉噪音并保留取消。"""
+    mid = "turn-cancel"
+    human = HumanMessage(
+        content="给门禁开门",
+        id=mid,
+        additional_kwargs={"mid": mid},
+    )
+    ai1 = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "id": "call-1",
+                "name": "send_device_cmd",
+                "args": {"action": "开门"},
+            }
+        ],
+    )
+    # 旧版：user_cancelled 嵌在 data
+    tool_cancel = ToolMessage(
+        content=(
+            '{"ok": false, "summary": "已取消操作",'
+            ' "data": {"user_cancelled": true, "tool": "send_device_cmd"}}'
+        ),
+        tool_call_id="call-1",
+        name="send_device_cmd",
+    )
+    ai2 = AIMessage(
+        content="操作未授权，系统提示需要身份验证令牌（Bearer JWT）。",
+        tool_calls=[
+            {
+                "id": "call-2",
+                "name": "send_device_cmd",
+                "args": {"action": "开门"},
+            }
+        ],
+    )
+    tool_unauth = ToolMessage(
+        content=(
+            '{"ok": false, "summary": "写操作需要 Authorization: Bearer <jwt>",'
+            ' "data": {"error": "unauthorized"}}'
+        ),
+        tool_call_id="call-2",
+        name="send_device_cmd",
+    )
+
+    ui = checkpoint_messages_to_ui([human, ai1, tool_cancel, ai2, tool_unauth])
+    assert len(ui) == 2
+    assert ui[1]["role"] == "assistant"
+    blocks = ui[1]["blocks"]
+    tool_blocks = [b for b in blocks if b.get("type") == "tool_call"]
+    text_blocks = [b for b in blocks if b.get("type") == "text"]
+    assert len(tool_blocks) == 1
+    assert tool_blocks[0]["status"] == "cancelled"
+    assert "user_cancelled" in tool_blocks[0]["result"]
+    assert not any("未授权" in str(t.get("content") or "") for t in text_blocks)
+    assert not any("Authorization" in str(t.get("result") or "") for t in tool_blocks)

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from contracts.context import current_hitl_confirm_bypass
+from contracts.context import current_hitl_confirm_bypass, current_run_mode
 
 
 class McpHitlSignal(Exception):
@@ -109,9 +109,12 @@ def ask_user_confirm(
     写操作确认；无 bypass 时抛 ``McpHitlSignal``。
 
     Agent resume 批准后应带 ``X-Hitl-Confirm-Bypass`` 重调，本函数返回 True。
+    ``current_run_mode == autonomous`` 时跳过 confirm（缺参仍走 ask_params）。
     device_preview：可选，send_device_cmd 等指令确认前附带设备摘要（前端同屏展示）。
     """
     if current_hitl_confirm_bypass.get():
+        return True
+    if current_run_mode.get() == "autonomous":
         return True
 
     payload: dict[str, Any] = {

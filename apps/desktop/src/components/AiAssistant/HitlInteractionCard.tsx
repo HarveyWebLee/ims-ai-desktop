@@ -21,6 +21,10 @@ export interface HitlInteractionCardProps {
   interactive: boolean;
   /** 非交互态下是否因用户拒绝而结束 */
   rejected?: boolean;
+  /** 流式中止导致的终态 */
+  aborted?: boolean;
+  /** 历史恢复后的可续跑提示（interactive 时展示） */
+  resumable?: boolean;
   loading?: boolean;
   onSubmit?: (values: Record<string, unknown>) => void | Promise<void>;
   /** plan_confirm 可附带编排后的 steps */
@@ -44,6 +48,8 @@ export default function HitlInteractionCard({
   payload,
   interactive,
   rejected,
+  aborted,
+  resumable,
   loading,
   onSubmit,
   onConfirm,
@@ -80,11 +86,13 @@ export default function HitlInteractionCard({
 
   const isConfirm = payload.type === "confirm" || isPlanConfirm;
 
-  if (rejected) {
+  if (rejected || aborted) {
     return (
       <div className={styles.hitlCardCompleted}>
         <div className={styles.hitlCompletedHint}>
-          {intl.formatMessage({ id: "aiAssistant.card.hitl.rejected" })}
+          {intl.formatMessage({
+            id: aborted ? "aiAssistant.card.hitl.aborted" : "aiAssistant.card.hitl.rejected",
+          })}
         </div>
       </div>
     );
@@ -117,6 +125,11 @@ export default function HitlInteractionCard({
             })}
           </span>
           <span className={styles.hitlCardDesc}>{title}</span>
+          {resumable ? (
+            <span className={styles.hitlCardDesc}>
+              {intl.formatMessage({ id: "aiAssistant.card.hitl.resumable" })}
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -252,15 +265,25 @@ export default function HitlInteractionCard({
                 <HitlFormField field={field} />
               </Form.Item>
             ))}
-            <Button
-              type="primary"
-              htmlType="submit"
-              block
-              loading={loading}
-              className={styles.hitlSubmitBtn}
-            >
-              {intl.formatMessage({ id: "aiAssistant.hitl.submitParams" })}
-            </Button>
+            {/* 与 confirm / plan_confirm 对称：取消走 reject 续跑，清理 interrupt */}
+            <Space className={styles.hitlParamsActions}>
+              <Button
+                type="default"
+                htmlType="button"
+                disabled={loading}
+                onClick={() => onConfirm?.(false)}
+              >
+                {intl.formatMessage({ id: "aiAssistant.hitl.reject" })}
+              </Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={loading}
+                className={styles.hitlSubmitBtn}
+              >
+                {intl.formatMessage({ id: "aiAssistant.hitl.submitParams" })}
+              </Button>
+            </Space>
           </Form>
         ) : null
       ) : (

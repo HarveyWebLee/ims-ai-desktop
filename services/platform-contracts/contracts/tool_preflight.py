@@ -427,8 +427,8 @@ def _build_platform_preflight_payload(
             start_time=start_iso,
             end_time=end_iso,
             filter_params=args,
-            status_fallback=str(args.get("status") or ""),
-            alarm_level=str(args.get("alarm_level") or ""),
+            status_fallback=args.get("status") or "",
+            alarm_level=args.get("alarm_rank_id") or args.get("alarm_level") or "",
             page=1,
             size=20 if name == "query_alarms" else 1,
         )

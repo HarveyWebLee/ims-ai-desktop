@@ -25,10 +25,17 @@ export function parseToolResultOk(result: string): boolean {
   return true;
 }
 
-/** 解析工具结果是否为用户主动取消（与后端 user_cancelled 对齐） */
+/** 解析工具结果是否为用户主动取消（与后端 user_cancelled 对齐；兼容旧版嵌套在 data） */
 export function parseToolResultUserCancelled(result: string): boolean {
   if (!result) return false;
-  return parseToolResultJson(result)?.user_cancelled === true;
+  const data = parseToolResultJson(result);
+  if (!data) return false;
+  if (data.user_cancelled === true) return true;
+  const nested = data.data;
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    return (nested as { user_cancelled?: boolean }).user_cancelled === true;
+  }
+  return false;
 }
 
 /**

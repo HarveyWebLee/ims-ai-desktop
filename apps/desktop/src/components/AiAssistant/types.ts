@@ -51,7 +51,12 @@ export type AiMessageBlock =
       retry?: boolean;
       attempt?: number;
     }
-  | { type: "interrupt"; payload: HitlPayload }
+  | {
+      type: "interrupt";
+      payload: HitlPayload;
+      /** 终态：拒绝 / 中止 / 被新消息顶替；有值则不可再交互 */
+      resolution?: "rejected" | "aborted" | "superseded";
+    }
   | {
       type: "client_action";
       action: ClientAction;

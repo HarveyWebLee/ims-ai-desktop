@@ -1160,6 +1160,18 @@
   width: 100%;
 }
 
+.hitlParamsActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+
+  .hitlSubmitBtn {
+    margin-top: 0;
+  }
+}
+
 .hitlSubmitBtn {
   margin-top: 4px;
   height: 36px;
@@ -1410,6 +1422,28 @@
   min-width: 0;
   display: flex;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.runModeSegmented {
+  flex-shrink: 0;
+}
+
+.planFirstSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 2px 4px;
+  cursor: default;
+}
+
+.planFirstLabel {
+  font-size: 12px;
+  color: var(--ai-text-secondary, rgba(0, 0, 0, 0.55));
+  white-space: nowrap;
+  user-select: none;
 }
 
 .voiceControlGroup {
@@ -1502,6 +1536,27 @@
 
   &:not(:disabled):hover {
     transform: translateY(-1px);
+  }
+}
+
+/* 流式中：圆形主按钮内双竖条，对齐视频暂停控件 */
+.abortBtn {
+  animation: ai-abort-pulse 1.6s ease-in-out infinite;
+}
+
+.abortIcon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+@keyframes ai-abort-pulse {
+  0%,
+  100% {
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--ai-brand) 35%, transparent);
+  }
+
+  50% {
+    box-shadow: 0 2px 14px color-mix(in srgb, var(--ai-brand) 55%, transparent);
   }
 }
 

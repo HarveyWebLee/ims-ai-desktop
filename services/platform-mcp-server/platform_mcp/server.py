@@ -101,11 +101,14 @@ def _apply_request_auth_context() -> str | None:
     auth = lower.get("authorization") or None
     thread_id = lower.get("x-thread-id") or None
     bypass_raw = (lower.get("x-hitl-confirm-bypass") or "").strip().lower()
+    run_mode_raw = lower.get("x-run-mode") or None
 
     from contracts.context import (
         current_auth_token,
         current_hitl_confirm_bypass,
+        current_run_mode,
         current_thread_id,
+        normalize_run_mode,
     )
 
     if auth:
@@ -114,6 +117,7 @@ def _apply_request_auth_context() -> str | None:
         current_thread_id.set(thread_id)
     if bypass_raw in {"1", "true", "yes", "on"}:
         current_hitl_confirm_bypass.set(True)
+    current_run_mode.set(normalize_run_mode(run_mode_raw))
     return auth
 
 

@@ -82,21 +82,37 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
             try:
                 status = await warmup_mcp_tools()
-                logger.info(
-                    "MCP warmup: ok=%s tools=%s",
-                    status.get("ok"),
-                    status.get("tool_count"),
-                )
+                if status.get("ok"):
+                    logger.info(
+                        "MCP warmup: ok=%s tools=%s",
+                        status.get("ok"),
+                        status.get("tool_count"),
+                    )
+                else:
+                    logger.warning(
+                        "MCP warmup 未成功（Agent 仍启动）: %s；"
+                        "请先启动 Platform MCP :8010，或将 AGENT_MCP_REQUIRED=true 改为启动失败退出",
+                        status.get("error") or "unknown",
+                    )
             except Exception as exc:  # noqa: BLE001
-                logger.error("MCP warmup 失败: %s", exc)
-                if settings.agent_mcp_required:
-                    raise
+                # agent_mcp_required=true 时 warmup 内部会再抛；此处兜底
+                logger.error("MCP warmup 失败且 AGENT_MCP_REQUIRED=true，拒绝启动: %s", exc)
+                raise
+        if settings.agent_playbook_enabled and settings.agent_playbook_watch:
+            from app.services.playbook.watcher import start_playbook_watcher
+
+            try:
+                await start_playbook_watcher()
+            except Exception:  # noqa: BLE001
+                logger.exception("playbook watcher 启动失败（Agent 仍继续）")
         try:
             yield
         finally:
             from app.infrastructure.redis.client import close_redis_client
             from app.infrastructure.vector.client import close_qdrant_client
+            from app.services.playbook.watcher import stop_playbook_watcher
 
+            await stop_playbook_watcher()
             close_qdrant_client()
             close_redis_client()
             await close_persistence()
@@ -135,8 +151,10 @@ async def health():
     qdrant = probe_qdrant()
     redis_info = probe_redis()
     platform_mcp = await probe_platform_mcp()
+    mcp_ok = bool(platform_mcp.get("ok")) if isinstance(platform_mcp, dict) else False
     return {
-        "status": "ok",
+        # 进程可服务即为 ok/degraded；MCP 未就绪标 degraded，不阻止启动（见 AGENT_MCP_REQUIRED）
+        "status": "ok" if mcp_ok else "degraded",
         "build_id": _BUILD_ID,
         "architecture": "mcp-dual-layer-v2",
         "service_root": str(_SERVICE_ROOT),

@@ -2,10 +2,11 @@
  * 文本输入与发送：卡片式输入区，底部左侧模型选择、右侧语音与发送。
  * 语音按段纠错；ASR 与纠错均实时写回输入框；可选下划线标注纠错段。
  */
-import { Button, Input, Select, Tooltip } from "antd";
-import { SendOutlined } from "@ant-design/icons";
+import { Button, Input, Segmented, Select, Switch, Tooltip } from "antd";
+import { PauseOutlined, SendOutlined } from "@ant-design/icons";
 import { useIntl } from "react-intl";
 import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
+import type { AgentRunMode } from "@ims/shared-types";
 import * as AgentController from "@/services/AgentController";
 import type { VoiceprintProfile } from "@/services/AgentController";
 import ModelSelector from "./ModelSelector";
@@ -25,10 +26,13 @@ function joinBaseAndVoice(base: string, voice: string): string {
 
 export default function MessageInput({
   onSend,
+  onAbort,
   disabled: inputDisabled,
 }: {
   onSend: (text: string) => void;
-  /** 流式中或 HITL 待确认时禁用输入 */
+  /** 流式中中止当前回复 */
+  onAbort?: () => void;
+  /** HITL 待确认或拉取历史时禁用输入（流式中可点停止） */
   disabled?: boolean;
 }) {
   const intl = useIntl();
@@ -52,10 +56,17 @@ export default function MessageInput({
     voiceprintEnabled,
     setVoiceprintEnabled,
     voiceCorrectionHighlightEnabled,
+    runMode,
+    setRunMode,
+    planFirst,
+    setPlanFirst,
+    pendingInterrupt,
   } = useAiAssistantStore();
   const disabled = inputDisabled || isStreaming;
+  const runModeDisabled = disabled || Boolean(pendingInterrupt);
   const voiceprintSelectDisabled = disabled || voiceBusy;
-  const canSend = Boolean(text.trim()) && !disabled;
+  const canSend = Boolean(text.trim()) && !inputDisabled && !isStreaming;
+  const canAbort = isStreaming && Boolean(onAbort);
 
   const hasCorrectionMarks =
     voiceCorrectionHighlightEnabled && voiceSegments.some((s) => s.changed && s.text.trim());
@@ -231,6 +242,42 @@ export default function MessageInput({
           <div className={styles.inputToolbar}>
             <div className={styles.inputActionsLeft}>
               <ModelSelector />
+              <Tooltip title={intl.formatMessage({ id: "aiAssistant.runMode.tip" })}>
+                <Segmented<AgentRunMode>
+                  size="small"
+                  className={styles.runModeSegmented}
+                  disabled={runModeDisabled}
+                  value={runMode}
+                  onChange={(value) => setRunMode(value)}
+                  options={[
+                    {
+                      label: intl.formatMessage({ id: "aiAssistant.runMode.readonly" }),
+                      value: "readonly",
+                    },
+                    {
+                      label: intl.formatMessage({ id: "aiAssistant.runMode.confirm" }),
+                      value: "confirm",
+                    },
+                    {
+                      label: intl.formatMessage({ id: "aiAssistant.runMode.autonomous" }),
+                      value: "autonomous",
+                    },
+                  ]}
+                />
+              </Tooltip>
+              <Tooltip title={intl.formatMessage({ id: "aiAssistant.planFirst.tip" })}>
+                <span className={styles.planFirstSwitch}>
+                  <Switch
+                    size="small"
+                    checked={planFirst}
+                    disabled={runModeDisabled}
+                    onChange={setPlanFirst}
+                  />
+                  <span className={styles.planFirstLabel}>
+                    {intl.formatMessage({ id: "aiAssistant.planFirst.label" })}
+                  </span>
+                </span>
+              </Tooltip>
             </div>
             <div className={styles.inputActionsRight}>
               <div className={styles.voiceControlGroup}>
@@ -267,19 +314,32 @@ export default function MessageInput({
                   disabled={disabled}
                 />
               </div>
-              <Tooltip title={intl.formatMessage({ id: "aiAssistant.send" })}>
-                <Button
-                  type="primary"
-                  shape="circle"
-                  size="large"
-                  className={styles.sendBtn}
-                  icon={<SendOutlined />}
-                  onClick={handleSend}
-                  loading={isStreaming}
-                  disabled={!canSend}
-                  aria-label={intl.formatMessage({ id: "aiAssistant.send" })}
-                />
-              </Tooltip>
+              {canAbort ? (
+                <Tooltip title={intl.formatMessage({ id: "aiAssistant.abort" })}>
+                  <Button
+                    type="primary"
+                    shape="circle"
+                    size="large"
+                    className={`${styles.sendBtn} ${styles.abortBtn}`}
+                    icon={<PauseOutlined className={styles.abortIcon} />}
+                    onClick={() => onAbort?.()}
+                    aria-label={intl.formatMessage({ id: "aiAssistant.abort" })}
+                  />
+                </Tooltip>
+              ) : (
+                <Tooltip title={intl.formatMessage({ id: "aiAssistant.send" })}>
+                  <Button
+                    type="primary"
+                    shape="circle"
+                    size="large"
+                    className={styles.sendBtn}
+                    icon={<SendOutlined />}
+                    onClick={handleSend}
+                    disabled={!canSend}
+                    aria-label={intl.formatMessage({ id: "aiAssistant.send" })}
+                  />
+                </Tooltip>
+              )}
             </div>
           </div>
         </div>

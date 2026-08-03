@@ -20,11 +20,13 @@ async def stream_parent_graph(
     model_id: str,
     input_payload: ParentState | Command[Any] | dict[str, Any],
     auth_token: str | None = None,
+    tool_names: frozenset[str] | None = None,
 ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
     """
     对父 StateGraph 执行 ``astream_events(version="v3")`` 并映射为 SSE 元组。
 
     支持初始 state dict 与 ``Command(resume=...)`` 续跑。
+    tool_names：create_agent 绑定子集；resume 应传入 chat 时记住的子集。
     """
     from app.graph.agent_stream_adapter import iter_agent_sse_events_async
     from app.graph.checkpoint_utils import checkpoint_message_count
@@ -39,10 +41,11 @@ async def stream_parent_graph(
     )
 
     config = thread_runnable_config(thread_id)
-    graph = build_parent_graph(model_id=model_id)
+    graph = build_parent_graph(model_id=model_id, tool_names=tool_names)
     skip_count = await checkpoint_message_count(thread_id, model_id)
     skip_token = current_stream_message_skip.set(skip_count)
-    auth_token_reset = current_auth_token.set(auth_token)
+    # auth_token=None 时保留外层 ContextVar（如 resume.reject → abandon 勿冲掉 JWT）
+    auth_token_reset = current_auth_token.set(auth_token) if auth_token is not None else None
     tid_reset = current_thread_id.set(thread_id)
     mid_reset = current_model_id.set(model_id)
 
@@ -117,6 +120,7 @@ async def stream_parent_graph(
         safe_reset_contextvar(
             current_stream_message_skip, skip_token, label="current_stream_message_skip"
         )
-        safe_reset_contextvar(current_auth_token, auth_token_reset, label="current_auth_token")
+        if auth_token_reset is not None:
+            safe_reset_contextvar(current_auth_token, auth_token_reset, label="current_auth_token")
         safe_reset_contextvar(current_thread_id, tid_reset, label="current_thread_id")
         safe_reset_contextvar(current_model_id, mid_reset, label="current_model_id")

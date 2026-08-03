@@ -9,6 +9,7 @@
 - **ReAct / 纯对话**：官方 `create_agent`（作为父图节点，非第二套编排引擎）
 - **MCP Client**：`MultiServerMCPClient.get_tools()` + 本地 `retrieve_knowledge`
 - Qdrant RAG 注入（见 05）
+- **运行时 Playbook**（`app/playbooks/*.md`）：按意图注入 `llm_user_message`，对齐 Cursor Skills 的按需规程；见下文 §3.2
 - Agent MCP Gateway（见 04）
 
 HTTP 层只做鉴权、构造初始 state / `Command(resume=...)`、把 `astream_events(v3)` 映射为 SSE。**禁止**图外 `pending_plan` / `pending_tool_hitl` 第二状态机。
@@ -41,10 +42,40 @@ START → classify
 启动
   → MultiServerMCPClient({ platform: { transport: http, url: PLATFORM_MCP_URL } })
   → tools = await client.get_tools()
-  → Auth / HITL wrapper（图内 interrupt）
+  → Auth / HITL / run_mode wrapper（图内 interrupt；readonly 拒写）
   → (+ retrieve_knowledge)
-  → 绑定到 create_agent / 父图 plan·bpmn 节点调用同一套包装工具
+  → 按 run_mode + 意图 domains 裁剪子集
+  → 绑定到 create_agent（按 model_id + 工具指纹缓存）/ 父图 plan·bpmn 节点调用同一套包装工具
 ```
+
+**会话运行模式**（请求字段 `run_mode`，默认 `confirm`；ContextVar `current_run_mode`；MCP 经 `X-Run-Mode`）：
+
+| 模式         | 绑定                                                            | 调用时                                    |
+| ------------ | --------------------------------------------------------------- | ----------------------------------------- |
+| `readonly`   | 仅非写工具（无 `required_permissions` 且 risk≠medium/high）     | 写工具若被调用 → ToolResult 拒绝          |
+| `confirm`    | 关键词推断 catalog `domains` 子集；未命中回退该模式全部允许工具 | 写操作必经 `ask_user_confirm` → interrupt |
+| `autonomous` | 同 confirm 子集策略                                             | 跳过 confirm HITL；缺参仍 `ask_params`    |
+
+**显式 Plan**（请求字段 `plan_first`，桌面开关「先计划」；ContextVar `current_plan_first`）：
+
+- 默认 AI-first 下 classify 恒 `react`；`plan_first=true` 时覆盖旁路，走既有 `prepare_plan_confirm_gate_async`
+- 多步命中后 `interrupt(plan_confirm)`，用户确认（Build）后才 `plan_execute` / 写工具
+- `plan_first` 下只读多步也需确认（覆盖 `write_only` 跳过）
+
+**工具子集**：catalog 条目含 `domains`（alarm/device/export/nav/…）；`retrieve_knowledge` 与 nav 低风险工具恒保留。chat 记住 thread 工具指纹，resume 复用同一父图。
+
+### 3.2 运行时 Playbook（P1-1）
+
+| 项              | 说明                                                                                    |
+| --------------- | --------------------------------------------------------------------------------------- |
+| 目录            | 默认 `app/playbooks/*.md`；可用 `AGENT_PLAYBOOK_DIR` 指向外部目录                       |
+| 匹配            | frontmatter `triggers` / `domains` 关键词；`AGENT_PLAYBOOK_MAX_MATCHES` 限制单轮份数    |
+| 注入点          | `assemble_context` → 拼入 `llm_user_message`（与被动 RAG 并列）；**不**改 system prompt |
+| 为何不进 system | `create_agent` 按 system 指纹缓存；按轮注入避免缓存失效，且符合「长 Skills 按需加载」   |
+| 开关            | `AGENT_PLAYBOOK_ENABLED`（默认 true）                                                   |
+| resume          | 新消息 chat 注入；resume 沿用 checkpoint 内已含 playbook 的 HumanMessage，无需重匹配    |
+
+内置样例：`alarm-dispose`（告警处置）、`batch-export`（批量导出）、`device-status`（设备状态）。`AGENT_PLAYBOOK_WATCH=true`（默认）时监听目录 `.md` 变更并自动 `reload_playbooks()`；也可重启进程。外部目录可运营热更。
 
 **禁止**：直绑业务 `@tool` 实现；Platform MCP 不可达时不回退本机工具。
 **禁止**：Agent 生产代码 / 测试 `import platform_mcp`（含 `from platform_mcp...`）；共享 HITL / preflight / catalog / 平台客户端走 `contracts`。

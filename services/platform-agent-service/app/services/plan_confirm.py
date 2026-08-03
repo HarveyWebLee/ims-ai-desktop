@@ -375,7 +375,14 @@ def plan_needs_user_confirm(steps: list[dict[str, Any]]) -> bool:
 
     write_only=True 时：纯只读多步（如 导航+查询）跳过；含导出/批量确认等则必须确认。
     write_only=False 时：凡 ≥2 步规则 Plan 均需确认。
+    plan_first=True 时：凡 ≥2 步均需确认（用户显式要求先出计划）。
     """
+    from contracts.context import current_plan_first
+
+    # 用户显式「先计划后执行」：多步一律确认
+    if current_plan_first.get():
+        return True
+
     # 总开关「凡多步都确认」：不区分读写
     if not settings.agent_plan_confirm_write_only:
         return True

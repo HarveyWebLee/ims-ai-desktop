@@ -53,6 +53,27 @@ from contracts.hitl import ask_user_confirm  # 人在回路：补参/确认
 from contracts.platform_client import PlatformApiError, call_platform_api
 from contracts.result import tool_result
 
+# LLM / HITL 多选：单值字符串或字符串列表（与 catalog HITL mode=multiple 对齐）
+StrOrStrList = str | list[str]
+
+
+def _has_filter_value(value: Any) -> bool:
+    """筛选参数是否有有效值（空串 / 空列表视为无）。"""
+    if value is None or value == "" or value == []:
+        return False
+    return True
+
+
+def _coalesce_filter(primary: Any, *fallbacks: Any) -> Any:
+    """取第一个有值的筛选参数。"""
+    if _has_filter_value(primary):
+        return primary
+    for item in fallbacks:
+        if _has_filter_value(item):
+            return item
+    return ""
+
+
 # 本地别名：保留既有私有名，避免大范围改 handler 内部调用
 _QUERY_ALARM_FIELDS = QUERY_ALARM_FIELDS
 _to_platform_time = to_platform_time
@@ -147,7 +168,7 @@ def _map_alarm_brief_item(item: dict[str, Any]) -> dict[str, Any]:
 def resolve_alarm_filter_scope(
     filter_params: dict[str, Any] | None,
     *,
-    status_fallback: str = "",
+    status_fallback: Any = "",
 ) -> tuple[str, list[str]]:
     """
     解析告警筛选范围（与 query_alarms 一致）。
@@ -160,9 +181,8 @@ def resolve_alarm_filter_scope(
     raw_status = params.get("status")
     if raw_status is not None and raw_status != "" and raw_status != []:
         return _parse_hitl_status_scope(raw_status)
-    fallback = str(status_fallback or "").strip()
-    if fallback:
-        return _parse_alarm_list_scope(fallback)
+    if status_fallback is not None and status_fallback != "" and status_fallback != []:
+        return _parse_hitl_status_scope(status_fallback)
     return _ALARM_API_LIST, []
 
 
@@ -183,8 +203,8 @@ def count_alarms_matching_filters(
     start_time: str,
     end_time: str,
     filter_params: dict[str, Any] | None = None,
-    status_fallback: str = "",
-    alarm_level: str = "",
+    status_fallback: Any = "",
+    alarm_level: Any = "",
 ) -> int:
     """按与 query_alarms / 导出相同的筛选条件统计告警总数（含未处理专口）。"""
     list_api, status_codes = resolve_alarm_filter_scope(
@@ -304,15 +324,16 @@ def _map_alarm_status_token(token: str) -> str:
     return ""
 
 
-def _normalize_hitl_status_list(value: Any, *, fallback: str = "") -> list[str]:
+def _normalize_hitl_status_list(value: Any, *, fallback: Any = "") -> list[str]:
     """HITL 告警状态 → 平台 status 数字码列表（不含 unprocessed 范围符）。"""
     items = _normalize_hitl_id_list(value)
     mapped = [_map_alarm_status_token(x) for x in items if not _is_unprocessed_scope_token(x)]
     mapped = [x for x in mapped if x]
     if mapped:
         return mapped
-    fb = _map_alarm_status_token(str(fallback or ""))
-    return [fb] if fb else []
+    fb_items = _normalize_hitl_id_list(fallback)
+    mapped_fb = [_map_alarm_status_token(x) for x in fb_items if not _is_unprocessed_scope_token(x)]
+    return [x for x in mapped_fb if x]
 
 
 def build_alarm_unprocess_list_payload(
@@ -419,8 +440,8 @@ def _apply_alarm_filter_fields(
     payload: dict[str, Any],
     params: dict[str, Any],
     *,
-    status_fallback: str = "",
-    alarm_level: str = "",
+    status_fallback: Any = "",
+    alarm_level: Any = "",
 ) -> None:
     """将 HITL/工具参数字典中的筛选条件写入 getAlarmList / export 请求体。"""
     category_ids = _normalize_hitl_id_list(params.get("alarm_category_id"))
@@ -500,8 +521,10 @@ def resolve_alarm_device_filter(
 def query_alarms(
     start_time: str = "",
     end_time: str = "",
-    alarm_level: str = "",
-    status: str = "",
+    alarm_level: StrOrStrList = "",
+    alarm_rank_id: StrOrStrList = "",
+    alarm_category_id: StrOrStrList = "",
+    status: StrOrStrList = "",
     device_code: str = "",
     device_name: str = "",
 ) -> str:
@@ -514,10 +537,13 @@ def query_alarms(
         相对时间（「近三天」「近30分钟」）或绝对时间；原样传入，由服务端解析。
     end_time : str
         通常留空；相对时间由 resolve_alarm_time_range 自动补全。
-    alarm_level : str
-        报警级别筛选（映射到 alarmRankId）。
-    status : str
-        「未处理」→ getAlarmUnprocessList；「待确认」/「未确认」/1 → 仅 status=1；等等。
+    alarm_level / alarm_rank_id : str | list[str]
+        报警级别筛选（映射到 alarmRankId[]）；可多选。
+    alarm_category_id : str | list[str]
+        报警类型筛选（映射到 alarmCategoryId[]）；可多选。
+    status : str | list[str]
+        「未处理」/ unprocessed → getAlarmUnprocessList；
+        「待确认」/「未确认」/1 → 仅 status=1；可多选。
     device_code / device_name : str
         按设备筛选；平台传参为 deviceCodes[]，名称会先解析为编码。
 
@@ -539,6 +565,7 @@ def query_alarms(
     """
     from contracts.tool_preflight import ensure_tool_args
 
+    rank_arg = _coalesce_filter(alarm_rank_id, alarm_level)
     try:
         params = ensure_tool_args(
             "query_alarms",
@@ -546,7 +573,8 @@ def query_alarms(
                 "start_time": start_time,
                 "end_time": end_time,
                 "status": status,
-                "alarm_rank_id": alarm_level,
+                "alarm_rank_id": rank_arg,
+                "alarm_category_id": alarm_category_id,
                 "device_code": device_code,
                 "device_name": device_name,
             },
@@ -556,9 +584,16 @@ def query_alarms(
 
     start_time = str(params.get("start_time", start_time))
     end_time = str(params.get("end_time", end_time))
-    status_val = str(params.get("status") or status)
-    alarm_level = str(params.get("alarm_rank_id") or alarm_level)
+    status_raw = _coalesce_filter(params.get("status"), status)
+    rank_raw = _coalesce_filter(params.get("alarm_rank_id"), rank_arg)
+    category_raw = _coalesce_filter(params.get("alarm_category_id"), alarm_category_id)
     filter_params = dict(params)
+    if _has_filter_value(rank_raw):
+        filter_params["alarm_rank_id"] = rank_raw
+    if _has_filter_value(category_raw):
+        filter_params["alarm_category_id"] = category_raw
+    if _has_filter_value(status_raw):
+        filter_params["status"] = status_raw
 
     device_codes, device_err = resolve_alarm_device_filter(
         filter_params,
@@ -576,9 +611,11 @@ def query_alarms(
             summary="告警查询时间范围无效或未选择，请重新指定时间范围。",
         )
 
-    list_api, status_codes = _parse_hitl_status_scope(params.get("status") or status)
-    if not str(params.get("status") or status or "").strip() and status_val.strip():
-        list_api, status_codes = _parse_alarm_list_scope(status_val)
+    list_api, status_codes = (
+        _parse_hitl_status_scope(status_raw)
+        if _has_filter_value(status_raw)
+        else (_ALARM_API_LIST, [])
+    )
 
     try:
         records, total = _fetch_alarm_list_paginated(
@@ -609,7 +646,7 @@ def query_alarms(
         "deviceCodes": device_codes,
         "variableNames": [],
         "alarmCategoryId": _normalize_hitl_id_list(filter_params.get("alarm_category_id")),
-        "alarmRankId": _normalize_hitl_id_list(filter_params.get("alarm_rank_id") or alarm_level),
+        "alarmRankId": _normalize_hitl_id_list(filter_params.get("alarm_rank_id")),
         "status": status_codes,
         "listApi": list_api,
     }
@@ -1118,7 +1155,7 @@ def batch_confirm_alarms(
     alarm_ids: str = "",
     start_time: str = "",
     end_time: str = "",
-    status: str = "",
+    status: StrOrStrList = "",
 ) -> str:
     """
     帮使用者批量确认告警（高风险，必须先经使用者 HITL 批准）。
@@ -1241,7 +1278,7 @@ def batch_process_alarms(
     alarm_ids: str = "",
     start_time: str = "",
     end_time: str = "",
-    status: str = "",
+    status: StrOrStrList = "",
 ) -> str:
     """
     帮使用者批量处理告警（高风险，必须先经使用者 HITL 批准）。

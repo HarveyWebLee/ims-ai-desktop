@@ -53,6 +53,7 @@ class AuthHeaderInterceptor:
         from contracts.context import (
             current_auth_token,
             current_hitl_confirm_bypass,
+            current_run_mode,
             current_thread_id,
         )
 
@@ -67,6 +68,8 @@ class AuthHeaderInterceptor:
             headers["X-Thread-Id"] = str(thread_id)
         if current_hitl_confirm_bypass.get():
             headers["X-Hitl-Confirm-Bypass"] = "1"
+        # 自主模式：MCP ask_user_confirm 跳过确认
+        headers["X-Run-Mode"] = current_run_mode.get() or "confirm"
         return await handler(request.override(headers=headers or None))
 
 
@@ -112,14 +115,14 @@ def _extract_hitl_payload(text: str) -> dict[str, Any] | None:
 
 
 def _cancelled_hitl_tool_result(tool_name: str) -> str:
-    """用户拒绝 HITL 时返回给 LLM 的统一 ToolResult。"""
-    return json.dumps(
-        {
-            "ok": False,
-            "summary": "已取消操作",
-            "data": {"user_cancelled": True, "tool": tool_name},
-        },
-        ensure_ascii=False,
+    """用户拒绝 HITL 时返回给 LLM 的统一 ToolResult（顶层 user_cancelled，供历史/重试识别）。"""
+    from contracts.result import tool_result
+
+    return tool_result(
+        ok=False,
+        summary="已取消操作",
+        data={"tool": tool_name},
+        user_cancelled=True,
     )
 
 
@@ -265,11 +268,39 @@ def _wrap_mcp_tool(tool: BaseTool, *, authorize: bool) -> BaseTool:
             return denied_tool_result(tool.name, decision)
         return None
 
+    def _deny_readonly_if_needed() -> str | None:
+        from contracts.context import current_run_mode
+        from contracts.result import tool_result
+        from contracts.tool_catalog_loader import is_write_tool
+
+        if current_run_mode.get() != "readonly":
+            return None
+        if not is_write_tool(tool.name):
+            return None
+        from app.services.tool_subset import deny_readonly_write_summary
+
+        return tool_result(
+            ok=False,
+            summary=deny_readonly_write_summary(tool.name),
+            data={
+                "error_code": "run_mode_readonly",
+                "tool": tool.name,
+                "non_retryable": True,
+            },
+        )
+
     def _run(**kwargs: Any) -> str:
+        from contracts.context import current_hitl_reject_drain
+
+        if current_hitl_reject_drain.get():
+            return _cancelled_hitl_tool_result(tool.name)
         args = dict(kwargs)
         denied = _authorize_or_deny(args)
         if denied is not None:
             return denied
+        readonly_denied = _deny_readonly_if_needed()
+        if readonly_denied is not None:
+            return readonly_denied
 
         def _invoke(call_args: dict[str, Any]) -> str:
             return _extract_tool_text(invoke_underlying_mcp_tool_sync(tool, call_args))
@@ -282,10 +313,17 @@ def _wrap_mcp_tool(tool: BaseTool, *, authorize: bool) -> BaseTool:
         )
 
     async def _arun(**kwargs: Any) -> str:
+        from contracts.context import current_hitl_reject_drain
+
+        if current_hitl_reject_drain.get():
+            return _cancelled_hitl_tool_result(tool.name)
         args = dict(kwargs)
         denied = _authorize_or_deny(args)
         if denied is not None:
             return denied
+        readonly_denied = _deny_readonly_if_needed()
+        if readonly_denied is not None:
+            return readonly_denied
 
         async def _ainvoke(call_args: dict[str, Any]) -> str:
             return _extract_tool_text(await tool.ainvoke(call_args))
@@ -502,9 +540,10 @@ async def warmup_mcp_tools() -> dict[str, Any]:
             "error": str(exc),
         }
         logger.error("MCP warmup failed: %s", exc)
-        # 零兼容：不可达一律失败（agent_mcp_required=false 仅允许进程起来，不绑 raw）
+        # 默认软依赖：仅记录状态，进程继续；AGENT_MCP_REQUIRED=true 才启动失败
         if settings.agent_mcp_required:
             raise
+        logger.warning("AGENT_MCP_REQUIRED=false，跳过启动失败；工具调用将在 MCP 就绪后可用")
     return dict(_warmup_status)
 
 

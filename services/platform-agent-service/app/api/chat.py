@@ -56,7 +56,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 # ---------------------------------------------------------------------------
 # 第三方：Pydantic 请求体验证；Field(...) 表示必填并附加校验规则
 # ---------------------------------------------------------------------------
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ---------------------------------------------------------------------------
 # 本项目：失败时 JSON 响应体
@@ -82,6 +82,7 @@ from app.models.catalog import get_catalog_item, get_default_model_id
 # 本项目：会话元数据与用户消息缓存（多轮上下文、侧栏列表）
 # ---------------------------------------------------------------------------
 from app.services.session_store import session_store
+from contracts.context import normalize_run_mode
 
 
 class ChatRequest(BaseModel):
@@ -106,6 +107,10 @@ class ChatRequest(BaseModel):
     recent_user_messages : list[str] | None
         前端维护的近期用户句列，供「直达告警查询」等短路路径做意图理解
         （不依赖 LangGraph checkpoint 的场景）。
+    run_mode : str | None
+        会话运行模式：readonly | confirm | autonomous；缺省 confirm。
+    plan_first : bool
+        显式「先计划后执行」：覆盖 AI-first，多步任务走 plan_confirm。
     """
 
     thread_id: str = Field(..., min_length=1)
@@ -115,6 +120,13 @@ class ChatRequest(BaseModel):
     metadata: dict[str, Any] | None = None
     # 前端传入的近期用户消息，注入 LLM 上下文供多轮意图理解
     recent_user_messages: list[str] | None = None
+    run_mode: str | None = None
+    plan_first: bool = False
+
+    @field_validator("run_mode", mode="before")
+    @classmethod
+    def _normalize_run_mode(cls, value: Any) -> str:
+        return normalize_run_mode(str(value) if value is not None else None)
 
 
 def _client_actions_from_tool_result(result_data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -419,6 +431,8 @@ async def chat_sse(request: Request, body: ChatRequest):
             recent_user_messages=body.recent_user_messages,
             user_id=user_id,
             mid=body.mid,
+            run_mode=body.run_mode,
+            plan_first=body.plan_first,
         ),
         thread_id=body.thread_id,
     )

@@ -2,7 +2,7 @@
  * Agent API Client
  */
 import { getAuthHeaders } from "@ims/desktop-api";
-import type { AgentApiResponse, AgentModelId, HitlPayload } from "@ims/shared-types";
+import type { AgentApiResponse, AgentModelId, AgentRunMode, HitlPayload } from "@ims/shared-types";
 import type { AgentSseHandler, AiSession } from "@/components/AiAssistant/types";
 import type { ThreadHistoryMessage } from "@/components/AiAssistant/utils/mapHistoryMessages";
 import { parseSseChunk } from "@/components/AiAssistant/utils/sseParser";
@@ -336,6 +336,10 @@ export async function chatStream(
     mid: string;
     message: string;
     model_id: AgentModelId;
+    /** 会话运行模式：readonly | confirm | autonomous */
+    run_mode?: AgentRunMode;
+    /** 显式先计划后执行 */
+    plan_first?: boolean;
     metadata?: { current_path?: string };
     /** 近期用户消息（不含本条），用于多轮时间上下文 */
     recent_user_messages?: string[];
@@ -359,6 +363,10 @@ export async function resumeStream(
     /** 与产生 interrupt 的 chat mid 一致 */
     mid?: string;
     model_id: AgentModelId;
+    /** 会话运行模式；须与 chat 一致 */
+    run_mode?: AgentRunMode;
+    /** 与 chat 对称透传 */
+    plan_first?: boolean;
     decisions: { type: string; args?: Record<string, unknown> }[];
   },
   handlers: AgentSseHandler,

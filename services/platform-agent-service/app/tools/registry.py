@@ -40,6 +40,12 @@ def get_agent_tools() -> list[BaseTool]:
     return list(_authorized_tools)
 
 
+def get_agent_tools_filtered(tool_names: frozenset[str]) -> list[BaseTool]:
+    """按工具名子集过滤全量绑定列表（保持全量缓存顺序）。"""
+    wanted = frozenset(tool_names)
+    return [t for t in get_agent_tools() if t.name in wanted]
+
+
 def reset_agent_tools_cache() -> None:
     global _authorized_tools
     _authorized_tools = None

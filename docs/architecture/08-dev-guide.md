@@ -114,7 +114,8 @@ PORT=8010
 ```bash
 PORT=8008
 PLATFORM_MCP_URL=http://127.0.0.1:8010/mcp
-AGENT_MCP_REQUIRED=true
+# 默认 false：可单独起 Agent；工具调用依赖 MCP 就绪。生产若要求 MCP 必达可设 true
+AGENT_MCP_REQUIRED=false
 QDRANT_URL=http://127.0.0.1:16333
 QDRANT_COLLECTION=platform_knowledge
 DASHSCOPE_API_KEY=...

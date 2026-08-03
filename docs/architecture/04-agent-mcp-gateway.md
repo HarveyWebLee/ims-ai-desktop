@@ -73,6 +73,6 @@ Gateway **不**绕过 Platform MCP：`list_platform_tools` / `call_platform_tool
 | ----------------------------------- | ------------------------------------------------------------------------------- |
 | `AGENT_MCP_GATEWAY_KEY`             | Gateway 共享密钥；可与 Bearer 二选一。空=不接受密钥头，仍须 Bearer              |
 | `AGENT_TOOL_PERMISSION_FAIL_CLOSED` | `true`（默认）：JWT 未声明 permissions 时拒绝含 `required_permissions` 的写工具 |
-| `AGENT_MCP_REQUIRED`                | `true` 时 Platform MCP 不可达则拒绝启动/绑工具                                  |
+| `AGENT_MCP_REQUIRED`                | 默认 `false`：MCP 不可达仍可启动；`true` 时预热失败则进程退出                   |
 | `AGENT_MCP_WARMUP_ON_START`         | 启动预热 `list_tools`                                                           |
 | `AGENT_MCP_EXTRA_SERVERS_JSON`      | 追加外部 MCP，形如 `{"ext":{"transport":"streamable_http","url":"..."}}`        |

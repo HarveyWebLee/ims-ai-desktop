@@ -36,6 +36,17 @@ export type PlatformToolSide = "server" | "client";
 /** 工具风险等级 */
 export type PlatformToolRiskLevel = "low" | "medium" | "high";
 
+/**
+ * 会话运行模式（对齐 Cursor Mode：权限即产品）
+ * - readonly：仅查询类工具
+ * - confirm：写操作须 HITL 确认（默认）
+ * - autonomous：跳过 confirm HITL，缺参仍 ask_params
+ */
+export type AgentRunMode = "readonly" | "confirm" | "autonomous";
+
+/** 工具领域标签（子集注入） */
+export type PlatformToolDomain = "alarm" | "device" | "export" | "nav" | "duty" | "acs";
+
 /** 工具 preflight 声明式规则（catalog 驱动，Python 领域 handler 仍负责时间语义解析） */
 export interface ToolPreflightConfig {
   /** 缺时间时触发 HITL datetime_range（query_alarms / download_file / batch_*） */
@@ -60,6 +71,8 @@ export interface PlatformToolDefinition {
   /** server：Agent 调平台 API；client：SSE → ClientToolExecutor */
   side: PlatformToolSide;
   risk_level: PlatformToolRiskLevel;
+  /** 领域标签：create_agent 绑定时按意图裁剪子集 */
+  domains?: PlatformToolDomain[];
   /** 平台权限码（可选） */
   required_permissions?: string[];
   /** Server Tool 绑定的平台 API 路径 */

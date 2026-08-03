@@ -160,22 +160,23 @@ def _map_alarm_status_token(token: str) -> str:
     return ""
 
 
-def _normalize_hitl_status_list(value: Any, *, fallback: str = "") -> list[str]:
+def _normalize_hitl_status_list(value: Any, *, fallback: Any = "") -> list[str]:
     items = _normalize_hitl_id_list(value)
     mapped = [_map_alarm_status_token(x) for x in items if not _is_unprocessed_scope_token(x)]
     mapped = [x for x in mapped if x]
     if mapped:
         return mapped
-    fb = _map_alarm_status_token(str(fallback or ""))
-    return [fb] if fb else []
+    fb_items = _normalize_hitl_id_list(fallback)
+    mapped_fb = [_map_alarm_status_token(x) for x in fb_items if not _is_unprocessed_scope_token(x)]
+    return [x for x in mapped_fb if x]
 
 
 def _apply_alarm_filter_fields(
     payload: dict[str, Any],
     params: dict[str, Any],
     *,
-    status_fallback: str = "",
-    alarm_level: str = "",
+    status_fallback: Any = "",
+    alarm_level: Any = "",
 ) -> None:
     """将 HITL/工具参数字典中的筛选条件写入 getAlarmList / export 请求体。"""
     category_ids = _normalize_hitl_id_list(params.get("alarm_category_id"))
@@ -207,8 +208,8 @@ def build_alarm_list_filter_payload(
     start_time: str,
     end_time: str,
     filter_params: dict[str, Any] | None = None,
-    status_fallback: str = "",
-    alarm_level: str = "",
+    status_fallback: Any = "",
+    alarm_level: Any = "",
     page: int = 1,
     size: int = 20,
 ) -> dict[str, Any]:

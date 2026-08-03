@@ -12,8 +12,11 @@ from app.graph.context import assemble_context
 from contracts.context import (
     current_auth_token,
     current_message_id,
+    current_plan_first,
+    current_run_mode,
     current_thread_id,
     current_turn_suppressed_tools,
+    normalize_run_mode,
     safe_reset_contextvar,
 )
 
@@ -29,6 +32,8 @@ async def stream_chat_core(
     auth_token: str | None = None,
     recent_user_messages: list[str] | None = None,
     mid: str | None = None,
+    run_mode: str | None = None,
+    plan_first: bool = False,
 ) -> AsyncIterator[AgentEvent]:
     """执行新消息：组装上下文、清理 stale 状态、驱动父 StateGraph。"""
     from app.models.router import require_model_credentials
@@ -38,14 +43,31 @@ async def stream_chat_core(
     tid = current_thread_id.set(thread_id)
     turn_mid = (mid or "").strip() or str(uuid.uuid4())
     mid_token = current_message_id.set(turn_mid)
+    mode = normalize_run_mode(run_mode)
+    mode_token = current_run_mode.set(mode)
+    plan_first_token = current_plan_first.set(bool(plan_first))
 
     from app.services.prompt_assembly import resolve_recent_messages_for_intent
+    from app.services.tool_subset import (
+        remember_thread_tool_subset,
+        select_tool_subset,
+    )
+    from app.tools.registry import get_agent_tools
 
     _, intent_note = resolve_recent_messages_for_intent(message, recent_user_messages)
     suppressed_token = None
     if intent_note:
         suppressed_token = current_turn_suppressed_tools.set(frozenset({"download_file"}))
     try:
+        available = frozenset(t.name for t in get_agent_tools())
+        subset = select_tool_subset(
+            run_mode=mode,
+            message=message,
+            recent_user_messages=recent_user_messages,
+            available_names=available,
+        )
+        remember_thread_tool_subset(thread_id, subset.tool_names)
+
         ctx = assemble_context(
             thread_id=thread_id,
             message=message,
@@ -64,6 +86,14 @@ async def stream_chat_core(
             message_preview=(message or "")[:80],
             before=before,
             after=orchestration_snapshot(thread_id),
+        )
+        agent_debug(
+            "chat.tool_subset",
+            thread_id=thread_id,
+            run_mode=mode,
+            domains=sorted(subset.domains),
+            fallback_full=subset.fallback_full,
+            tools=sorted(subset.tool_names),
         )
 
         from app.graph.checkpoint_utils import (
@@ -119,6 +149,7 @@ async def stream_chat_core(
             model_id=model_id,
             input_payload=initial_state,
             auth_token=auth_token,
+            tool_names=subset.tool_names,
         ):
             if event[0] in ("done", "error"):
                 saw_terminal = True
@@ -179,6 +210,8 @@ async def stream_chat_core(
         safe_reset_contextvar(current_auth_token, token, label="current_auth_token")
         safe_reset_contextvar(current_thread_id, tid, label="current_thread_id")
         safe_reset_contextvar(current_message_id, mid_token, label="current_message_id")
+        safe_reset_contextvar(current_run_mode, mode_token, label="current_run_mode")
+        safe_reset_contextvar(current_plan_first, plan_first_token, label="current_plan_first")
 
 
 async def stream_chat(
@@ -191,6 +224,8 @@ async def stream_chat(
     recent_user_messages: list[str] | None = None,
     user_id: str | None = None,
     mid: str | None = None,
+    run_mode: str | None = None,
+    plan_first: bool = False,
 ) -> AsyncIterator[AgentEvent]:
     """执行新用户消息，并包装 Plan、Trace 与审计事件。"""
     from app.graph.stream_envelope import wrap_stream_with_plan_trace
@@ -208,6 +243,8 @@ async def stream_chat(
             auth_token=auth_token,
             recent_user_messages=recent_user_messages,
             mid=mid,
+            run_mode=run_mode,
+            plan_first=plan_first,
         ),
         thread_id=thread_id,
         run_id=str(uuid.uuid4()),

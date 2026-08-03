@@ -3,7 +3,6 @@
  */
 import type { HitlField, PlatformToolDefinition } from "@ims/shared-types";
 
-/** 告警查询/导出/批量操作缺参时的 HITL 表单（datetime_range 等，catalog 唯一数据源） */
 /** 设备标识缺参时的 HITL 表单（编码与名称二选一） */
 export const DEVICE_IDENT_HITL_FIELDS: HitlField[] = [
   {
@@ -29,8 +28,7 @@ export const DEVICE_CMD_HITL_FIELDS: HitlField[] = [
     label: "目标设备",
     type: "device_picker",
     required: true,
-    description:
-      "可通过分组、类型、区域、名称、编码、在线状态筛选后单选（任意设备类型）",
+    description: "可通过分组、类型、区域、名称、编码、在线状态筛选后单选（任意设备类型）",
   },
   {
     name: "variable_name",
@@ -125,8 +123,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
       properties: {
         path: {
           type: "string",
-          description:
-            "页面名称或 originPath；推荐传使用者原话（如「设施管理」），由工具模糊匹配",
+          description: "页面名称或 originPath；推荐传使用者原话（如「设施管理」），由工具模糊匹配",
         },
         query: {
           type: "object",
@@ -138,6 +135,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "client",
     risk_level: "low",
+    domains: ["nav"],
     client_action: "navigate",
     enabled: true,
   },
@@ -160,6 +158,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "client",
     risk_level: "low",
+    domains: ["nav"],
     client_action: "pause",
     enabled: true,
   },
@@ -179,6 +178,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "client",
     risk_level: "low",
+    domains: ["alarm"],
     client_action: "openModal",
     enabled: true,
   },
@@ -187,7 +187,8 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     description:
       "帮使用者查询告警列表（仅查询/统计，不导出文件）。" +
       "当使用者询问某时段、某类型、某设备的告警数量或列表时使用（含「近三天报警记录」「查某某设备报警」等说法）；" +
-      "「未处理告警」传 status=未处理；「未确认/待确认告警」传 status=未确认；" +
+      '「未处理告警」传 status=未处理 或 ["unprocessed"]；「未确认/待确认告警」传 status=未确认 或 ["1"]；' +
+      "status / alarm_level / alarm_rank_id / alarm_category_id 均支持字符串或字符串数组多选。" +
       "某设备报警传 device_name（原话设备名）或 device_code。" +
       "**必须立即调用本工具**；使用者已说相对时间时原样传入 start_time。" +
       "若未明确时间范围，start_time/end_time 留空，由 HITL 表单补选。" +
@@ -207,20 +208,28 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
             "结束时间，**通常留空**。相对范围（如近三天）由服务端根据 start_time 自动推算，无需填写。",
         },
         alarm_level: {
-          type: "string",
-          description: "告警级别筛选，可选",
+          oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+          description:
+            "报警级别筛选，可选；可传单个字符串或字符串数组（多选），对应平台 alarmRankId[]",
+        },
+        alarm_rank_id: {
+          oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+          description: "报警级别 ID，可选；与 alarm_level 等价，可多选；HITL 回填优先用本字段",
+        },
+        alarm_category_id: {
+          oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+          description: "报警类型 ID，可选；可传单个字符串或字符串数组（多选）",
         },
         status: {
-          type: "string",
+          oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
           description:
-            "告警状态筛选，可选。" +
-            "「未处理」=待确认+已确认(走未处理专口)；「未确认/待确认」=仅待确认；" +
-            "「已确认」「已处理」按字面筛选。",
+            "告警状态筛选，可选；可传字符串或字符串数组（多选）。" +
+            "「未处理」/unprocessed=待确认+已确认(走未处理专口)；「未确认/待确认」/1=仅待确认；" +
+            "「已确认」/2、「已处理」/3 按码筛选。",
         },
         device_code: {
           type: "string",
-          description:
-            "设备编码筛选，可选；与 device_name 二选一，对应平台 deviceCodes",
+          description: "设备编码筛选，可选；与 device_name 二选一，对应平台 deviceCodes",
         },
         device_name: {
           type: "string",
@@ -233,6 +242,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "server",
     risk_level: "low",
+    domains: ["alarm"],
     platform_api: "POST /api/app/alarm/getAlarmList",
     enabled: true,
     hitl_fields: ALARM_QUERY_HITL_FIELDS,
@@ -240,8 +250,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
   },
   {
     name: "get_alarm_detail",
-    description:
-      "帮使用者查看单条告警详情。需要告警编号 alarm_id；若使用者未提供，必须追问。",
+    description: "帮使用者查看单条告警详情。需要告警编号 alarm_id；若使用者未提供，必须追问。",
     parameters: {
       type: "object",
       properties: {
@@ -254,6 +263,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "server",
     risk_level: "low",
+    domains: ["alarm"],
     platform_api: "POST /api/app/alarm/getAlarmList",
     enabled: true,
   },
@@ -276,13 +286,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
           type: "string",
           description:
             "导出类型：alarm_report=告警；sentry_handover=岗哨交接；duty_info=值班信息；duty_manage=值班管理；acs_record=出入信息",
-          enum: [
-            "alarm_report",
-            "sentry_handover",
-            "duty_info",
-            "duty_manage",
-            "acs_record",
-          ],
+          enum: ["alarm_report", "sentry_handover", "duty_info", "duty_manage", "acs_record"],
         },
         start_time: {
           type: "string",
@@ -294,48 +298,39 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
           description: "结束时间，相对范围可留空，由服务端推算",
         },
         status: {
-          type: "string",
+          oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
           description:
-            "仅 alarm_report：告警状态筛选，可选。语义同 query_alarms：未处理/未确认/已确认/已处理",
+            "仅 alarm_report：告警状态筛选，可选。语义同 query_alarms；可多选（字符串或字符串数组）",
         },
         device_code: {
           type: "string",
-          description:
-            "仅 alarm_report：设备编码筛选，可选；与 device_name 二选一",
+          description: "仅 alarm_report：设备编码筛选，可选；与 device_name 二选一",
         },
         device_name: {
           type: "string",
-          description:
-            "仅 alarm_report：设备名称筛选，可选；与 device_code 二选一",
+          description: "仅 alarm_report：设备名称筛选，可选；与 device_code 二选一",
         },
         sentry_id: {
           type: "string",
-          description:
-            "仅 sentry_handover：岗哨 ID 筛选，可选；未指定则导出时间范围内全部",
+          description: "仅 sentry_handover：岗哨 ID 筛选，可选；未指定则导出时间范围内全部",
         },
         person_id: {
           type: "string",
-          description:
-            "仅 acs_record：人员 ID 筛选，可选；未指定则导出时间范围内全部",
+          description: "仅 acs_record：人员 ID 筛选，可选；未指定则导出时间范围内全部",
         },
       },
       required: ["resource"],
     },
     side: "server",
     risk_level: "medium",
+    domains: ["export", "alarm", "duty", "acs"],
     platform_api: "GET /api/app/alarm/exportAlarm",
     client_action: "download",
     enabled: true,
     hitl_fields: ALARM_QUERY_HITL_FIELDS,
     preflight: {
       alarm_time: true,
-      when_resource: [
-        "alarm_report",
-        "sentry_handover",
-        "duty_info",
-        "duty_manage",
-        "acs_record",
-      ],
+      when_resource: ["alarm_report", "sentry_handover", "duty_info", "duty_manage", "acs_record"],
     },
   },
   {
@@ -352,8 +347,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
       properties: {
         alarm_ids: {
           type: "string",
-          description:
-            "逗号分隔的告警编号；使用者已给出具体编号时使用，与下方时间筛选二选一",
+          description: "逗号分隔的告警编号；使用者已给出具体编号时使用，与下方时间筛选二选一",
         },
         start_time: {
           type: "string",
@@ -365,15 +359,16 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
           description: "结束时间；相对范围可留空，由服务端推算",
         },
         status: {
-          type: "string",
+          oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
           description:
-            "可选。「未处理」=待确认+已确认(1+2)；「待确认/未确认」=仅1。批量确认时未处理会先筛出待确认",
+            "可选；可多选。「未处理」/unprocessed=待确认+已确认(1+2)；「待确认/未确认」/1=仅1。批量确认时未处理会先筛出待确认",
         },
       },
       required: [],
     },
     side: "server",
     risk_level: "high",
+    domains: ["alarm"],
     platform_api: "POST /api/app/alarm/confirmAlarm",
     required_permissions: ["alarm:confirm"],
     enabled: true,
@@ -409,15 +404,15 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
           description: "结束时间，相对范围可留空",
         },
         status: {
-          type: "string",
-          description:
-            "可选。「未处理」=待确认+已确认；也可指定「待确认」「已确认」",
+          oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+          description: "可选；可多选。「未处理」=待确认+已确认；也可指定「待确认」「已确认」",
         },
       },
       required: [],
     },
     side: "server",
     risk_level: "high",
+    domains: ["alarm"],
     platform_api: "POST /api/app/alarm/processAlarm",
     required_permissions: ["alarm:process"],
     enabled: true,
@@ -459,6 +454,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "server",
     risk_level: "low",
+    domains: ["device"],
     platform_api: "POST /api/app/device/getDeviceList",
     enabled: true,
   },
@@ -485,6 +481,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "server",
     risk_level: "low",
+    domains: ["device"],
     platform_api: "GET /api/app/device/getDeviceByCode/{deviceCode}",
     enabled: true,
     hitl_fields: DEVICE_IDENT_HITL_FIELDS,
@@ -518,6 +515,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "server",
     risk_level: "low",
+    domains: ["device"],
     platform_api: "POST /api/app/device/getVarListByCode",
     enabled: true,
     hitl_fields: DEVICE_IDENT_HITL_FIELDS,
@@ -576,6 +574,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "server",
     risk_level: "high",
+    domains: ["device"],
     platform_api: "POST /api/app/device/sendCmd",
     required_permissions: ["device:control"],
     enabled: true,
@@ -611,6 +610,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "server",
     risk_level: "low",
+    domains: ["device"],
     platform_api: "POST /api/app/realData/getRealDataList",
     enabled: true,
     hitl_fields: [
@@ -661,6 +661,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "server",
     risk_level: "low",
+    domains: ["device"],
     platform_api: "POST /api/app/sysMonitor/getDevVarDataList",
     enabled: true,
     hitl_fields: [
@@ -707,13 +708,12 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     },
     side: "client",
     risk_level: "low",
+    domains: ["device", "nav"],
     client_action: "navigate",
     enabled: true,
   },
 ];
 
-export function getToolDefinition(
-  name: string,
-): PlatformToolDefinition | undefined {
+export function getToolDefinition(name: string): PlatformToolDefinition | undefined {
   return PLATFORM_TOOL_CATALOG.find((t) => t.name === name);
 }

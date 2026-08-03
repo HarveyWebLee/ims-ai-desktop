@@ -33,7 +33,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ---------------------------------------------------------------------------
 # 本项目：复用 chat 模块的 SSE 包装器，避免重复实现
@@ -48,6 +48,7 @@ from app.application.conversation.resume import stream_resume
 from app.middleware.auth import get_current_user_id
 from app.models.catalog import get_catalog_item, get_default_model_id
 from app.services.audit_store import audit_store, mask_payload_summary
+from contracts.context import normalize_run_mode
 
 
 class ResumeDecision(BaseModel):
@@ -84,12 +85,23 @@ class ResumeRequest(BaseModel):
         恢复执行时使用的模型，默认 catalog 默认项。
     decisions : list[ResumeDecision]
         LangGraph HITL API 支持多条 decision；当前实现取 decisions[0] 为主决策。
+    run_mode : str | None
+        会话运行模式；须与产生 interrupt 的 chat 一致；缺省 confirm。
+    plan_first : bool
+        与 chat 对称透传（续跑不再 classify，主要用于审计/一致性）。
     """
 
     thread_id: str = Field(..., min_length=1)
     mid: str | None = None
     model_id: str | None = None
     decisions: list[ResumeDecision] = Field(..., min_length=1)
+    run_mode: str | None = None
+    plan_first: bool = False
+
+    @field_validator("run_mode", mode="before")
+    @classmethod
+    def _normalize_run_mode(cls, value: Any) -> str:
+        return normalize_run_mode(str(value) if value is not None else None)
 
 
 async def resume_sse(request: Request, body: ResumeRequest):
@@ -225,6 +237,8 @@ async def resume_sse(request: Request, body: ResumeRequest):
             auth_token=authorization,
             user_id=user_id,
             mid=body.mid,
+            run_mode=body.run_mode,
+            plan_first=body.plan_first,
         ),
         thread_id=body.thread_id,
     )

@@ -210,14 +210,24 @@ async def abandon_stale_checkpoint_interrupt(
 
     from app.graph.parent_graph_stream import stream_parent_graph
     from contracts.agent_debug import agent_debug
+    from contracts.context import (
+        current_auth_token,
+        current_hitl_reject_drain,
+        safe_reset_contextvar,
+    )
 
     agent_debug("checkpoint.abandon_start", thread_id=tid)
     reject_payload = {"type": "reject", "approved": False}
+    # 显式透传当前 JWT，避免 stream_parent_graph 在调用方未传 auth 时误清 ContextVar
+    inherited_auth = current_auth_token.get()
+    # 拒绝后禁止 Agent 再调 MCP（取消结果返回后 LLM 可能重试写工具）
+    drain_token = current_hitl_reject_drain.set(True)
     try:
         async for event_name, payload in stream_parent_graph(
             thread_id=tid,
             model_id=model_id,
             input_payload=Command(resume=reject_payload),
+            auth_token=inherited_auth,
         ):
             if event_name == "error":
                 agent_debug(
@@ -231,6 +241,12 @@ async def abandon_stale_checkpoint_interrupt(
             "checkpoint.abandon_exception",
             thread_id=tid,
             error=str(exc)[:120],
+        )
+    finally:
+        safe_reset_contextvar(
+            current_hitl_reject_drain,
+            drain_token,
+            label="current_hitl_reject_drain",
         )
 
     cleared = not await agent_has_pending_interrupt(tid, model_id)

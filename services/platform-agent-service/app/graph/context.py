@@ -131,6 +131,22 @@ def assemble_context(
         except Exception:  # noqa: BLE001
             pass
 
+    # 运行时 Playbook：按意图注入步骤规程（失败不阻断；不进 system prompt，避免打散 create_agent 缓存）
+    playbook_ids: list[str] = []
+    try:
+        from app.services.playbook import format_playbook_section, match_playbooks
+
+        matches = match_playbooks(message.strip(), recent_user_messages=prior)
+        playbook_section = format_playbook_section(matches)
+        if playbook_section:
+            playbook_ids = [m.playbook.id for m in matches]
+            # 与设备控制注记一致：保证有「使用者本轮消息」分段，便于历史回显剥离 Playbook
+            if USER_TURN_SECTION_HEADER not in llm_message:
+                llm_message = f"{USER_TURN_SECTION_HEADER}\n\n{message.strip()}"
+            llm_message = f"{playbook_section}\n\n{llm_message}"
+    except Exception:  # noqa: BLE001
+        pass
+
     from contracts.agent_debug import agent_debug, preview_text
 
     agent_debug(
@@ -141,6 +157,7 @@ def assemble_context(
         current_path=str(meta.get("current_path") or ""),
         recent_user_messages=prior[-5:],
         skip_passive_rag=skip_passive_rag,
+        playbook_ids=playbook_ids,
     )
     return AgentContext(
         thread_id=thread_id,
