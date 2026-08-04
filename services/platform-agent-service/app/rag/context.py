@@ -145,14 +145,33 @@ def _entity_terms_from_payload(payload: dict[str, Any]) -> list[str]:
     return terms
 
 
-def format_rag_section(blocks: list[dict[str, Any]]) -> str:
-    """格式化为可注入 LLM 的「参考知识」段落。"""
+def format_rag_section(
+    blocks: list[dict[str, Any]],
+    *,
+    snippet_chars: int | None = None,
+) -> str:
+    """
+    格式化为可注入 LLM 的「参考知识」段落。
+
+    snippet_chars：单条正文上限；None 时读 settings.agent_rag_passive_snippet_chars。
+    截断是为避免长检索污染主对话 HumanMessage（P1-3）。
+    """
     if not blocks:
         return ""
+    from app.config import settings
+
+    limit = (
+        snippet_chars
+        if snippet_chars is not None
+        else max(1, int(settings.agent_rag_passive_snippet_chars))
+    )
     lines = ["【参考知识（来自平台知识库，可能不完整，请结合工具结果判断）】"]
     for i, b in enumerate(blocks, 1):
         src = b.get("source") or ""
         title = b.get("title") or ""
         head = f"{i}. {title} ({src})".strip() if (title or src) else f"{i}."
-        lines.append(f"{head}\n{b.get('text') or ''}".strip())
+        raw = str(b.get("text") or "").strip()
+        if len(raw) > limit:
+            raw = raw[: limit - 1] + "…"
+        lines.append(f"{head}\n{raw}".strip())
     return "\n\n".join(lines)

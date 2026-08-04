@@ -15,6 +15,7 @@ from app.api.response import fail, ok
 from app.infrastructure.db.dameng_readonly import DamengReadOnlyError
 from app.middleware.auth import get_current_user_id
 from app.sync.entity_sync_service import run_entity_sync
+from app.sync.entity_sync_status import get_entity_sync_status, remember_entity_sync_result
 
 
 class EntitySyncRequest(BaseModel):
@@ -24,6 +25,12 @@ class EntitySyncRequest(BaseModel):
         default=None,
         description="覆盖表配置：空跳过；*=全部；逗号分隔表名",
     )
+
+
+async def entity_sync_status(authorization: str | None = None) -> dict[str, Any]:
+    """最近一次同步结果 + 是否进行中。"""
+    await get_current_user_id(authorization)
+    return ok(get_entity_sync_status())
 
 
 async def trigger_entity_sync(
@@ -37,9 +44,24 @@ async def trigger_entity_sync(
     try:
         result = await asyncio.to_thread(run_entity_sync, tables_override=override)
     except DamengReadOnlyError as exc:
-        return fail(40052, str(exc), {"reason": "dm_connect_error"})
+        payload = fail(40052, str(exc), {"reason": "dm_connect_error"})
+        remember_entity_sync_result(
+            {"ok": False, "skipped": True, "reason": "dm_connect_error", "message": str(exc)}
+        )
+        return payload
     except Exception as exc:  # noqa: BLE001
-        return fail(50052, f"同步执行异常: {exc}", {"reason": "unexpected_error"})
+        payload = fail(50052, f"同步执行异常: {exc}", {"reason": "unexpected_error"})
+        remember_entity_sync_result(
+            {
+                "ok": False,
+                "skipped": False,
+                "reason": "unexpected_error",
+                "message": f"同步执行异常: {exc}",
+            }
+        )
+        return payload
+
+    remember_entity_sync_result(result)
 
     if result.get("skipped") and result.get("reason") == "sync_in_progress":
         return fail(40901, str(result.get("message") or "同步进行中"), result)

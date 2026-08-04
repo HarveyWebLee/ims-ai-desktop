@@ -53,8 +53,10 @@ class AuthHeaderInterceptor:
         from contracts.context import (
             current_auth_token,
             current_hitl_confirm_bypass,
+            current_recent_user_messages,
             current_run_mode,
             current_thread_id,
+            current_user_utterance,
         )
 
         headers = dict(request.headers or {})
@@ -70,6 +72,13 @@ class AuthHeaderInterceptor:
             headers["X-Hitl-Confirm-Bypass"] = "1"
         # 自主模式：MCP ask_user_confirm 跳过确认
         headers["X-Run-Mode"] = current_run_mode.get() or "confirm"
+        # 会话上下文（全工具共享消歧；导出 resource 等 preflight 读取）
+        utterance = (current_user_utterance.get() or "").strip()
+        if utterance:
+            headers["X-User-Utterance"] = utterance
+        recent = list(current_recent_user_messages.get() or ())
+        if recent:
+            headers["X-Recent-User-Messages"] = json.dumps(recent, ensure_ascii=False)
         return await handler(request.override(headers=headers or None))
 
 
@@ -114,6 +123,19 @@ def _extract_hitl_payload(text: str) -> dict[str, Any] | None:
     return None
 
 
+def _merge_hitl_resume_with_export_lock(
+    resume_value: Any,
+    tool_args: dict[str, Any],
+    hitl_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """合并 HITL resume；若本轮补参含 resource，则锁定避免歧义清空后死循环。"""
+    from contracts.export_infer import stamp_export_resource_confirmed
+    from contracts.hitl import merge_hitl_resume_args
+
+    merged = merge_hitl_resume_args(resume_value, tool_args)
+    return stamp_export_resource_confirmed(merged, hitl_payload)
+
+
 def _cancelled_hitl_tool_result(tool_name: str) -> str:
     """用户拒绝 HITL 时返回给 LLM 的统一 ToolResult（顶层 user_cancelled，供历史/重试识别）。"""
     from contracts.result import tool_result
@@ -144,13 +166,13 @@ def _resolve_mcp_hitl_text(
 
     from app.graph.hitl_interrupt import interrupt_or_raise
     from contracts.context import current_hitl_confirm_bypass
-    from contracts.hitl import is_hitl_reject, merge_hitl_resume_args
+    from contracts.hitl import is_hitl_reject
 
     resume_value = interrupt_or_raise(payload)
     if is_hitl_reject(resume_value):
         return _cancelled_hitl_tool_result(tool_name)
 
-    merged = merge_hitl_resume_args(resume_value, dict(kwargs))
+    merged = _merge_hitl_resume_with_export_lock(resume_value, dict(kwargs), payload)
     bypass_reset = current_hitl_confirm_bypass.set(True)
     try:
         text2 = invoke_again(merged)
@@ -162,14 +184,14 @@ def _resolve_mcp_hitl_text(
         resume2 = interrupt_or_raise(payload2)
         if is_hitl_reject(resume2):
             return _cancelled_hitl_tool_result(tool_name)
-        merged2 = merge_hitl_resume_args(resume2, merged)
+        merged2 = _merge_hitl_resume_with_export_lock(resume2, merged, payload2)
         text3 = invoke_again(merged2)
         payload3 = _extract_hitl_payload(text3)
         if payload3 is not None:
             resume3 = interrupt_or_raise(payload3)
             if is_hitl_reject(resume3):
                 return _cancelled_hitl_tool_result(tool_name)
-            merged3 = merge_hitl_resume_args(resume3, merged2)
+            merged3 = _merge_hitl_resume_with_export_lock(resume3, merged2, payload3)
             return invoke_again(merged3)
         return text3
     finally:
@@ -340,13 +362,13 @@ def _wrap_mcp_tool(tool: BaseTool, *, authorize: bool) -> BaseTool:
             current_hitl_confirm_bypass,
             safe_reset_contextvar,
         )
-        from contracts.hitl import is_hitl_reject, merge_hitl_resume_args
+        from contracts.hitl import is_hitl_reject
 
         resume_value = interrupt_or_raise(payload)
         if is_hitl_reject(resume_value):
             return _cancelled_hitl_tool_result(tool.name)
 
-        merged = merge_hitl_resume_args(resume_value, args)
+        merged = _merge_hitl_resume_with_export_lock(resume_value, args, payload)
         bypass_reset = current_hitl_confirm_bypass.set(True)
         try:
             text2 = await _ainvoke(merged)
@@ -356,14 +378,14 @@ def _wrap_mcp_tool(tool: BaseTool, *, authorize: bool) -> BaseTool:
             resume2 = interrupt_or_raise(payload2)
             if is_hitl_reject(resume2):
                 return _cancelled_hitl_tool_result(tool.name)
-            merged2 = merge_hitl_resume_args(resume2, merged)
+            merged2 = _merge_hitl_resume_with_export_lock(resume2, merged, payload2)
             text3 = await _ainvoke(merged2)
             payload3 = _extract_hitl_payload(text3)
             if payload3 is not None:
                 resume3 = interrupt_or_raise(payload3)
                 if is_hitl_reject(resume3):
                     return _cancelled_hitl_tool_result(tool.name)
-                merged3 = merge_hitl_resume_args(resume3, merged2)
+                merged3 = _merge_hitl_resume_with_export_lock(resume3, merged2, payload3)
                 return await _ainvoke(merged3)
             return text3
         finally:

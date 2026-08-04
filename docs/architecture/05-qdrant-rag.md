@@ -6,8 +6,8 @@
 
 知识库存平台文档、操作指引、能力说明，供 Agent：
 
-1. **被动注入**：每轮 `assemble_context` 对用户消息做语义检索，拼入「参考知识」
-2. **主动工具**：`retrieve_knowledge(query, top_k?)`（Agent 本地工具）
+1. **被动注入**：每轮 `assemble_context` 对用户消息做语义检索，拼入「参考知识」（单条截断，见 `AGENT_RAG_PASSIVE_SNIPPET_CHARS`）
+2. **主动工具**：`retrieve_knowledge(query, top_k?)`（Agent 本地工具；P1-3 经 Subagent **摘要**回主 agent，不含全文 hits）
 
 ```text
 文档/目录
@@ -204,8 +204,8 @@ Agent 侧：
 
 | 入口                      | 行为                                                                                               |
 | ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `assemble_context`        | 调用 `retrieve_knowledge_blocks(user_message)`，注入参考知识                                       |
-| `retrieve_knowledge` 工具 | Agent 主动检索，返回 JSON hits                                                                     |
+| `assemble_context`        | 调用 `retrieve_knowledge_blocks(user_message)`，截断注入参考知识                                   |
+| `retrieve_knowledge` 工具 | Agent 主动检索 → Subagent 摘要（`summary` + `sources`，不含全文 hits）                             |
 | 语音转写后纠错            | 见 [`10-voice-asr.md`](./10-voice-asr.md)：Realtime **按段**并发纠错；HTTP/Oneshot 回传 `segments` |
 
 相关环境变量（转写纠错 / 流式并行 / Realtime，默认开启）：
@@ -372,6 +372,30 @@ platform-agent-service/
 | 改  | `replace_file`（推荐）；同内容 `upsert_*` 幂等覆盖                     |
 | 删  | `delete_by_ids`、`delete_by_source`、`drop_collection`                 |
 
+### HTTP 运营 API（P1-5，需登录）
+
+桌面「设置 → 知识库」调用；**不**暴露 `drop_collection`。
+
+| 方法   | 路径                             | 说明                                                                       |
+| ------ | -------------------------------- | -------------------------------------------------------------------------- |
+| GET    | `/api/agent/knowledge/stats`     | 点数 / 连通性                                                              |
+| GET    | `/api/agent/knowledge/documents` | 按 source 聚合文档列表（`page`/`page_size`/`source_contains`）             |
+| GET    | `/api/agent/knowledge/points`    | 浏览片段（`limit`、`source_contains`）                                     |
+| POST   | `/api/agent/knowledge/search`    | 语义试检索 `{ query, limit? }`                                             |
+| POST   | `/api/agent/knowledge/ingest`    | multipart 上传到文档目录（默认仓根 `prj-docs`）后入库；同名先删旧 `source` |
+| POST   | `/api/agent/knowledge/replace`   | multipart：`file` + `source`，保留原 source 键更新                         |
+| POST   | `/api/agent/knowledge/export`    | `{ source }` → 导出正文供本地下载（优先磁盘，否则拼接片段）                |
+| DELETE | `/api/agent/knowledge/by-source` | `{ source }` 精确删除                                                      |
+
+实体同步可观测：
+
+| 方法 | 路径                            | 说明                               |
+| ---- | ------------------------------- | ---------------------------------- |
+| POST | `/api/agent/entity-sync`        | 触发同步（达梦只读 SELECT）        |
+| GET  | `/api/agent/entity-sync/status` | 进程内最近一次结果 + `in_progress` |
+
+实现：`app/api/knowledge.py`、`app/api/entity_sync.py`、`app/sync/entity_sync_status.py`。
+
 ---
 
 ## 10. 运维建议
@@ -380,7 +404,7 @@ platform-agent-service/
 2. **文档更新流水线**：改架构/验收文档后跑 `--replace-file` 或「先 `--delete-source` 再 `--dir`」
 3. **全量重建**：`--drop-collection --yes` → `--dir ../docs/architecture` → `--dir ../../prj-docs`
 4. **排错**：Dashboard 看 points；CLI `--list` 核对 `source`；检索无结果时检查 Embedding Key 与维度
-5. **安全**：生产勿把 `--drop-collection` 挂到无人值守任务；Gateway/对外 API 暂不暴露删库
+5. **安全**：生产勿把 `--drop-collection` 挂到无人值守任务；运营 HTTP **不**暴露删库（仅 stats/list/search/ingest/delete-by-source）
 
 ---
 

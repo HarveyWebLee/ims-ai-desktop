@@ -221,6 +221,25 @@ def parse_device_control_action(message: str) -> str | None:
     return None
 
 
+def build_howto_guidance_intent_note(message: str) -> str | None:
+    """
+    操作说明 / 注意事项咨询：禁止立刻 download_file。
+
+    防止「怎么导出告警报表？需要注意什么？」被当成执行导出。
+    """
+    from app.services.chat_intent import is_howto_guidance_message
+
+    if not is_howto_guidance_message(message):
+        return None
+    return (
+        "## 重要提示\n\n"
+        "本轮为**操作说明 / 注意事项**咨询（非立刻执行导出或下载）。"
+        "请优先调用 `retrieve_knowledge` 检索流程与注意点，或直接用自然语言说明步骤与限制；"
+        "**禁止**调用 `download_file` 或其它导出/下载类工具。"
+        "若用户随后明确说「帮我导出 / 导出近…」，再进入导出执行链路。"
+    )
+
+
 def build_device_control_intent_note(message: str) -> str | None:
     """
     设备控制意图：前置提示强制立即调用 send_device_cmd。

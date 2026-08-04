@@ -13,10 +13,14 @@ from contracts.context import (
     current_hitl_confirm_bypass,
     current_message_id,
     current_plan_first,
+    current_recent_user_messages,
     current_run_mode,
     current_thread_id,
     current_turn_suppressed_tools,
+    current_user_utterance,
+    normalize_recent_user_messages,
     normalize_run_mode,
+    normalize_user_utterance,
     safe_reset_contextvar,
 )
 
@@ -115,8 +119,12 @@ async def stream_resume_core(
     from app.services.session_store import session_store
     from app.services.tool_subset import get_remembered_thread_tool_subset
 
-    prior_msgs = session_store.get_user_messages(thread_id, limit=1)
+    prior_msgs = session_store.get_user_messages(thread_id, limit=6)
     resume_user_msg = prior_msgs[-1] if prior_msgs else "继续执行"
+    # 回填会话上下文，供 MCP preflight 与导出等消歧（与 chat 同源）
+    utterance_token = current_user_utterance.set(normalize_user_utterance(resume_user_msg))
+    recent_prior = prior_msgs[:-1] if len(prior_msgs) > 1 else []
+    recent_token = current_recent_user_messages.set(normalize_recent_user_messages(recent_prior))
     tool_names = get_remembered_thread_tool_subset(thread_id)
 
     plan_for_wrap = None
@@ -224,6 +232,14 @@ async def stream_resume_core(
             safe_reset_contextvar(current_message_id, mid_token, label="current_message_id")
         safe_reset_contextvar(current_run_mode, mode_token, label="current_run_mode")
         safe_reset_contextvar(current_plan_first, plan_first_token, label="current_plan_first")
+        safe_reset_contextvar(
+            current_user_utterance, utterance_token, label="current_user_utterance"
+        )
+        safe_reset_contextvar(
+            current_recent_user_messages,
+            recent_token,
+            label="current_recent_user_messages",
+        )
         if bypass_token is not None:
             safe_reset_contextvar(
                 current_hitl_confirm_bypass,

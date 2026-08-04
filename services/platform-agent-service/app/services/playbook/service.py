@@ -100,10 +100,15 @@ def match_playbooks(
     按用户句 + 近期消息匹配 playbook。
 
     仅返回 score>0；同分比 priority，再比 id。
+    「怎么导出 / 注意什么」等说明咨询不注入执行类 Playbook（含导出/告警处置）。
     """
     from app.config import settings
+    from app.services.chat_intent import is_howto_guidance_message
 
     if not settings.agent_playbook_enabled:
+        return []
+    # 说明咨询优先走知识/文字说明，避免 batch-export / alarm-dispose 诱导立刻调工具
+    if is_howto_guidance_message(message):
         return []
     limit = (
         max_matches if max_matches is not None else max(1, int(settings.agent_playbook_max_matches))

@@ -19,6 +19,15 @@ logger = logging.getLogger(__name__)
 _sync_lock = threading.Lock()
 
 
+def is_entity_sync_running() -> bool:
+    """是否有同步任务持有锁（非阻塞探测）。"""
+    acquired = _sync_lock.acquire(blocking=False)
+    if acquired:
+        _sync_lock.release()
+        return False
+    return True
+
+
 def run_entity_sync(*, tables_override: str | None = None) -> dict[str, Any]:
     """
     执行一次实体同步。

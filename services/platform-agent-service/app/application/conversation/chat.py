@@ -13,10 +13,14 @@ from contracts.context import (
     current_auth_token,
     current_message_id,
     current_plan_first,
+    current_recent_user_messages,
     current_run_mode,
     current_thread_id,
     current_turn_suppressed_tools,
+    current_user_utterance,
+    normalize_recent_user_messages,
     normalize_run_mode,
+    normalize_user_utterance,
     safe_reset_contextvar,
 )
 
@@ -46,6 +50,10 @@ async def stream_chat_core(
     mode = normalize_run_mode(run_mode)
     mode_token = current_run_mode.set(mode)
     plan_first_token = current_plan_first.set(bool(plan_first))
+    utterance_token = current_user_utterance.set(normalize_user_utterance(message))
+    recent_token = current_recent_user_messages.set(
+        normalize_recent_user_messages(recent_user_messages)
+    )
 
     from app.services.prompt_assembly import resolve_recent_messages_for_intent
     from app.services.tool_subset import (
@@ -212,6 +220,14 @@ async def stream_chat_core(
         safe_reset_contextvar(current_message_id, mid_token, label="current_message_id")
         safe_reset_contextvar(current_run_mode, mode_token, label="current_run_mode")
         safe_reset_contextvar(current_plan_first, plan_first_token, label="current_plan_first")
+        safe_reset_contextvar(
+            current_user_utterance, utterance_token, label="current_user_utterance"
+        )
+        safe_reset_contextvar(
+            current_recent_user_messages,
+            recent_token,
+            label="current_recent_user_messages",
+        )
 
 
 async def stream_chat(

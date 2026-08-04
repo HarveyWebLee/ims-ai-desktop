@@ -315,9 +315,14 @@ def infer_plan_params(
                 query_params["status"] = alarm_status
             params_by_tool[tool] = query_params
         elif tool == "download_file":
-            from contracts.export_infer import infer_download_resource
+            from contracts.context import current_recent_user_messages
+            from contracts.export_infer import resolve_export_resource
 
-            resource = infer_download_resource(msg)
+            decision = resolve_export_resource(
+                msg,
+                recent_messages=list(current_recent_user_messages.get() or ()),
+            )
+            resource = decision.resource or ""
             export_params: dict[str, Any] = {
                 "resource": resource,
                 "start_time": start_time,

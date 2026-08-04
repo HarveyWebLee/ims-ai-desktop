@@ -77,6 +77,19 @@ START → classify
 
 内置样例：`alarm-dispose`（告警处置）、`batch-export`（批量导出）、`device-status`（设备状态）。`AGENT_PLAYBOOK_WATCH=true`（默认）时监听目录 `.md` 变更并自动 `reload_playbooks()`；也可重启进程。外部目录可运营热更。
 
+### 3.3 知识检索 Subagent（P1-3）
+
+对齐官方 [Subagents](https://docs.langchain.com/oss/python/langchain/multi-agent/subagents)：子任务包成工具、**仅摘要**回主 agent；**不**采用 handoff 多节点（避免改父图拓扑与 checkpointer 串话）。
+
+| 项       | 说明                                                                                      |
+| -------- | ----------------------------------------------------------------------------------------- |
+| 入口     | 本地工具 `retrieve_knowledge` → `app/services/subagent/knowledge_research.py`             |
+| 隔离     | 无 checkpointer；不写入主 thread 长 hits                                                  |
+| 返回     | `summary` + `sources`（标题/路径）+ `hit_count`；**不含**全文 `hits`                      |
+| 摘要     | 默认短模型（`AGENT_SUBAGENT_KNOWLEDGE_*`）；失败回退抽取式截断                            |
+| 被动 RAG | `format_rag_section` 按 `AGENT_RAG_PASSIVE_SNIPPET_CHARS` 截断注入 HumanMessage           |
+| 对称路径 | chat / resume 共用同一本地工具；Gateway `call_platform_tool(retrieve_knowledge)` 同步受益 |
+
 **禁止**：直绑业务 `@tool` 实现；Platform MCP 不可达时不回退本机工具。
 **禁止**：Agent 生产代码 / 测试 `import platform_mcp`（含 `from platform_mcp...`）；共享 HITL / preflight / catalog / 平台客户端走 `contracts`。
 

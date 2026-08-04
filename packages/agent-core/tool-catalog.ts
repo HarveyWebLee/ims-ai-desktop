@@ -272,20 +272,17 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     description:
       "帮使用者**下载/导出**平台报表文件（Excel）。**必须立即调用**；" +
       "使用者已说相对时间时原样传入 start_time；未明确时间时 start_time/end_time 留空，由 HITL 补选。" +
-      "resource 必填：" +
-      "告警/报警导出用 alarm_report（禁止用 query_alarms 代替）；" +
-      "岗哨交接/哨位交接导出用 sentry_handover；" +
-      "值班信息导出用 duty_info；" +
-      "值班管理导出用 duty_manage（勿与值班信息混淆）；" +
-      "出入信息/出入记录导出用 acs_record。" +
-      "支持相对时间：今天、昨天、近三天等。",
+      "resource：能明确时填写（告警→alarm_report；岗哨交接→sentry_handover；" +
+      "值班信息→duty_info；值班管理→duty_manage；出入→acs_record）；" +
+      "不确定时可留空，由服务端结合**同一会话上下文**推断，仍歧义则 HITL 让使用者选择。" +
+      "禁止用 query_alarms 代替导出。支持相对时间：今天、昨天、近三天等。",
     parameters: {
       type: "object",
       properties: {
         resource: {
           type: "string",
           description:
-            "导出类型：alarm_report=告警；sentry_handover=岗哨交接；duty_info=值班信息；duty_manage=值班管理；acs_record=出入信息",
+            "导出类型：alarm_report=告警；sentry_handover=岗哨交接；duty_info=值班信息；duty_manage=值班管理；acs_record=出入信息；不确定可留空",
           enum: ["alarm_report", "sentry_handover", "duty_info", "duty_manage", "acs_record"],
         },
         start_time: {
@@ -319,7 +316,7 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
           description: "仅 acs_record：人员 ID 筛选，可选；未指定则导出时间范围内全部",
         },
       },
-      required: ["resource"],
+      required: [],
     },
     side: "server",
     risk_level: "medium",

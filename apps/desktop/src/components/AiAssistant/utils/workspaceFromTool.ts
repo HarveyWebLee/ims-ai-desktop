@@ -7,18 +7,37 @@ import type {
   DeviceCommandWorkspace,
   DeviceDetailRecord,
   DeviceDetailWorkspace,
+  DeviceListItem,
+  DeviceListWorkspace,
   DeviceVariableHistoryWorkspace,
   DeviceVariableRealtimeWorkspace,
+  ExportDownloadFileRef,
+  ExportDownloadWorkspace,
   WorkspaceContent,
 } from "../types";
 export interface AlarmBriefItem {
   id?: string;
   deviceName?: string;
+  deviceCode?: string;
+  deviceVarName?: string | null;
   variableName?: string | null;
+  alarmValue?: string | null;
   startTime?: string;
+  endTime?: string | null;
   status?: number | string;
   statusName?: string;
+  alarmRankId?: number | string;
   alarmRankName?: string;
+  alarmCategoryId?: number | string;
+  alarmCategoryName?: string;
+  eventName?: string;
+  regionName?: string | null;
+  subSystemName?: string | null;
+  confirmPerson?: string | null;
+  confirmTime?: string | null;
+  processPerson?: string | null;
+  processTime?: string | null;
+  handleMethod?: string | null;
 }
 
 /** 解析 query_alarms tool_end 的 result 字符串 */
@@ -179,6 +198,110 @@ export function buildDeviceCommandWorkspace(resultJson: string): DeviceCommandWo
   };
 }
 
+function normalizeDeviceListItem(raw: unknown): DeviceListItem | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const deviceCode = String(record.deviceCode ?? "").trim();
+  const deviceName = String(record.deviceName ?? "").trim();
+  if (!deviceCode && !deviceName) return null;
+  return {
+    deviceCode: deviceCode || undefined,
+    deviceName: deviceName || undefined,
+    onlineStatus: record.onlineStatus as number | string | undefined,
+    onlineStatusLabel:
+      record.onlineStatusLabel != null ? String(record.onlineStatusLabel) : undefined,
+    deviceStatus: record.deviceStatus as number | string | undefined,
+    deviceStatusLabel:
+      record.deviceStatusLabel != null ? String(record.deviceStatusLabel) : undefined,
+    enableStatus: record.enableStatus as number | string | undefined,
+    enableStatusLabel:
+      record.enableStatusLabel != null ? String(record.enableStatusLabel) : undefined,
+    regionName: (record.regionName as string | null | undefined) ?? null,
+    subSystemName: (record.subSystemName as string | null | undefined) ?? null,
+  };
+}
+
+/** 解析 query_devices tool_end */
+export function buildDeviceListWorkspace(resultJson: string): DeviceListWorkspace | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(resultJson) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  if (!parsed.ok) {
+    return {
+      kind: "device_list",
+      ok: false,
+      total: 0,
+      items: [],
+      summary: String(parsed.summary ?? "设备查询失败"),
+    };
+  }
+
+  const data = asRecord(parsed.data) ?? {};
+  const itemsRaw = Array.isArray(data.items) ? data.items : [];
+  const items = itemsRaw
+    .map(normalizeDeviceListItem)
+    .filter((it): it is DeviceListItem => it != null);
+  const total = Number(data.total ?? items.length ?? 0);
+
+  return {
+    kind: "device_list",
+    ok: true,
+    total,
+    items,
+    summary: String(parsed.summary ?? ""),
+    page: data.page != null ? Number(data.page) : 1,
+    pageSize: data.pageSize != null ? Number(data.pageSize) : items.length || 20,
+  };
+}
+
+function collectExportFiles(parsed: Record<string, unknown>): ExportDownloadFileRef[] {
+  const files: ExportDownloadFileRef[] = [];
+  const pushAction = (action: unknown) => {
+    const rec = asRecord(action);
+    if (!rec || String(rec.action || "") !== "download") return;
+    files.push({
+      url: rec.url != null ? String(rec.url) : undefined,
+      filename: rec.filename != null ? String(rec.filename) : undefined,
+    });
+  };
+  if (Array.isArray(parsed.client_actions)) {
+    for (const a of parsed.client_actions) pushAction(a);
+  }
+  pushAction(parsed.client_action);
+  return files.filter((f) => f.url || f.filename);
+}
+
+/** 解析 download_file tool_end */
+export function buildExportDownloadWorkspace(resultJson: string): ExportDownloadWorkspace | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(resultJson) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const data = asRecord(parsed.data) ?? {};
+  const userCancelled = parsed.user_cancelled === true || data.user_cancelled === true;
+  const ok = userCancelled ? false : Boolean(parsed.ok);
+  const summary = String(parsed.summary ?? "").trim();
+  const files = collectExportFiles(parsed);
+
+  return {
+    kind: "export_download",
+    ok,
+    summary: summary || (userCancelled ? "已取消导出" : ok ? "导出完成" : "导出失败"),
+    total: data.total != null ? Number(data.total) : undefined,
+    batchCount: data.batchCount != null ? Number(data.batchCount) : undefined,
+    resource: data.resource != null ? String(data.resource) : undefined,
+    files: files.length ? files : undefined,
+    userCancelled,
+  };
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -310,11 +433,17 @@ export function workspaceFromToolEnd(
   if (tool === "query_alarms") {
     return buildAlarmQueryWorkspace(result, toolArgs);
   }
+  if (tool === "query_devices") {
+    return buildDeviceListWorkspace(result);
+  }
   if (tool === "get_device_detail") {
     return buildDeviceDetailWorkspace(result);
   }
   if (tool === "send_device_cmd") {
     return buildDeviceCommandWorkspace(result);
+  }
+  if (tool === "download_file") {
+    return buildExportDownloadWorkspace(result);
   }
   if (tool === "query_device_variable_realtime") {
     return buildDeviceVariableRealtimeWorkspace(result);
@@ -333,7 +462,7 @@ export function resolveWorkspaceFromMessage(
   message: Pick<AiMessage, "blocks" | "workspaceContent">,
 ): WorkspaceContent | null {
   const existing = message.workspaceContent;
-  if (existing?.kind === "device_command") {
+  if (existing?.kind === "device_command" || existing?.kind === "export_download") {
     return existing;
   }
   if (existing?.ok) {
@@ -343,6 +472,8 @@ export function resolveWorkspaceFromMessage(
   let lastOk: WorkspaceContent | null = null;
   let lastDeviceCommand: WorkspaceContent | null = null;
   let lastCancelledDeviceCommand: WorkspaceContent | null = null;
+  let lastExport: WorkspaceContent | null = null;
+  let lastCancelledExport: WorkspaceContent | null = null;
   for (const block of message.blocks) {
     if (block.type !== "tool_call") continue;
     if (!block.result) continue;
@@ -358,10 +489,20 @@ export function resolveWorkspaceFromMessage(
       }
       continue;
     }
+    if (workspace.kind === "export_download") {
+      if (workspace.userCancelled) {
+        lastCancelledExport = workspace;
+      } else {
+        lastExport = workspace;
+      }
+      continue;
+    }
     if (workspace.ok) {
       lastOk = workspace;
     }
   }
   // 同轮有取消结果时优先展示取消，不展示其后的鉴权失败卡
-  return lastCancelledDeviceCommand ?? lastDeviceCommand ?? lastOk;
+  return (
+    lastCancelledDeviceCommand ?? lastDeviceCommand ?? lastCancelledExport ?? lastExport ?? lastOk
+  );
 }

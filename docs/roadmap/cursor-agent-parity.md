@@ -252,8 +252,9 @@ flowchart TD
 
 - [x] 至少 2 个高频场景有可版本化 playbook，且任务成功率可测提升（P1-1：`alarm-dispose` / `batch-export`；成功率需联调观测）
 - [x] 用户可选「先计划后执行」（P1-2：桌面 `planFirst` → 请求 `plan_first`，覆盖 AI-first 走 `plan_confirm`）
-- [ ] 至少 3 类高频工具有结构化卡片
-- [ ] 知识/playbook 更新可不发版或轻发版生效（P1-1 外部 `AGENT_PLAYBOOK_DIR` 已支持热更目录；P1-5 补全 RAG 运营）
+- [x] 轻量 Subagent：长检索摘要回主对话（P1-3：`retrieve_knowledge` → knowledge research subagent）
+- [x] 至少 3 类高频工具有结构化卡片（P1-4：告警表 / 设备列表 / 导出结果）
+- [x] 知识/playbook 更新可不发版或轻发版生效（P1-1 外部 `AGENT_PLAYBOOK_DIR`；P1-5：设置页知识库运营 + entity-sync/status）
 
 ### P2 Done（按立项裁剪）
 
@@ -308,3 +309,6 @@ flowchart TD
 | 2026-08-03 | P0-3/4/5：abort Stop、HITL 终态/可续跑、mcp_unavailable        |
 | 2026-08-03 | P1-1：运行时 Playbook（alarm-dispose / batch-export）注入      |
 | 2026-08-03 | P1-2：显式 Plan（plan_first 覆盖 AI-first → plan_confirm）     |
+| 2026-08-04 | P1-3：知识检索 Subagent（retrieve_knowledge 摘要回主 agent）   |
+| 2026-08-04 | P1-4：结构化结果卡（告警表 / 设备列表 / 导出）                 |
+| 2026-08-04 | P1-5：RAG 运营（知识 HTTP CRUD + entity-sync/status + 设置页） |

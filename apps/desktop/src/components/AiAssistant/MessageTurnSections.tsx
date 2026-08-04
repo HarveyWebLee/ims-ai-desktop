@@ -13,6 +13,8 @@ import type { WorkspaceContent, AiMessageBlock } from "./types";
 import { AlarmQueryTable } from "./AlarmQueryTable";
 import { DeviceDetailPanel } from "./DeviceDetailPanel";
 import DeviceCommandResultPanel from "./DeviceCommandResultPanel";
+import { DeviceListTable } from "./DeviceListTable";
+import ExportResultPanel from "./ExportResultPanel";
 import { DeviceVariableHistoryPanel, DeviceVariableRealtimePanel } from "./DeviceVariablePanels";
 import PlanFlowChart from "./PlanFlowChart";
 import { getTraceKindClassName, getTraceKindLabelKey } from "./utils/traceTagUtils";
@@ -265,8 +267,12 @@ export function MessageWorkspaceSection({
   if (content.kind === "device_command") {
     return <DeviceCommandResultPanel data={content} />;
   }
+  if (content.kind === "export_download") {
+    return <ExportResultPanel data={content} />;
+  }
 
   const isAlarm = content.kind === "alarm_query";
+  const isDeviceList = content.kind === "device_list";
   const isDevice = content.kind === "device_detail";
   const isVarRealtime = content.kind === "device_variable_realtime";
   const isVarHistory = content.kind === "device_variable_history";
@@ -279,17 +285,19 @@ export function MessageWorkspaceSection({
         : null;
 
   const totalLabel =
-    isAlarm && content.ok && content.total > 0
+    (isAlarm || isDeviceList) && content.ok && content.total > 0
       ? intl.formatMessage({ id: "aiAssistant.workspace.total" }, { count: content.total })
       : null;
 
   const viewButtonLabel = isDevice
     ? intl.formatMessage({ id: "aiAssistant.workspace.viewDeviceDetail" })
-    : isVarRealtime
-      ? intl.formatMessage({ id: "aiAssistant.workspace.viewVarRealtime" })
-      : isVarHistory
-        ? intl.formatMessage({ id: "aiAssistant.workspace.viewVarHistory" })
-        : intl.formatMessage({ id: "aiAssistant.workspace.viewResults" });
+    : isDeviceList
+      ? intl.formatMessage({ id: "aiAssistant.workspace.viewDeviceList" })
+      : isVarRealtime
+        ? intl.formatMessage({ id: "aiAssistant.workspace.viewVarRealtime" })
+        : isVarHistory
+          ? intl.formatMessage({ id: "aiAssistant.workspace.viewVarHistory" })
+          : intl.formatMessage({ id: "aiAssistant.workspace.viewResults" });
 
   const deviceNameSuffix =
     isDevice && content.ok && content.device.deviceName
@@ -302,11 +310,13 @@ export function MessageWorkspaceSection({
 
   const modalTitle = isDevice
     ? intl.formatMessage({ id: "aiAssistant.workspace.deviceTitle" })
-    : isVarRealtime
-      ? intl.formatMessage({ id: "aiAssistant.workspace.varRealtimeTitle" })
-      : isVarHistory
-        ? intl.formatMessage({ id: "aiAssistant.workspace.varHistoryTitle" })
-        : intl.formatMessage({ id: "aiAssistant.workspace.title" });
+    : isDeviceList
+      ? intl.formatMessage({ id: "aiAssistant.workspace.deviceListTitle" })
+      : isVarRealtime
+        ? intl.formatMessage({ id: "aiAssistant.workspace.varRealtimeTitle" })
+        : isVarHistory
+          ? intl.formatMessage({ id: "aiAssistant.workspace.varHistoryTitle" })
+          : intl.formatMessage({ id: "aiAssistant.workspace.title" });
 
   return (
     <>
@@ -327,7 +337,7 @@ export function MessageWorkspaceSection({
         title={
           <span>
             {modalTitle}
-            {isAlarm && content.ok && content.total > 0 ? (
+            {(isAlarm || isDeviceList) && content.ok && content.total > 0 ? (
               <Tag color="green" className={styles.workspaceTotalTag}>
                 {totalLabel}
               </Tag>
@@ -348,6 +358,9 @@ export function MessageWorkspaceSection({
         ) : null}
         {content.kind === "alarm_query" && (
           <AlarmQueryTable data={content} modalMode onSend={onSend} />
+        )}
+        {content.kind === "device_list" && (
+          <DeviceListTable data={content} modalMode onSend={onSend} />
         )}
         {content.kind === "device_detail" && <DeviceDetailPanel data={content} />}
         {content.kind === "device_variable_realtime" && (

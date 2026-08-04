@@ -153,15 +153,39 @@ def _format_alarm_status(item: dict[str, Any]) -> str:
 
 
 def _map_alarm_brief_item(item: dict[str, Any]) -> dict[str, Any]:
-    """单条告警 → Workspace / LLM 摘要字段。"""
+    """
+    单条告警 → Workspace / LLM 摘要字段。
+
+    字段与平台 getAlarmList / getAlarmUnprocessList 记录对齐；
+    variableName 兼容历史：优先 deviceVarName（平台实字段）。
+    """
+    device_var = item.get("deviceVarName")
+    if device_var in (None, ""):
+        device_var = item.get("variableName")
     return {
         "id": item.get("id"),
         "deviceName": item.get("deviceName"),
-        "variableName": item.get("variableName"),
+        "deviceCode": item.get("deviceCode"),
+        # 平台字段为 deviceVarName；保留 variableName 供旧前端/提示词
+        "deviceVarName": device_var,
+        "variableName": device_var,
+        "alarmValue": item.get("alarmValue"),
         "startTime": item.get("startTime"),
+        "endTime": item.get("endTime"),
         "status": item.get("status"),
         "statusName": _format_alarm_status(item),
+        "alarmRankId": item.get("alarmRankId"),
         "alarmRankName": item.get("alarmRankName"),
+        "alarmCategoryId": item.get("alarmCategoryId"),
+        "alarmCategoryName": item.get("alarmCategoryName"),
+        "eventName": item.get("eventName"),
+        "regionName": item.get("regionName"),
+        "subSystemName": item.get("subSystemName"),
+        "confirmPerson": item.get("confirmPerson"),
+        "confirmTime": item.get("confirmTime"),
+        "processPerson": item.get("processPerson"),
+        "processTime": item.get("processTime"),
+        "handleMethod": item.get("handleMethod"),
     }
 
 
@@ -729,9 +753,11 @@ def get_alarm_detail(alarm_id: str = "") -> str:
 
     summary = (
         f"告警 {aid}：设备 {full_record.get('deviceName', '-')}，"
-        f"变量 {full_record.get('variableName', '-')}，"
+        f"变量 {full_record.get('deviceVarName') or full_record.get('variableName') or '-'}，"
+        f"级别 {full_record.get('alarmRankName') or '-'}，"
+        f"类别 {full_record.get('alarmCategoryName') or '-'}，"
         f"时间 {full_record.get('startTime', '-')}，"
-        f"状态 {full_record.get('status', '-')}。"
+        f"状态 {_format_alarm_status(full_record)}。"
     )
     return tool_result(
         ok=True,

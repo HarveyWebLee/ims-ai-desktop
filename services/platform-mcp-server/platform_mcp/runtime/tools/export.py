@@ -489,7 +489,7 @@ def execute_acs_record_export(
 
 @tool
 def download_file(
-    resource: str = "alarm_report",
+    resource: str = "",
     start_time: str = "",
     end_time: str = "",
     status: str | list[str] = "",
@@ -505,6 +505,7 @@ def download_file(
     ----
     resource : str
         ``alarm_report``、``sentry_handover``、``duty_info``、``duty_manage`` 或 ``acs_record``。
+        不确定时可留空，由服务端结合会话上下文推断；仍歧义则 HITL 选择。
     start_time / end_time : str
         相对或绝对时间；未明确时可留空，由 HITL 补选。
     status / device_code / device_name : str
@@ -521,8 +522,8 @@ def download_file(
 
     LLM 必须立即调用本工具，禁止先用自然语言追问时间。
     """
-    resource_key = str(resource or "").strip() or "alarm_report"
-    if resource_key not in SUPPORTED_EXPORT_RESOURCES:
+    resource_key = str(resource or "").strip()
+    if resource_key and resource_key not in SUPPORTED_EXPORT_RESOURCES:
         supported = "、".join(sorted(SUPPORTED_EXPORT_RESOURCES))
         return tool_result(
             ok=False,
@@ -555,6 +556,14 @@ def download_file(
         )
     except ValueError as exc:
         return tool_result(ok=False, summary=str(exc))
+
+    resource_key = str(params.get("resource") or "").strip()
+    if resource_key not in SUPPORTED_EXPORT_RESOURCES:
+        supported = "、".join(sorted(SUPPORTED_EXPORT_RESOURCES))
+        return tool_result(
+            ok=False,
+            summary=f"暂不支持导出类型「{resource_key}」，当前支持：{supported}。",
+        )
 
     start_time = str(params.get("start_time", start_time))
     end_time = str(params.get("end_time", end_time))

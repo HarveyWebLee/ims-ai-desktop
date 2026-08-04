@@ -33,6 +33,7 @@ ContextVar ≈ 每个请求自带的小书包：set 一次，深层 tool/helper 
 - current_model_id：worker 线程读 checkpoint 用
 - current_run_mode：会话运行模式 readonly | confirm | autonomous
 - current_plan_first：显式「先计划后执行」，覆盖 AI-first 旁路以走 plan_confirm
+- current_user_utterance / current_recent_user_messages：本轮会话上下文（全工具共享，非导出专用）
 """
 
 from __future__ import annotations  # 允许在类型注解中引用尚未定义的类型（Python 3.7+ 特性）
@@ -42,6 +43,11 @@ from contextvars import ContextVar, Token
 from typing import Any
 
 DEFAULT_RUN_MODE = "confirm"
+
+# 会话上下文透传：单条用户句与近期列表的长度上限（HTTP 头 / 日志友好）
+MAX_UTTERANCE_CHARS = 500
+MAX_RECENT_USER_MESSAGES = 5
+MAX_RECENT_MESSAGE_CHARS = 200
 
 # 当前 Agent 请求携带的平台 Authorization 头（格式通常为 "Bearer <JWT>"）
 # 与前端 App 的 requestTo 透传方式保持一致，供 platform_client 调用平台 API
@@ -86,6 +92,18 @@ current_run_mode: ContextVar[str] = ContextVar("current_run_mode", default=DEFAU
 # 显式 Plan：true 时即使 AI-first 也走 plan_confirm 门控（多步/写步骤先出计划再执行）
 current_plan_first: ContextVar[bool] = ContextVar("current_plan_first", default=False)
 
+# 本轮用户原话（chat 入口写入；resume 从 checkpoint 回填）。供 preflight / 消歧，不限导出。
+current_user_utterance: ContextVar[str | None] = ContextVar(
+    "current_user_utterance",
+    default=None,
+)
+
+# 近几轮用户句（不含本轮）。与桌面 recent_user_messages 对齐，会话级共享。
+current_recent_user_messages: ContextVar[tuple[str, ...]] = ContextVar(
+    "current_recent_user_messages",
+    default=(),
+)
+
 
 def normalize_run_mode(value: str | None) -> str:
     """将请求字段规范为合法 run_mode；非法或缺省 → confirm。"""
@@ -93,6 +111,29 @@ def normalize_run_mode(value: str | None) -> str:
     if mode in ("readonly", "confirm", "autonomous"):
         return mode
     return DEFAULT_RUN_MODE
+
+
+def normalize_user_utterance(value: str | None) -> str:
+    """截断本轮用户原话。"""
+    text = (value or "").strip()
+    if len(text) > MAX_UTTERANCE_CHARS:
+        return text[:MAX_UTTERANCE_CHARS]
+    return text
+
+
+def normalize_recent_user_messages(messages: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
+    """规范化近期用户句：去空、截断条数与单条长度。"""
+    out: list[str] = []
+    for raw in messages or ():
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        if len(text) > MAX_RECENT_MESSAGE_CHARS:
+            text = text[:MAX_RECENT_MESSAGE_CHARS]
+        out.append(text)
+        if len(out) >= MAX_RECENT_USER_MESSAGES:
+            break
+    return tuple(out)
 
 
 def safe_reset_contextvar(

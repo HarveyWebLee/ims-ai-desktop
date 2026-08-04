@@ -149,3 +149,10 @@ class EntityVectorStore:
             if len(hits) >= limit:
                 break
         return hits
+
+    def count(self) -> int:
+        """当前实体 collection 点数；集合不存在时返回 0。"""
+        if not self.client.collection_exists(self.collection):
+            return 0
+        info = self.client.get_collection(self.collection)
+        return int(info.points_count or 0)

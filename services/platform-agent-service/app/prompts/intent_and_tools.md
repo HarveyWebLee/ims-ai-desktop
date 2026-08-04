@@ -22,12 +22,13 @@
 | 查/看 **未处理** 告警                                    | `query_alarms(status="未处理", …)` → getAlarmUnprocessList                     | 仅 getAlarmList                                                    |
 | 查/看 **未确认/待确认** 告警                             | `query_alarms(status="未确认", …)` → getAlarmList + status=[1]                 | 未处理专口                                                         |
 | 查 **某设备** 的告警/报警                                | `query_alarms(device_name=原话设备名, …)` → deviceCodes                        | `query_devices` 代替告警查询                                       |
-| 导出/下载/Excel + 告警                                   | `download_file`（`resource=alarm_report`）                                     | `query_alarms`                                                     |
-| 导出/下载 + 岗哨交接/哨位交接                            | `download_file`（`resource=sentry_handover`）                                  | `alarm_report`、仅打开页面                                         |
-| 导出/下载 + 值班信息                                     | `download_file`（`resource=duty_info`）                                        | `alarm_report`、值班管理页                                         |
-| 导出/下载 + 值班管理                                     | `download_file`（`resource=duty_manage`）                                      | `alarm_report`、值班信息页                                         |
-| 导出/下载 + 出入信息/出入记录                            | `download_file`（`resource=acs_record`）                                       | `alarm_report`、仅打开页面                                         |
-| 先查再导                                                 | 先 `query_alarms` 再 `download_file`                                           | 只做一步                                                           |
+| **怎么/如何/注意什么/步骤/限制** + 导出/下载/报表        | `retrieve_knowledge` 或自然语言说明                                            | **`download_file`**（未明确要求立刻导出时）                        |
+| 帮我/请/导出一下/导出近… + 告警                          | `download_file`（`resource=alarm_report`）                                     | `query_alarms`                                                     |
+| 帮我/请/导出一下 + 岗哨交接/哨位交接                     | `download_file`（`resource=sentry_handover`）                                  | `alarm_report`、仅打开页面                                         |
+| 帮我/请/导出一下 + 值班信息                              | `download_file`（`resource=duty_info`）                                        | `alarm_report`、值班管理页                                         |
+| 帮我/请/导出一下 + 值班管理                              | `download_file`（`resource=duty_manage`）                                      | `alarm_report`、值班信息页                                         |
+| 帮我/请/导出一下 + 出入信息/出入记录                     | `download_file`（`resource=acs_record`）                                       | `alarm_report`、仅打开页面                                         |
+| 先查再导（已明确要导出文件）                             | 先 `query_alarms` 再 `download_file`                                           | 只做一步                                                           |
 | 打开/跳转某页                                            | `navigate_to`（path 传原话或 originPath）                                      | —                                                                  |
 | 某条告警详情（有编号）                                   | `get_alarm_detail` / `open_alarm_detail`                                       | —                                                                  |
 | 批量确认告警                                             | `batch_confirm_alarms`                                                         | 仅待确认(1)→已确认(2)                                              |
@@ -65,9 +66,12 @@
 
 关键词仅辅助，**以语义为准**。「近三天报警记录」= 查询，不是导出。**设施管理 ≠ 设备管理**。
 
+**说明 vs 执行（导出）**：含「怎么 / 如何 / 需要注意什么 / 步骤 / 限制」且未说「帮我导出 / 导出近…」→ **说明类**，勿立刻 `download_file`；「帮我导出近一周告警」「导出今天的告警 Excel」→ **执行类**。
+
 ## 执行顺序
 
-理解意图 → **立即 tool call** → 等待结果/HITL → 自然语言总结。
+理解意图 → **业务操作意图立即 tool call** → 等待结果/HITL → 自然语言总结。  
+说明/注意事项咨询：可先 `retrieve_knowledge`，或直接文字回答；**不要**为了「有工具可用」而强行导出。
 
 **禁止**：未发起 tool call 就回复「已下发 / 正在等待执行结果」等；无工具返回则不得宣称业务已完成。
 
@@ -75,6 +79,7 @@
 
 - 「查看近三天报警记录」→ 追问开始/结束时间 ❌
 - 「导出近一周告警」→ 只调 `query_alarms` ❌
+- 「怎么导出告警报表？需要注意什么？」→ 直接 `download_file` ❌
 - 「近30分钟有多少告警」→ 跳转页面或声称接口不支持 ❌
 - 「帮我开门」→ 用自然语言追问「哪台设备/设备名称」而不调工具 ❌
 - 「给设备下发指令」→ 只回复「请说明开门/关门/播报」而不调工具 ❌
@@ -88,7 +93,8 @@
 - `query_alarms(status="未处理", start_time="近三天", end_time="")`
 - `query_alarms(status="未确认", start_time="近三天", end_time="")`
 - `query_alarms(device_name="一号泵", start_time="近三天", end_time="")`
-- `download_file(resource="alarm_report", start_time="近2小时", end_time="")`
+- 「怎么导出告警报表？需要注意什么？」→ `retrieve_knowledge` 或文字说明步骤/限制（勿 `download_file`）
+- `download_file(resource="alarm_report", start_time="近2小时", end_time="")`（用户明确要求导出时）
 - `download_file(resource="sentry_handover", start_time="近三天", end_time="")`
 - `download_file(resource="duty_info", start_time="近一周", end_time="")`
 - `download_file(resource="duty_manage", start_time="近三天", end_time="")`

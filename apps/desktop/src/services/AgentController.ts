@@ -530,6 +530,219 @@ export async function triggerEntitySync(options?: { tables?: string }): Promise<
   return parseJsonResponse(res);
 }
 
+/** 实体同步服务端可观测状态（进程内最近一次） */
+export interface EntitySyncStatus {
+  in_progress: boolean;
+  at: string | null;
+  result: EntitySyncResult | null;
+}
+
+export async function getEntitySyncStatus(): Promise<EntitySyncStatus> {
+  const res = await fetch(`${AGENT_BASE}/entity-sync/status`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(res);
+}
+
+/** 实体术语库（platform_entities：设备/变量） */
+export interface EntityStats {
+  enabled: boolean;
+  ok: boolean;
+  collection: string;
+  points: number;
+  sync_tables?: string;
+  in_progress?: boolean;
+  message?: string;
+  probe?: Record<string, unknown>;
+}
+
+export interface EntitySearchHit {
+  score: number;
+  entity_type: string;
+  entity_key: string;
+  source: string;
+  text: string;
+  text_preview: string;
+  device_code?: string | null;
+  device_name?: string | null;
+  var_name?: string | null;
+  show_name?: string | null;
+  table?: string | null;
+}
+
+export async function getEntityStats(): Promise<EntityStats> {
+  const res = await fetch(`${AGENT_BASE}/entities/stats`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(res);
+}
+
+export async function searchEntities(params: {
+  query: string;
+  limit?: number;
+  entityTypes?: string[];
+}): Promise<{ query: string; items: EntitySearchHit[]; collection: string }> {
+  const res = await fetch(`${AGENT_BASE}/entities/search`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      query: params.query,
+      limit: params.limit ?? 8,
+      entity_types: params.entityTypes ?? null,
+    }),
+  });
+  return parseJsonResponse(res);
+}
+
+/** 文档知识库运营（platform_knowledge） */
+export interface KnowledgeStats {
+  enabled: boolean;
+  ok: boolean;
+  collection: string;
+  points: number;
+  message?: string;
+  probe?: Record<string, unknown>;
+  upload_dir?: string;
+}
+
+export interface KnowledgePointItem {
+  id: string;
+  score: number;
+  text_preview: string;
+  source: string;
+  filename: string;
+  chunk_index?: number | null;
+  media_kind?: string | null;
+}
+
+export interface KnowledgeDocumentItem {
+  source: string;
+  filename: string;
+  chunk_count: number;
+}
+
+export interface KnowledgeDocumentsPage {
+  items: KnowledgeDocumentItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  scanned_points?: number;
+  truncated?: boolean;
+  collection: string;
+}
+
+export async function getKnowledgeStats(): Promise<KnowledgeStats> {
+  const res = await fetch(`${AGENT_BASE}/knowledge/stats`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(res);
+}
+
+export async function listKnowledgePoints(options?: {
+  limit?: number;
+  sourceContains?: string;
+}): Promise<{ items: KnowledgePointItem[]; next_offset: string | null; collection: string }> {
+  const qs = new URLSearchParams({
+    limit: String(options?.limit ?? 20),
+  });
+  if (options?.sourceContains?.trim()) {
+    qs.set("source_contains", options.sourceContains.trim());
+  }
+  const res = await fetch(`${AGENT_BASE}/knowledge/points?${qs.toString()}`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(res);
+}
+
+export async function listKnowledgeDocuments(options?: {
+  page?: number;
+  pageSize?: number;
+  sourceContains?: string;
+}): Promise<KnowledgeDocumentsPage> {
+  const qs = new URLSearchParams({
+    page: String(options?.page ?? 1),
+    page_size: String(options?.pageSize ?? 20),
+  });
+  if (options?.sourceContains?.trim()) {
+    qs.set("source_contains", options.sourceContains.trim());
+  }
+  const res = await fetch(`${AGENT_BASE}/knowledge/documents?${qs.toString()}`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(res);
+}
+
+export async function searchKnowledge(params: {
+  query: string;
+  limit?: number;
+}): Promise<{ query: string; items: KnowledgePointItem[] }> {
+  const res = await fetch(`${AGENT_BASE}/knowledge/search`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      query: params.query,
+      limit: params.limit ?? 5,
+    }),
+  });
+  return parseJsonResponse(res);
+}
+
+export async function ingestKnowledgeFile(
+  file: File,
+): Promise<{ source: string; filename: string; chunks: number; deleted_before: number }> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  const headers: Record<string, string> = {};
+  const authHeaders = getAuthHeaders();
+  if (authHeaders.Authorization) headers.Authorization = authHeaders.Authorization;
+  const res = await fetch(`${AGENT_BASE}/knowledge/ingest`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  return parseJsonResponse(res);
+}
+
+export async function replaceKnowledgeFile(
+  source: string,
+  file: File,
+): Promise<{ source: string; filename: string; chunks: number; deleted_before: number }> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  form.append("source", source);
+  const headers: Record<string, string> = {};
+  const authHeaders = getAuthHeaders();
+  if (authHeaders.Authorization) headers.Authorization = authHeaders.Authorization;
+  const res = await fetch(`${AGENT_BASE}/knowledge/replace`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  return parseJsonResponse(res);
+}
+
+export async function exportKnowledgeBySource(
+  source: string,
+): Promise<{ source: string; filename: string; content: string; from: string; chunks?: number }> {
+  const res = await fetch(`${AGENT_BASE}/knowledge/export`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ source }),
+  });
+  return parseJsonResponse(res);
+}
+
+export async function deleteKnowledgeBySource(
+  source: string,
+): Promise<{ source: string; deleted: number }> {
+  const res = await fetch(`${AGENT_BASE}/knowledge/by-source`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ source }),
+  });
+  return parseJsonResponse(res);
+}
+
 /** 声纹用户（ERes2Net-Large 多模板；≥enroll_min 段后 enrolled） */
 export interface VoiceprintProfile {
   id: string;

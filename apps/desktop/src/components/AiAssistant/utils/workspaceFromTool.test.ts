@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { AiMessage } from "../types";
-import { resolveWorkspaceFromMessage } from "./workspaceFromTool";
+import {
+  buildDeviceListWorkspace,
+  buildExportDownloadWorkspace,
+  resolveWorkspaceFromMessage,
+} from "./workspaceFromTool";
 
 function assistantMessage(
   blocks: AiMessage["blocks"],
@@ -140,5 +144,82 @@ describe("resolveWorkspaceFromMessage", () => {
       expect(workspace.variableName).toBe("status_door_control");
       expect(workspace.taskNo).toBe("T-1001");
     }
+  });
+
+  it("builds workspace from query_devices block", () => {
+    const msg = assistantMessage([
+      {
+        type: "tool_call",
+        tool: "query_devices",
+        args: { keyword: "门禁" },
+        status: "done",
+        result: JSON.stringify({
+          ok: true,
+          summary: "共 2 台设备",
+          data: {
+            total: 2,
+            items: [
+              {
+                deviceCode: "d1",
+                deviceName: "门禁1",
+                onlineStatusLabel: "在线",
+                regionName: "A区",
+              },
+            ],
+          },
+        }),
+      },
+    ]);
+    const workspace = resolveWorkspaceFromMessage(msg);
+    expect(workspace?.kind).toBe("device_list");
+    if (workspace?.kind === "device_list") {
+      expect(workspace.total).toBe(2);
+      expect(workspace.items[0]?.deviceCode).toBe("d1");
+    }
+  });
+
+  it("builds workspace from download_file block including cancelled", () => {
+    const msg = assistantMessage([
+      {
+        type: "tool_call",
+        tool: "download_file",
+        args: { resource: "alarm_report" },
+        status: "cancelled",
+        result: JSON.stringify({
+          ok: false,
+          user_cancelled: true,
+          summary: "使用者已取消导出。",
+        }),
+      },
+    ]);
+    const workspace = resolveWorkspaceFromMessage(msg);
+    expect(workspace?.kind).toBe("export_download");
+    if (workspace?.kind === "export_download") {
+      expect(workspace.userCancelled).toBe(true);
+      expect(workspace.ok).toBe(false);
+    }
+  });
+});
+
+describe("buildDeviceListWorkspace / buildExportDownloadWorkspace", () => {
+  it("parses device list failure", () => {
+    const ws = buildDeviceListWorkspace(JSON.stringify({ ok: false, summary: "无权限" }));
+    expect(ws?.kind).toBe("device_list");
+    expect(ws?.ok).toBe(false);
+  });
+
+  it("parses export success with client_actions", () => {
+    const ws = buildExportDownloadWorkspace(
+      JSON.stringify({
+        ok: true,
+        summary: "已导出",
+        data: { total: 10, batchCount: 1, resource: "alarm_report" },
+        client_actions: [{ action: "download", url: "https://x/a.xlsx", filename: "a.xlsx" }],
+      }),
+    );
+    expect(ws?.kind).toBe("export_download");
+    expect(ws?.ok).toBe(true);
+    expect(ws?.files?.[0]?.filename).toBe("a.xlsx");
+    expect(ws?.resource).toBe("alarm_report");
   });
 });

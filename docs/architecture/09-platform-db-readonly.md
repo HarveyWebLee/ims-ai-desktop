@@ -115,7 +115,7 @@ Python 侧使用官方只读连接参数（host / port / user / password），�
 | `p_device,p_device_variable` | 仅转换列出的表（英文逗号分隔，大小写不敏感）             |
 | 列表中含不存在的表           | **提示/返回 missing_tables**，**存在的表仍照常转换**     |
 
-侧栏「同步到向量库」按钮调用 `POST /api/agent/entity-sync`，按上述配置执行一次全量转换（只读拉达梦 → 写 Qdrant）。
+侧栏「知识与术语 → 实体术语」可查看实体库统计、试检索匹配结果，并触发 `POST /api/agent/entity-sync`（达梦只读 → `platform_entities`）。`GET /api/agent/entity-sync/status` 返回进程内最近一次结果；`GET/POST /api/agent/entities/stats|search` 供运营试检索。
 
 推荐本地配置示例：
 
@@ -209,7 +209,8 @@ platform-agent-service/
     entity_sync_service.py # 按配置全量同步
   app/infrastructure/vector/
     entity_store.py        # upsert_entity / delete_by_source
-  app/api/entity_sync.py   # POST /api/agent/entity-sync
+  app/api/entity_sync.py   # POST /api/agent/entity-sync；GET …/status
+  app/api/entities.py      # GET …/entities/stats；POST …/entities/search
 ```
 
 ### 4.1 连接封装约束

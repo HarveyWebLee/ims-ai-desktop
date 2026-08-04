@@ -555,6 +555,12 @@ async def bpmn_execute_node(state: ParentState) -> dict[str, Any]:
             resume_value,
             dict(saved.get("tool_args") or {}),
         )
+        from contracts.export_infer import stamp_export_resource_confirmed
+
+        tool_args = stamp_export_resource_confirmed(
+            tool_args,
+            dict(saved.get("interrupt_payload") or {}),
+        )
         last_result = ""
         if tool_name:
             async for event_name, payload in execute_tool_invoke(

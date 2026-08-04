@@ -89,6 +89,18 @@ def test_match_batch_export_over_alarm(monkeypatch: pytest.MonkeyPatch) -> None:
     assert matches[0].playbook.id == "batch-export"
 
 
+def test_howto_export_skips_playbook(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "agent_playbook_enabled", True)
+    monkeypatch.setattr(settings, "agent_playbook_dir", "")
+    monkeypatch.setattr(settings, "agent_playbook_max_matches", 2)
+    clear_playbook_cache()
+
+    assert match_playbooks("怎么导出告警报表？需要注意什么？") == []
+    assert match_playbooks("如何导出告警报表") == []
+
+
 def test_playbook_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.config import settings
 
@@ -115,6 +127,26 @@ def test_assemble_context_injects_playbook(monkeypatch: pytest.MonkeyPatch) -> N
     assert "请确认未处理告警" in ctx.llm_user_message
     # 历史回显须剥离 Playbook，只保留用户原话
     assert extract_user_display_message(ctx.llm_user_message) == "请确认未处理告警"
+
+
+def test_assemble_context_howto_export_no_playbook(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.config import settings
+    from app.graph.context import assemble_context
+    from app.services.prompt_assembly import extract_user_display_message
+
+    monkeypatch.setattr(settings, "agent_playbook_enabled", True)
+    monkeypatch.setattr(settings, "agent_playbook_dir", "")
+    monkeypatch.setattr(settings, "agent_playbook_max_matches", 2)
+    monkeypatch.setattr(settings, "qdrant_url", "")
+    clear_playbook_cache()
+
+    msg = "怎么导出告警报表？需要注意什么？"
+    ctx = assemble_context(thread_id="t-howto", message=msg)
+    assert "场景 Playbook" not in ctx.llm_user_message
+    assert "batch-export" not in ctx.llm_user_message
+    assert "操作说明" in ctx.llm_user_message or "注意事项" in ctx.llm_user_message
+    assert "download_file" in ctx.llm_user_message  # 注记中禁止调用
+    assert extract_user_display_message(ctx.llm_user_message) == msg
 
 
 def test_custom_playbook_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

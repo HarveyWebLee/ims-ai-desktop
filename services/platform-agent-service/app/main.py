@@ -32,7 +32,9 @@ from app.api.bpmn import (
     BpmnSnapshotSaveRequest,
     BpmnValidateRequest,
 )
+from app.api.entities import EntitySearchBody
 from app.api.entity_sync import EntitySyncRequest
+from app.api.knowledge import KnowledgeDeleteBody, KnowledgeExportBody, KnowledgeSearchBody
 from app.api.voiceprints import VoiceprintCreateBody, VoiceprintUpdateBody
 from app.config import settings
 from app.models.router import has_real_model_credentials
@@ -322,6 +324,131 @@ async def post_entity_sync(
     from app.api import entity_sync as entity_sync_api
 
     return await entity_sync_api.trigger_entity_sync(body, authorization)
+
+
+@app.get("/api/agent/entity-sync/status")
+async def get_entity_sync_status(authorization: str | None = Header(default=None)):
+    """最近一次实体同步结果（进程内）与是否进行中。"""
+    from app.api import entity_sync as entity_sync_api
+
+    return await entity_sync_api.entity_sync_status(authorization)
+
+
+@app.get("/api/agent/entities/stats")
+async def get_entity_stats(authorization: str | None = Header(default=None)):
+    """实体术语库统计（Qdrant platform_entities）。"""
+    from app.api import entities as entities_api
+
+    return await entities_api.entity_stats(authorization)
+
+
+@app.post("/api/agent/entities/search")
+async def post_entity_search(
+    body: EntitySearchBody,
+    authorization: str | None = Header(default=None),
+):
+    """实体术语试检索（设备/变量等）。"""
+    from app.api import entities as entities_api
+
+    return await entities_api.entity_search(body, authorization)
+
+
+@app.get("/api/agent/knowledge/stats")
+async def get_knowledge_stats(authorization: str | None = Header(default=None)):
+    """文档知识库统计（Qdrant platform_knowledge）。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_stats(authorization)
+
+
+@app.get("/api/agent/knowledge/points")
+async def get_knowledge_points(
+    limit: int = 20,
+    source_contains: str | None = None,
+    authorization: str | None = Header(default=None),
+):
+    """分页浏览知识片段（非语义）。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_list(
+        limit=limit,
+        source_contains=source_contains,
+        authorization=authorization,
+    )
+
+
+@app.get("/api/agent/knowledge/documents")
+async def get_knowledge_documents(
+    page: int = 1,
+    page_size: int = 20,
+    source_contains: str | None = None,
+    authorization: str | None = Header(default=None),
+):
+    """按 source 聚合的文档列表（页码分页）。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_documents(
+        page=page,
+        page_size=page_size,
+        source_contains=source_contains,
+        authorization=authorization,
+    )
+
+
+@app.post("/api/agent/knowledge/search")
+async def post_knowledge_search(
+    body: KnowledgeSearchBody,
+    authorization: str | None = Header(default=None),
+):
+    """语义试检索。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_search(body, authorization)
+
+
+@app.post("/api/agent/knowledge/ingest")
+async def post_knowledge_ingest(
+    file: Annotated[UploadFile, File()],
+    authorization: str | None = Header(default=None),
+):
+    """上传文件入库（同名自动替换）。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_ingest(file, authorization)
+
+
+@app.post("/api/agent/knowledge/replace")
+async def post_knowledge_replace(
+    file: Annotated[UploadFile, File()],
+    source: Annotated[str, Form()],
+    authorization: str | None = Header(default=None),
+):
+    """按已有 source 上传更新（保留 source 键）。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_replace(file, source=source, authorization=authorization)
+
+
+@app.post("/api/agent/knowledge/export")
+async def post_knowledge_export(
+    body: KnowledgeExportBody,
+    authorization: str | None = Header(default=None),
+):
+    """导出文档正文供本地下载（优先磁盘，否则拼接片段）。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_export(body, authorization)
+
+
+@app.delete("/api/agent/knowledge/by-source")
+async def delete_knowledge_by_source(
+    body: KnowledgeDeleteBody,
+    authorization: str | None = Header(default=None),
+):
+    """按 payload.source 精确删除（不提供 drop collection）。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_delete(body, authorization)
 
 
 @app.get("/api/agent/voiceprints")

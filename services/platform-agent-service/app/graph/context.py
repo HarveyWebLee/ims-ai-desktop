@@ -97,6 +97,7 @@ def assemble_context(
     from app.services.prompt_assembly import (
         USER_TURN_SECTION_HEADER,
         build_device_control_intent_note,
+        build_howto_guidance_intent_note,
         build_llm_user_message,
         parse_device_control_action,
         resolve_recent_messages_for_intent,
@@ -110,7 +111,15 @@ def assemble_context(
         recent_user_messages=prior,
     )
     # 意图注记前置，优先级高于路径注入正文
-    notes = [n for n in (intent_note, build_device_control_intent_note(message)) if n]
+    notes = [
+        n
+        for n in (
+            intent_note,
+            build_howto_guidance_intent_note(message),
+            build_device_control_intent_note(message),
+        )
+        if n
+    ]
     if notes:
         # 保证有「使用者本轮消息」分段，便于历史还原剥离注记
         if USER_TURN_SECTION_HEADER not in llm_message:

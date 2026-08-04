@@ -42,7 +42,14 @@ from contracts.alarm_params import (
     resolve_or_prepare_alarm_times,
     to_platform_time,
 )
-from contracts.export_infer import EXPORT_ALARM_BATCH_MAX, TIME_ONLY_EXPORT_RESOURCES
+from contracts.export_infer import (
+    EXPORT_ALARM_BATCH_MAX,
+    EXPORT_RESOURCE_CONFIRMED_KEY,
+    SUPPORTED_EXPORT_RESOURCES,
+    TIME_ONLY_EXPORT_RESOURCES,
+    export_resource_select_field,
+    resolve_export_resource,
+)
 from contracts.settings import settings
 
 # 告警类工具：复杂 HITL 字段（datetime_range 等），优先于 catalog 泛化推导
@@ -289,6 +296,48 @@ _EXPORT_TIME_ONLY_FIELDS: list[dict[str, Any]] = [
         "description": "选择开始与结束的日期时间（精确到秒）",
     }
 ]
+
+
+def _preflight_download_resource(args: dict[str, Any]) -> PreflightResult:
+    """
+    导出 resource 会话级消歧（先于时间 HITL）。
+
+    - 本句/上下文能唯一确定 → 写入 resource
+    - 歧义且用户尚未确认 → ask_params 列举候选（可顺带补时间）
+    - 无会话上下文时保留调用方已给的合法 resource（单测 / Plan）
+    """
+    data = dict(args)
+    existing = str(data.get("resource") or "").strip()
+    supported = set(SUPPORTED_EXPORT_RESOURCES)
+
+    if data.get(EXPORT_RESOURCE_CONFIRMED_KEY) and existing in supported:
+        return PreflightResult(args=data, interrupt=None)
+
+    from contracts.context import current_recent_user_messages, current_user_utterance
+
+    utterance = (current_user_utterance.get() or "").strip()
+    recent = list(current_recent_user_messages.get() or ())
+    decision = resolve_export_resource(utterance, recent_messages=recent)
+
+    if decision.resource:
+        data["resource"] = decision.resource
+        return PreflightResult(args=data, interrupt=None)
+
+    if not utterance and not recent and existing in supported:
+        return PreflightResult(args=data, interrupt=None)
+
+    candidates = list(decision.candidates) or list(SUPPORTED_EXPORT_RESOURCES)
+    cleared = {**data, "resource": ""}
+    fields = [export_resource_select_field(candidates), *_EXPORT_TIME_ONLY_FIELDS]
+    return PreflightResult(
+        args=cleared,
+        interrupt=_ask_params_interrupt(
+            tool="download_file",
+            message="请选择要导出的业务类型与时间范围",
+            fields=fields,
+            current=cleared,
+        ),
+    )
 
 
 def _preflight_alarm_time_tool(
@@ -709,6 +758,13 @@ def preflight_tool(tool_name: str, args: dict[str, Any] | None) -> PreflightResu
     name = (tool_name or "").strip()
     # 字符串参数统一 strip，避免「  空白 」骗过非空检查
     data = {k: (v.strip() if isinstance(v, str) else v) for k, v in dict(args or {}).items()}
+
+    # ── 导出：先按会话上下文裁决 resource，歧义则 HITL 选择（全会话上下文，非导出专用通道）──
+    if name == "download_file":
+        resource_gate = _preflight_download_resource(data)
+        if resource_gate.interrupt:
+            return resource_gate
+        data = resource_gate.args
 
     # ── 路径 1：catalog 声明式 preflight（alarm_time / one_of）──
     catalog_rules = _preflight_catalog_rules(name, data)

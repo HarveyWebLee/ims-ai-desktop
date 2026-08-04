@@ -56,6 +56,40 @@ _CHAT_ONLY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(怎么|如何)使用|使用说明|功能介绍|帮助文档"),
 )
 
+# 明确要求立刻执行导出/下载（覆盖「怎么」类说明问句）
+_HOWTO_EXECUTE_OVERRIDE = re.compile(
+    r"(帮我|请|给我|替我).{0,8}(导出|下载)"
+    r"|导出一下|下载一下|立即(导出|下载)|现在(导出|下载)"
+    r"|(导出|下载)(近|今天|昨天|本周|本月|上周|上月|\d)",
+    re.IGNORECASE,
+)
+
+# 「怎么导出 / 注意什么」等说明咨询（非立刻执行）
+_HOWTO_GUIDANCE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"(怎么|如何|怎样).{0,16}(导出|下载|报表)", re.IGNORECASE),
+    re.compile(r"(导出|下载|报表).{0,24}(怎么|如何|怎样|注意|步骤|流程|限制)", re.IGNORECASE),
+    re.compile(
+        r"(需要注意|注意什么|注意事项|有什么注意|要注意什么).{0,24}(导出|下载|报表)"
+        r"|(导出|下载|报表).{0,24}(需要注意|注意什么|注意事项|有什么注意|要注意什么)",
+        re.IGNORECASE,
+    ),
+)
+
+
+def is_howto_guidance_message(message: str) -> bool:
+    """
+    判断是否为「操作说明 / 注意事项」咨询，而非立刻执行导出。
+
+    用于抑制 batch-export Playbook 注入，并前置意图注记，避免「怎么导出…注意什么」误调 download_file。
+    含「帮我导出 / 导出近一周」等执行向说法时返回 False。
+    """
+    text = (message or "").strip()
+    if not text:
+        return False
+    if _HOWTO_EXECUTE_OVERRIDE.search(text):
+        return False
+    return any(pat.search(text) for pat in _HOWTO_GUIDANCE_PATTERNS)
+
 
 def is_chat_only_message(message: str) -> bool:
     """

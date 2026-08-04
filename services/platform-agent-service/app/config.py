@@ -210,6 +210,18 @@ class Settings(BaseSettings):
     vector_upsert_batch_size: int = 64
     # 每轮被动 RAG 注入条数
     rag_top_k: int = 4
+    # 被动 RAG 单条片段最大字符（截断注入，避免 HumanMessage 膨胀）
+    agent_rag_passive_snippet_chars: int = 220
+
+    # P1-3 知识检索 Subagent：工具侧摘要回主 agent（无 checkpointer）
+    agent_subagent_knowledge_enabled: bool = True
+    # true=短模型摘要；false/失败=抽取式截断
+    agent_subagent_knowledge_llm: bool = True
+    # 空=优先 current_model_id，否则 qwen3.5-flash
+    agent_subagent_knowledge_model: str = "qwen3.5-flash-2026-02-23"
+    agent_subagent_knowledge_timeout_seconds: float = 8.0
+    agent_subagent_knowledge_max_tokens: int = 400
+    agent_subagent_knowledge_snippet_chars: int = 220
 
     # 运行时 Playbook（Skills 等价）：按意图注入 llm_user_message；改 md 后可热重载缓存
     agent_playbook_enabled: bool = True
@@ -228,6 +240,8 @@ class Settings(BaseSettings):
     knowledge_image_max_bytes: int = 8 * 1024 * 1024
     # 表格入库最大行数（单 sheet / 单 csv），防止超大表撑爆上下文
     knowledge_table_max_rows: int = 2000
+    # 运营上传落盘目录；空=仓根 prj-docs（与 CLI --dir prj-docs 对齐）
+    knowledge_docs_dir: str = ""
 
     # 平台业务达梦（智能化侧只读；见 docs/architecture/09-platform-db-readonly.md）
     dm_host: str = ""

@@ -102,13 +102,19 @@ def _apply_request_auth_context() -> str | None:
     thread_id = lower.get("x-thread-id") or None
     bypass_raw = (lower.get("x-hitl-confirm-bypass") or "").strip().lower()
     run_mode_raw = lower.get("x-run-mode") or None
+    utterance_raw = lower.get("x-user-utterance") or None
+    recent_raw = lower.get("x-recent-user-messages") or None
 
     from contracts.context import (
         current_auth_token,
         current_hitl_confirm_bypass,
+        current_recent_user_messages,
         current_run_mode,
         current_thread_id,
+        current_user_utterance,
+        normalize_recent_user_messages,
         normalize_run_mode,
+        normalize_user_utterance,
     )
 
     if auth:
@@ -118,6 +124,19 @@ def _apply_request_auth_context() -> str | None:
     if bypass_raw in {"1", "true", "yes", "on"}:
         current_hitl_confirm_bypass.set(True)
     current_run_mode.set(normalize_run_mode(run_mode_raw))
+    if utterance_raw:
+        current_user_utterance.set(normalize_user_utterance(utterance_raw))
+    if recent_raw:
+        try:
+            import json
+
+            parsed = json.loads(recent_raw)
+            if isinstance(parsed, list):
+                current_recent_user_messages.set(
+                    normalize_recent_user_messages([str(x) for x in parsed])
+                )
+        except json.JSONDecodeError, TypeError, ValueError:
+            pass
     return auth
 
 

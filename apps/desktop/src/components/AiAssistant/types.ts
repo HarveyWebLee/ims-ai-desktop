@@ -86,11 +86,27 @@ export interface AlarmQueryWorkspace {
   items: Array<{
     id?: string;
     deviceName?: string;
+    deviceCode?: string;
+    /** 平台 deviceVarName；与 variableName 同义 */
+    deviceVarName?: string | null;
     variableName?: string | null;
+    alarmValue?: string | null;
     startTime?: string;
+    endTime?: string | null;
     status?: number | string;
     statusName?: string;
+    alarmRankId?: number | string;
     alarmRankName?: string;
+    alarmCategoryId?: number | string;
+    alarmCategoryName?: string;
+    eventName?: string;
+    regionName?: string | null;
+    subSystemName?: string | null;
+    confirmPerson?: string | null;
+    confirmTime?: string | null;
+    processPerson?: string | null;
+    processTime?: string | null;
+    handleMethod?: string | null;
   }>;
   summary?: string;
   timeRange?: { start?: string; end?: string; label?: string };
@@ -148,11 +164,54 @@ export interface DeviceCommandWorkspace {
   userCancelled?: boolean;
 }
 
+/** query_devices 列表项（与 MCP DeviceBrief 对齐） */
+export interface DeviceListItem {
+  deviceCode?: string;
+  deviceName?: string;
+  onlineStatus?: number | string;
+  onlineStatusLabel?: string;
+  deviceStatus?: number | string;
+  deviceStatusLabel?: string;
+  enableStatus?: number | string;
+  enableStatusLabel?: string;
+  regionName?: string | null;
+  subSystemName?: string | null;
+}
+
+export interface DeviceListWorkspace {
+  kind: "device_list";
+  ok: boolean;
+  total: number;
+  items: DeviceListItem[];
+  summary?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** download_file 导出结果卡 */
+export interface ExportDownloadFileRef {
+  url?: string;
+  filename?: string;
+}
+
+export interface ExportDownloadWorkspace {
+  kind: "export_download";
+  ok: boolean;
+  summary: string;
+  total?: number;
+  batchCount?: number;
+  resource?: string;
+  files?: ExportDownloadFileRef[];
+  userCancelled?: boolean;
+}
+
 /** Workspace 当前展示内容（结构化查询结果：告警 / 设备等） */
 export type WorkspaceContent =
   | AlarmQueryWorkspace
   | DeviceDetailWorkspace
   | DeviceCommandWorkspace
+  | DeviceListWorkspace
+  | ExportDownloadWorkspace
   | DeviceVariableRealtimeWorkspace
   | DeviceVariableHistoryWorkspace;
 

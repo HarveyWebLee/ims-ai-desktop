@@ -24,15 +24,23 @@ async def test_auth_header_interceptor_injects_bearer_and_thread():
 
     token = current_auth_token.set("raw-jwt-token")
     tid = current_thread_id.set("thread-abc")
+    from contracts.context import current_recent_user_messages, current_user_utterance
+
+    utt = current_user_utterance.set("帮我导出")
+    recent = current_recent_user_messages.set(("查告警",))
     try:
         interceptor = AuthHeaderInterceptor()
         req = MCPToolCallRequest(name="noop", args={}, server_name="platform", headers={})
         await interceptor(req, handler)
         assert captured["headers"].get("Authorization") == "Bearer raw-jwt-token"
         assert captured["headers"].get("X-Thread-Id") == "thread-abc"
+        assert captured["headers"].get("X-User-Utterance") == "帮我导出"
+        assert "查告警" in (captured["headers"].get("X-Recent-User-Messages") or "")
     finally:
         current_auth_token.reset(token)
         current_thread_id.reset(tid)
+        current_user_utterance.reset(utt)
+        current_recent_user_messages.reset(recent)
 
 
 @pytest.mark.asyncio
