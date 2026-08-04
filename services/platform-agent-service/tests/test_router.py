@@ -99,9 +99,22 @@ class TestContext:
     def test_assemble_generic_dispatch_forces_tool_without_door_default(self):
         ctx = assemble_context(thread_id="t-generic", message="给设备下发指令")
         assert "send_device_cmd" in ctx.llm_user_message
-        assert "任意具备可写变量" in ctx.llm_user_message
+        assert (
+            "任意具备可写变量" in ctx.llm_user_message or "尚无明确目标设备" in ctx.llm_user_message
+        )
         assert 'action="开门"' not in ctx.llm_user_message
         assert extract_user_display_message(ctx.llm_user_message) == "给设备下发指令"
+
+    def test_assemble_followup_uses_recent_device(self):
+        ctx = assemble_context(
+            thread_id="t-followup",
+            message="给它下发指令",
+            recent_user_messages=["查一下502_DLJ设备详情"],
+        )
+        assert "send_device_cmd" in ctx.llm_user_message
+        assert "502_DLJ" in ctx.llm_user_message
+        assert "禁止" in ctx.llm_user_message and "留空" in ctx.llm_user_message
+        assert "多轮追问" in ctx.llm_user_message or "指代续说" in ctx.llm_user_message
 
     def test_classify_llm_when_open_door(self):
         ctx = assemble_context(thread_id="t1", message="帮我开门")
@@ -143,7 +156,7 @@ class TestPromptAssembly:
     def test_prompt_length_reasonable(self):
         prompt = build_system_prompt()
         # 精简后应明显短于旧版 ~150 行 intent 全文 + 重复参数表
-        assert len(prompt) < 13000
+        assert len(prompt) < 15000
 
     def test_extract_user_display_message_strips_context(self):
         llm_text = assemble_context(

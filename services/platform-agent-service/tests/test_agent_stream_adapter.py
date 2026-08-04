@@ -58,7 +58,7 @@ class TestParentGraphStreamBridge:
         ):
             async for evt in run_agent_stream(
                 thread_id="sg-stream-test",
-                model_id="qwen3.7-plus",
+                model_id="qwen3-32b",
                 input_payload={"messages": [HumanMessage(content="去设施管理")]},
             ):
                 events.append(evt)
@@ -408,7 +408,7 @@ class TestStateGraphStreamAdapter:
                     {"messages": [HumanMessage(content="开门", id="h1"), ai]},
                 )
 
-        events = list(iter_state_graph_sse_events(FakeStream(), model_id="qwen3.7-plus"))
+        events = list(iter_state_graph_sse_events(FakeStream(), model_id="qwen3-32b"))
 
         start = next(e for e in events if e[0] == "tool_start")
         assert start[1]["tool"] == "send_device_cmd"

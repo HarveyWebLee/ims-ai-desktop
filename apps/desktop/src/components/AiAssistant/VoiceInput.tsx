@@ -554,8 +554,9 @@ export default function VoiceInput({
   useEffect(() => () => cleanupMic(), [cleanupMic]);
 
   const resolveModelId = useCallback((): AgentModelId | undefined => {
+    if (selectedModelId === "auto") return undefined;
     const catalog = getCatalogItem(selectedModelId);
-    return catalog?.supportsAudio ? selectedModelId : undefined;
+    return catalog?.supportsAudio ? (selectedModelId as AgentModelId) : undefined;
   }, [selectedModelId]);
 
   const resolveFinal = useCallback((payload: VoiceFinalPayload | string) => {

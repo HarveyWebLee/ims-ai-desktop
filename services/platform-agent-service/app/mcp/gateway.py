@@ -156,12 +156,14 @@ async def _agent_chat_impl(
     auth: str | None,
 ) -> str:
     from app.application.conversation.chat import stream_chat
-    from app.models.catalog import get_default_model_id
+    from app.services.model_router import resolve_request_model_id
 
     text = (message or "").strip()
     if not text:
         raise ValueError("message 必填")
-    model_id = (model or "").strip() or get_default_model_id()
+    model_id, model_err = resolve_request_model_id(model, user_message=text)
+    if model_err or not model_id:
+        raise ValueError(model_err or "model_id 不在模型目录中或已禁用")
     tid = thread_id or "mcp-gateway"
     chunks: list[str] = []
     async for event_name, data in stream_chat(
@@ -186,12 +188,19 @@ async def _agent_resume_impl(
     auth: str | None,
 ) -> str:
     from app.application.conversation.resume import stream_resume
-    from app.models.catalog import get_default_model_id
+    from app.services.model_router import resolve_request_model_id
+    from app.services.session_store import get_user_messages
 
     tid = (thread_id or "").strip()
     if not tid:
         raise ValueError("thread_id 必填")
-    model_id = (model or "").strip() or get_default_model_id()
+    last_msgs = get_user_messages(tid, limit=1)
+    model_id, model_err = resolve_request_model_id(
+        model,
+        user_message=last_msgs[-1] if last_msgs else None,
+    )
+    if model_err or not model_id:
+        raise ValueError(model_err or "model_id 不在模型目录中或已禁用")
     chunks: list[str] = []
     async for event_name, data in stream_resume(
         thread_id=tid,

@@ -99,6 +99,7 @@ def assemble_context(
         build_device_control_intent_note,
         build_howto_guidance_intent_note,
         build_llm_user_message,
+        build_multiturn_context_intent_note,
         parse_device_control_action,
         resolve_recent_messages_for_intent,
     )
@@ -115,8 +116,9 @@ def assemble_context(
         n
         for n in (
             intent_note,
+            build_multiturn_context_intent_note(message, recent_user_messages=prior),
             build_howto_guidance_intent_note(message),
-            build_device_control_intent_note(message),
+            build_device_control_intent_note(message, recent_user_messages=prior),
         )
         if n
     ]

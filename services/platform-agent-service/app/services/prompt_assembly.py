@@ -140,7 +140,10 @@ def format_request_context(
     # 列表推导式：过滤空消息并 strip 首尾空白
     prior = [m.strip() for m in (recent_user_messages or []) if m and m.strip()]
     if prior:
-        lines.append("- **近期用户消息（供多轮理解，当前消息以最后一条为准）**：")
+        lines.append(
+            "- **近期用户消息（供多轮理解；本轮若省略主语/用「它/上述」指代，"
+            "须从下列消息与会话历史补全工具参数，禁止无故留空重选）**："
+        )
         for msg in prior[-5:]:  # 只取最近 5 条
             lines.append(f"  - {msg}")
 
@@ -221,6 +224,32 @@ def parse_device_control_action(message: str) -> str | None:
     return None
 
 
+def build_multiturn_context_intent_note(
+    message: str,
+    recent_user_messages: list[str] | None = None,
+) -> str | None:
+    """
+    多轮追问 / 指代续说：强制结合近期消息与会话历史补参（全工具通用）。
+
+    防止模型因本轮省略主语就「参数全留空 → 再弹全量 HITL」。
+    """
+    from contracts.conversation_context import is_contextual_followup
+
+    prior = [m.strip() for m in (recent_user_messages or []) if m and m.strip()]
+    if not prior:
+        return None
+    if not is_contextual_followup(message):
+        return None
+    return (
+        "## 重要提示\n\n"
+        "本轮为**多轮追问 / 指代续说**。必须结合「近期用户消息」与会话历史中已明确的实体"
+        "（设备、时间范围、告警对象、导出业务类型等）补全工具参数；"
+        "**禁止**因本轮省略主语就将参数全留空并重新弹出全量选择表。"
+        "仅当上下文无法唯一确定时，才将对应槽位留空交由 HITL 补缺。"
+        "**必须立即** tool call，禁止用自然语言重复追问上文已给出的信息。"
+    )
+
+
 def build_howto_guidance_intent_note(message: str) -> str | None:
     """
     操作说明 / 注意事项咨询：禁止立刻 download_file。
@@ -240,23 +269,43 @@ def build_howto_guidance_intent_note(message: str) -> str | None:
     )
 
 
-def build_device_control_intent_note(message: str) -> str | None:
+def build_device_control_intent_note(
+    message: str,
+    recent_user_messages: list[str] | None = None,
+) -> str | None:
     """
     设备控制意图：前置提示强制立即调用 send_device_cmd。
 
     防止模型用自然语言追问「哪台设备」、把能力收窄为仅开门/播报，
     或未 tool call 却声称「已下发 / 正在等待执行结果」。
     条件句（如在线开门/离线查历史）不注入，避免压制 get_device_detail 等查询步骤。
+
+    多轮：若本轮或近期用户句已明确设备（含「给它下发」回指），须带上设备参数，
+    **禁止**再要求参数全留空弹设备表。
     """
+    from contracts.context import current_device_focus
+    from contracts.device_context import infer_device_token_from_conversation
+
     action = parse_device_control_action(message)
     if action is None:
         return None
 
     text = (message or "").strip()
     param_hints: list[str] = []
-    device_token = _extract_device_token_from_control_message(text)
+    device_token = infer_device_token_from_conversation(text, recent_user_messages)
+    focus = current_device_focus.get()
     if device_token:
-        param_hints.append(f'原话已点名设备，请传 `device_name` 或 `device_code`="{device_token}"')
+        param_hints.append(
+            f'会话已明确目标设备，请传 `device_name` 或 `device_code`="{device_token}"'
+            "（**禁止**留空设备参数再弹设备表）"
+        )
+    elif focus is not None and not getattr(focus, "is_unique", False):
+        hint = str(getattr(focus, "hint_message", "") or "").strip()
+        if hint:
+            param_hints.append(
+                f"上一轮设备列表未唯一确定目标；{hint}"
+                "调用 `send_device_cmd` 时可暂留空设备参数，由系统弹出**已预填上次筛选**的设备表"
+            )
     broadcast_body = _extract_broadcast_content(text) if action == "播报" else None
     if broadcast_body:
         param_hints.append(f'播报正文请传 `variable_value`="{broadcast_body}"')
@@ -269,7 +318,7 @@ def build_device_control_intent_note(message: str) -> str | None:
 
     if action:
         device_clause = (
-            "若原话未指明设备，请将 `device_code`/`device_name` 留空，"
+            "若原话与近期消息均未指明设备，请将 `device_code`/`device_name` 留空，"
             "由系统弹出可筛选设备表格供单选。"
             if not device_token
             else ""
@@ -284,13 +333,31 @@ def build_device_control_intent_note(message: str) -> str | None:
             f"{anti_hallucination}"
         )
 
+    if device_token:
+        return (
+            "## 重要提示\n\n"
+            "本轮为设备控制/下发指令意图（未指定具体动作）。"
+            f"{param_line}"
+            "**必须立即**调用工具 `send_device_cmd`，"
+            f'传入 `device_name` 或 `device_code`="{device_token}"；'
+            "`action`/`variable_name`/`variable_value` 若原话未给出可留空，由系统按可写变量渐进补参。"
+            "支持**任意具备可写变量的设备**（不限于门禁开门/关门或广播播报）。"
+            "**禁止**忽略已明确的设备而再次弹出设备选择表；"
+            "**禁止**仅用自然语言追问设备或把能力限定为开门/关门/播报；"
+            "**禁止**用闲聊代替工具调用。"
+            f"{anti_hallucination}"
+        )
+
     return (
         "## 重要提示\n\n"
-        "本轮为设备控制/下发指令意图（未指定具体动作）。"
+        "本轮为设备控制/下发指令意图（未指定具体动作，且会话中尚无唯一目标设备）。"
+        f"{param_line}"
         "**必须立即**调用工具 `send_device_cmd`，"
         "可将 `action`/`device_code`/`device_name`/`variable_name`/`variable_value` 留空；"
-        "由系统弹出设备表格，并按可写变量渐进补参。"
+        "由系统弹出设备表格（若上一轮有查询筛选会自动带上），并按可写变量渐进补参。"
         "支持**任意具备可写变量的设备**（不限于门禁开门/关门或广播播报）。"
+        "若近期对话或工具结果已出现**唯一**目标设备，须优先填入 `device_name`/`device_code`，"
+        "**禁止**无故留空设备参数。"
         "**禁止**仅用自然语言追问设备或把能力限定为开门/关门/播报；"
         "**禁止**用闲聊代替工具调用。"
         f"{anti_hallucination}"
@@ -298,18 +365,10 @@ def build_device_control_intent_note(message: str) -> str | None:
 
 
 def _extract_device_token_from_control_message(message: str) -> str | None:
-    """从「给 XXX 播放/开门」等说法中抽出设备名/编码（弱解析，仅作提示）。"""
-    text = (message or "").strip()
-    if not text:
-        return None
-    match = re.search(
-        r"(?:给|向|对)\s*([A-Za-z0-9][\w.\-]{1,63}|[\u4e00-\u9fff][\u4e00-\u9fff\w.\-]{0,31})"
-        r"(?:\s*(?:播放|播报|广播|开门|关门|下发|发指令|控制))",
-        text,
-    )
-    if match:
-        return match.group(1).strip()
-    return None
+    """从「给 XXX 播放/开门」等说法中抽出设备名/编码（兼容旧调用，委托 device_context）。"""
+    from contracts.device_context import extract_device_token_from_text
+
+    return extract_device_token_from_text(message)
 
 
 def _extract_broadcast_content(message: str) -> str | None:

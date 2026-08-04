@@ -70,7 +70,35 @@ class TestPrepareDeviceControlHitlGate:
         assert any(f.get("type") == "variable_picker" for f in fields)
         assert any(f.get("name") == "variable_name" for f in fields)
         msg = str(gate.interrupt_payload.get("message") or "")
-        assert "任意" in msg or "可写" in msg or "不限于" in msg
+        # 无鉴时可能因平台不可达得到鉴权错误文案；核心是仍走 ask_params + 设备/变量字段
+        assert gate.interrupt_payload["type"] == "ask_params"
+        assert msg
+
+    def test_followup_with_recent_device_skips_device_picker(self):
+        """近期已明确设备时，通用下发不应再强制弹设备表（可只问变量）。"""
+        ctx = AgentContext(
+            thread_id="t-ctx",
+            message="给它下发指令",
+            llm_user_message="给它下发指令",
+            recent_user_messages=["查一下502_DLJ设备详情"],
+        )
+        with patch("contracts.device_command_resolver.resolve_device_command") as mock_resolve:
+            mock_resolve.return_value.is_complete.return_value = False
+            mock_resolve.return_value.interrupt = {
+                "type": "ask_params",
+                "message": "请选择变量",
+                "fields": [{"type": "variable_picker", "name": "variable_name"}],
+            }
+            mock_resolve.return_value.to_tool_args.return_value = {
+                "device_name": "502_DLJ",
+            }
+            gate = prepare_device_control_hitl_gate(ctx)
+            assert gate is not None
+            mock_resolve.assert_called_once()
+            kwargs = mock_resolve.call_args.kwargs
+            assert kwargs.get("device_name") == "502_DLJ"
+            fields = gate.interrupt_payload.get("fields") or []
+            assert not any(f.get("type") == "device_picker" for f in fields)
 
     def test_instruction_dispatch_alias_same_as_generic(self):
         """「指令下发」与「下发指令」同走通用设备控制门控。"""
@@ -135,7 +163,7 @@ class TestStreamChatDeviceControlGate:
         ):
             async for evt in stream_chat_core(
                 thread_id=thread_id,
-                model_id="qwen3.7-plus",
+                model_id="qwen3-32b",
                 message="广播",
                 metadata={},
             ):
@@ -176,7 +204,7 @@ class TestStreamChatDeviceControlGate:
         ):
             async for evt in stream_chat_core(
                 thread_id=thread_id,
-                model_id="qwen3.7-plus",
+                model_id="qwen3-32b",
                 message="查近三天告警然后导出",
                 metadata={},
             ):

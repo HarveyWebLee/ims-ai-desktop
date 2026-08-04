@@ -34,19 +34,28 @@ from typing import Any
 # catalog.json 与当前 py 文件同目录
 _CATALOG_PATH = Path(__file__).parent / "catalog.json"
 
-# 当 catalog.json 不存在时的兜底默认模型 ID
-DEFAULT_MODEL_ID = "qwen3.7-plus"
+# 当 catalog.json 不存在时的兜底默认模型 ID（须与 TS enabled 默认一致）
+DEFAULT_MODEL_ID = "qwen3-32b"
 
-# 与 TypeScript AGENT_MODEL_CATALOG 保持一致的内置快照
+# 与 TypeScript AGENT_MODEL_CATALOG 保持一致的内置快照（精简兜底）
 # 修改模型列表时应同步更新 TS 源文件并运行 export_catalog.py
 _BUILTIN_CATALOG: list[dict[str, Any]] = [
     {
-        "modelId": "qwen3.7-plus",
-        "apiModelName": "qwen3.7-plus",
+        "modelId": "qwen3-32b",
+        "apiModelName": "qwen3-32b",
         "provider": "dashscope",
-        "labelKey": "aiAssistant.model.qwen3.7-plus",
+        "labelKey": "aiAssistant.model.qwen3-32b",
         "enabled": True,
         "isDefault": True,
+        "scenarioKey": "aiAssistant.model.scenario.default",
+    },
+    {
+        "modelId": "qwen3-8b",
+        "apiModelName": "qwen3-8b",
+        "provider": "dashscope",
+        "labelKey": "aiAssistant.model.qwen3-8b",
+        "enabled": True,
+        "scenarioKey": "aiAssistant.model.scenario.light",
     },
     {
         "modelId": "deepseek-v4-flash",
@@ -54,6 +63,7 @@ _BUILTIN_CATALOG: list[dict[str, Any]] = [
         "provider": "deepseek",
         "labelKey": "aiAssistant.model.deepseek-v4-flash",
         "enabled": True,
+        "scenarioKey": "aiAssistant.model.scenario.light",
     },
 ]
 
@@ -81,7 +91,7 @@ def get_catalog_item(model_id: str) -> dict[str, Any] | None:
     按 modelId 查找单个已启用的模型配置。
 
     参数：
-        model_id: 如 "qwen3.7-plus"
+        model_id: 如 "qwen3-32b"
 
     返回：
         模型 dict，未找到或已禁用则 None
@@ -94,9 +104,13 @@ def get_catalog_item(model_id: str) -> dict[str, Any] | None:
 
 def get_default_model_id() -> str:
     """
-    返回目录中标记 isDefault 的 modelId；若无则返回 DEFAULT_MODEL_ID。
+    返回目录中标记 isDefault 且 enabled 的 modelId；
+    否则回退首个已启用模型，再否则 DEFAULT_MODEL_ID。
     """
     for item in load_catalog():
-        if item.get("isDefault"):
-            return item["modelId"]
+        if item.get("isDefault") and item.get("enabled", True):
+            return str(item["modelId"])
+    enabled = get_enabled_models()
+    if enabled:
+        return str(enabled[0]["modelId"])
     return DEFAULT_MODEL_ID

@@ -32,6 +32,7 @@ from app.api.bpmn import (
     BpmnSnapshotSaveRequest,
     BpmnValidateRequest,
 )
+from app.api.client_action_result import ClientActionResultBody
 from app.api.entities import EntitySearchBody
 from app.api.entity_sync import EntitySyncRequest
 from app.api.knowledge import KnowledgeDeleteBody, KnowledgeExportBody, KnowledgeSearchBody
@@ -212,6 +213,22 @@ async def get_audit(
         limit=limit,
         run_id=run_id,
         event_type=event_type,
+        authorization=authorization,
+    )
+
+
+@app.post("/api/agent/threads/{thread_id}/client-action-result")
+async def post_client_action_result(
+    thread_id: str,
+    body: ClientActionResultBody,
+    authorization: str | None = Header(default=None),
+):
+    """桌面/宿主执行 client_action 后的回执（写入 audit，不阻塞图）。"""
+    from app.api import client_action_result as car_api
+
+    return await car_api.report_client_action_result(
+        thread_id,
+        body,
         authorization=authorization,
     )
 

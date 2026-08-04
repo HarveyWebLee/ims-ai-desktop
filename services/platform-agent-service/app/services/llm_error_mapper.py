@@ -57,7 +57,7 @@ _HINTS: dict[str, str] = {
     ),
     "auth": "请检查 platform-agent-service/.env 中对应厂商的 API Key 是否正确。",
     "rate_limit": "请等待 1～2 分钟后重试，或切换到负载更低的模型。",
-    "model_unavailable": "可在侧栏尝试切换 qwen3.7-plus 等默认模型。",
+    "model_unavailable": "可在侧栏尝试切换 qwen3-32b 等默认模型。",
     "network": "请确认本机可访问模型 API 地址，且未错误配置代理。",
     "mcp_unavailable": (
         "请先启动 platform-mcp-server（默认 http://127.0.0.1:8010），"

@@ -19,13 +19,17 @@
 3. 触发需确认工具 → HITL 卡出现 → 批准续跑 / 拒绝后状态清理（拒绝后卡片显示「已拒绝」，可继续发新消息）
 4. 中止流式：点停止按钮 → loading 结束，无残留 streaming / HITL / running 工具
 5. 新会话 / 切换历史：无上一轮 Plan / interrupt 污染；有 pending interrupt 的历史会话显示「可续跑」并可继续确认
-6. MCP 不可达时：明确「MCP 不可用」类错误提示（非 unknown）
-7. `curl -s localhost:8008/health` 正常；MCP `:8010` 可达
-8. Playbook（可选）：发「处理未确认告警」/「导出告警」→ Agent 按规程查询/导出（步骤可复现；改 `app/playbooks` 后重启生效）
-9. 先计划：打开「先计划」开关 → 发「查近三天告警然后导出」→ 出现 plan_confirm → 批准后才执行导出
-10. Subagent 检索（可选）：问产品/流程类知识 → `retrieve_knowledge` 工具结果为摘要（非大段原文），主回复仍连贯
-11. 结果卡片：`query_alarms` 查表；`query_devices` 设备列表（点行可让助手查详情）；`download_file` 导出结果卡（含取消态）
-12. RAG 运营（可选）：设置 → 知识与术语 → 文档规程（统计/展开预览/上传/下载）；实体术语（统计/试检索设备变量/同步）
+6. **P2-4 多会话并行（最小切片）**：会话 A 流式中切到 B 发消息 → A 后台继续；完成后 notification；切回 A 可见完整气泡；Stop 仅中止当前会话
+7. MCP 不可达时：明确「MCP 不可用」类错误提示（非 unknown）
+8. `curl -s localhost:8008/health` 正常；MCP `:8010` 可达
+9. Playbook（可选）：发「处理未确认告警」/「导出告警」→ Agent 按规程查询/导出（步骤可复现；改 `app/playbooks` 后重启生效）
+10. 先计划：打开「先计划」开关 → 发「查近三天告警然后导出」→ 出现 plan_confirm → 批准后才执行导出
+11. Subagent 检索（可选）：问产品/流程类知识 → `retrieve_knowledge` 工具结果为摘要（非大段原文），主回复仍连贯
+12. 结果卡片：`query_alarms` 查表；`query_devices` 设备列表（点行可让助手查详情）；`download_file` 导出结果卡（含取消态）
+13. RAG 运营（可选）：设置 → 知识与术语 → 文档规程（统计/展开预览/上传/下载）；实体术语（统计/试检索设备变量/同步）
+14. 运行时 Hooks（可选）：`.env` 设 `AGENT_TOOL_HOOK_DENY_TOOLS=download_file` → 对话触发导出被拒；设置 → 审计可见「Hooks 拦截」；清名单后恢复
+15. client_action 闭环（可选）：`localStorage.setItem('ims_ai_mock_platform_host','1')` → 发「打开设施管理」→ toast 模拟导航成功；设置 → 审计可见「Client 执行回执」；清 mock 后恢复跳过降级
+16. 模型路由（可选）：侧栏选「自动」→ 轻任务走轻量模型、导出/处置走通义 32B；目录仅含实测可用模型（已删除无额度的 3.7 Plus / Plus 2025-07-28）
 
 ## 残留态矩阵（P0）
 

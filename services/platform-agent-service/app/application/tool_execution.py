@@ -200,6 +200,19 @@ class ToolExecutionPipeline:
             has_principal=bool(normalized_request.context.principal_id),
         )
         if decision.allowed:
+            # 授权通过后再跑 Hooks（不替代 interrupt / preflight）
+            from app.services.tool_hooks import run_before_tool_hooks
+
+            hook_denied = run_before_tool_hooks(
+                enriched.tool_name,
+                normalized_request.args,
+                context=normalized_request.context,
+            )
+            if hook_denied is not None:
+                return PreparedToolExecution(
+                    request=normalized_request,
+                    denied_result=hook_denied,
+                )
             return PreparedToolExecution(request=normalized_request)
 
         return PreparedToolExecution(
@@ -257,6 +270,14 @@ class ToolExecutionPipeline:
             "flow.tool.invoke_done",
             tool=request.tool_name,
             result_summary=summarize_tool_result(result),
+        )
+        from app.services.tool_hooks import run_after_tool_hooks
+
+        run_after_tool_hooks(
+            request.tool_name,
+            request.args,
+            result if isinstance(result, str) else str(result or ""),
+            context=request.context,
         )
         return ToolExecutionOutcome(result=result)
 

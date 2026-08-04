@@ -209,13 +209,13 @@ Cursor:
 
 ### 阶段 P2 — 产品化与规模（后续）
 
-| ID   | 事项                      | 落点                                | 说明                                |
-| ---- | ------------------------- | ----------------------------------- | ----------------------------------- |
-| P2-1 | 运行时 Hooks（审计/拦截） | 工具调用前后钩子 → Audit + 策略引擎 | 对齐 Cursor Hooks；不替代 interrupt |
-| P2-2 | 有宿主 client_action 闭环 | navigate / 告警详情执行回执         | 桌面 ↔ 平台联动                     |
-| P2-3 | 模型路由（成本/质量）     | 按意图选小/大模型                   | 对齐 Auto 路由思路；非必须          |
-| P2-4 | 多会话并行 / 后台长任务   | Worker + 通知                       | 弱对标 Cloud Agents；按业务需要立项 |
-| P2-5 | BPMN 编排 UI              | 单独立项                            | **不在**本对标默认范围              |
+| ID   | 事项                      | 落点                                                   | 说明                                           |
+| ---- | ------------------------- | ------------------------------------------------------ | ---------------------------------------------- |
+| P2-1 | 运行时 Hooks（审计/拦截） | 工具调用前后钩子 → Audit + 策略引擎                    | 对齐 Cursor Hooks；不替代 interrupt            |
+| P2-2 | 有宿主 client_action 闭环 | navigate / 告警详情执行回执                            | 桌面 ↔ 平台联动                                |
+| P2-3 | 模型路由（成本/质量）     | 按意图选小/大模型                                      | 对齐 Auto 路由思路；非必须                     |
+| P2-4 | 多会话并行 / 后台长任务   | 桌面按 thread 缓存 + 多 AbortController + notification | 最小切片：切会话不 abort；不做 Celery/关窗续跑 |
+| P2-5 | BPMN 编排 UI              | 单独立项                                               | **不在**本对标默认范围                         |
 
 ---
 
@@ -258,9 +258,10 @@ flowchart TD
 
 ### P2 Done（按立项裁剪）
 
-- [ ] 工具调用审计完整可查
-- [ ] 有宿主时关键 client_action 可验证执行
-- [ ] （可选）按意图模型路由上线
+- [x] 工具调用审计完整可查（P2-1：Hooks deny/after → audit；既有 SSE tool_start/end 保留）
+- [x] 有宿主时关键 client_action 可验证执行（P2-2：宿主桥 + 回执 audit；无宿主仍跳过）
+- [x] （可选）按意图模型路由上线（P2-3：Auto + 仅 enabled catalog；无额度模型已禁用）
+- [x] 多会话并行：切走不 abort 后台 SSE；按 thread 缓存消息/HITL；完成后 notification（P2-4 最小切片；无通用 job queue）
 
 ---
 
@@ -302,13 +303,16 @@ flowchart TD
 
 ## 修订记录
 
-| 日期       | 说明                                                           |
-| ---------- | -------------------------------------------------------------- |
-| 2026-07-31 | 初稿：Cursor 摘要、与本仓差异矩阵、P0–P2 优化计划              |
-| 2026-08-03 | P0-1 / P0-2 落地：会话 run_mode + catalog domains 工具子集注入 |
-| 2026-08-03 | P0-3/4/5：abort Stop、HITL 终态/可续跑、mcp_unavailable        |
-| 2026-08-03 | P1-1：运行时 Playbook（alarm-dispose / batch-export）注入      |
-| 2026-08-03 | P1-2：显式 Plan（plan_first 覆盖 AI-first → plan_confirm）     |
-| 2026-08-04 | P1-3：知识检索 Subagent（retrieve_knowledge 摘要回主 agent）   |
-| 2026-08-04 | P1-4：结构化结果卡（告警表 / 设备列表 / 导出）                 |
-| 2026-08-04 | P1-5：RAG 运营（知识 HTTP CRUD + entity-sync/status + 设置页） |
+| 日期       | 说明                                                                     |
+| ---------- | ------------------------------------------------------------------------ |
+| 2026-07-31 | 初稿：Cursor 摘要、与本仓差异矩阵、P0–P2 优化计划                        |
+| 2026-08-03 | P0-1 / P0-2 落地：会话 run_mode + catalog domains 工具子集注入           |
+| 2026-08-03 | P0-3/4/5：abort Stop、HITL 终态/可续跑、mcp_unavailable                  |
+| 2026-08-03 | P1-1：运行时 Playbook（alarm-dispose / batch-export）注入                |
+| 2026-08-03 | P1-2：显式 Plan（plan_first 覆盖 AI-first → plan_confirm）               |
+| 2026-08-04 | P1-3：知识检索 Subagent（retrieve_knowledge 摘要回主 agent）             |
+| 2026-08-04 | P1-4：结构化结果卡（告警表 / 设备列表 / 导出）                           |
+| 2026-08-04 | P1-5：RAG 运营（知识 HTTP CRUD + entity-sync/status + 设置页）           |
+| 2026-08-04 | P2-1：运行时 Hooks（deny_list + audit；Pipeline/ReAct 对称）             |
+| 2026-08-04 | P2-2：client_action 宿主桥 + 执行回执 audit                              |
+| 2026-08-04 | P2-3：模型 Auto 路由；实测删除无额度 qwen3.7-plus / qwen-plus-2025-07-28 |

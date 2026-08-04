@@ -173,16 +173,16 @@ def test_llm_step_roundtrip_preserves_model_id():
         {
             "id": "llm_1",
             "label": "通义闪",
-            "modelId": "qwen3.7-plus",
+            "modelId": "qwen3-32b",
             "status": "pending",
         }
     ]
     doc = plan_steps_to_flow_document(steps)
     llm_nodes = [n for n in doc["nodes"] if n.get("type") == "LLM"]
     assert len(llm_nodes) == 1
-    assert llm_nodes[0]["data"]["modelId"] == "qwen3.7-plus"
+    assert llm_nodes[0]["data"]["modelId"] == "qwen3-32b"
     back = flow_document_to_plan_steps(doc)
-    assert back[0]["modelId"] == "qwen3.7-plus"
+    assert back[0]["modelId"] == "qwen3-32b"
     assert back[0].get("tool") in (None, "")
 
 

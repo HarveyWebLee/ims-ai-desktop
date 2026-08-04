@@ -2,6 +2,7 @@
  * Agent API Client
  */
 import { getAuthHeaders } from "@ims/desktop-api";
+import type { AgentModelSelectionId } from "@ims/agent-core/model-catalog";
 import type { AgentApiResponse, AgentModelId, AgentRunMode, HitlPayload } from "@ims/shared-types";
 import type { AgentSseHandler, AiSession } from "@/components/AiAssistant/types";
 import type { ThreadHistoryMessage } from "@/components/AiAssistant/utils/mapHistoryMessages";
@@ -270,6 +271,22 @@ export async function getThreadAudit(
   return parseJsonResponse(res);
 }
 
+/** P2-2：上报 client_action 执行回执（写入 Agent 审计；失败不抛，由调用方吞掉） */
+export async function reportClientActionResult(
+  threadId: string,
+  result: import("@ims/shared-types").ClientActionResult & { run_id?: string },
+): Promise<{ thread_id: string; action: string; ok: boolean; skipped?: boolean }> {
+  const res = await fetch(
+    `${AGENT_BASE}/threads/${encodeURIComponent(threadId)}/client-action-result`,
+    {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(result),
+    },
+  );
+  return parseJsonResponse(res);
+}
+
 /** BPMN：画布 JSON ↔ Plan 步骤互转 */
 export async function convertBpmn(params: {
   direction: "steps_to_document" | "document_to_steps";
@@ -335,7 +352,7 @@ export async function chatStream(
     /** 用户本轮需求 ID；与助手气泡 / SSE mid 对齐 */
     mid: string;
     message: string;
-    model_id: AgentModelId;
+    model_id: AgentModelSelectionId;
     /** 会话运行模式：readonly | confirm | autonomous */
     run_mode?: AgentRunMode;
     /** 显式先计划后执行 */
@@ -346,6 +363,8 @@ export async function chatStream(
   },
   handlers: AgentSseHandler,
   signal?: AbortSignal,
+  /** 请求已被接受（headers 返回；此时后端已 upsert 会话） */
+  onRequestAccepted?: () => void,
 ): Promise<void> {
   const res = await fetch(`${AGENT_BASE}/chat`, {
     method: "POST",
@@ -353,6 +372,9 @@ export async function chatStream(
     body: JSON.stringify(params),
     signal,
   });
+  if (res.ok) {
+    onRequestAccepted?.();
+  }
   await consumeSseResponse(res, handlers);
 }
 
@@ -362,7 +384,7 @@ export async function resumeStream(
     thread_id: string;
     /** 与产生 interrupt 的 chat mid 一致 */
     mid?: string;
-    model_id: AgentModelId;
+    model_id: AgentModelSelectionId;
     /** 会话运行模式；须与 chat 一致 */
     run_mode?: AgentRunMode;
     /** 与 chat 对称透传 */

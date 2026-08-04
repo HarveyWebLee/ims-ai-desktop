@@ -25,6 +25,9 @@ const EVENT_TYPE_I18N: Record<string, string> = {
   confirm_approve: "confirmApprove",
   confirm_reject: "confirmReject",
   confirm_respond: "confirmRespond",
+  tool_hook_deny: "toolHookDeny",
+  tool_hook_after: "toolHookAfter",
+  client_action_result: "clientActionResult",
 };
 
 /** 可选 event_type 筛选列表 */
@@ -37,6 +40,9 @@ const FILTERABLE_EVENT_TYPES = [
   "confirm_approve",
   "confirm_reject",
   "confirm_respond",
+  "tool_hook_deny",
+  "tool_hook_after",
+  "client_action_result",
 ] as const;
 
 function formatAuditTime(iso?: string | null): string {

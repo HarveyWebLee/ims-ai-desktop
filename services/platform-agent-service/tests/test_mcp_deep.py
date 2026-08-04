@@ -29,13 +29,21 @@ async def test_auth_header_interceptor_injects_bearer_and_thread():
     utt = current_user_utterance.set("帮我导出")
     recent = current_recent_user_messages.set(("查告警",))
     try:
+        from contracts.context import decode_http_header_value, encode_http_header_value
+
         interceptor = AuthHeaderInterceptor()
         req = MCPToolCallRequest(name="noop", args={}, server_name="platform", headers={})
         await interceptor(req, handler)
         assert captured["headers"].get("Authorization") == "Bearer raw-jwt-token"
         assert captured["headers"].get("X-Thread-Id") == "thread-abc"
-        assert captured["headers"].get("X-User-Utterance") == "帮我导出"
-        assert "查告警" in (captured["headers"].get("X-Recent-User-Messages") or "")
+        # 中文须百分号编码，保证 httpx 头值为 ASCII
+        encoded_utt = captured["headers"].get("X-User-Utterance") or ""
+        assert encoded_utt == encode_http_header_value("帮我导出")
+        assert encoded_utt.isascii()
+        assert decode_http_header_value(encoded_utt) == "帮我导出"
+        encoded_recent = captured["headers"].get("X-Recent-User-Messages") or ""
+        assert encoded_recent.isascii()
+        assert "查告警" in decode_http_header_value(encoded_recent)
     finally:
         current_auth_token.reset(token)
         current_thread_id.reset(tid)

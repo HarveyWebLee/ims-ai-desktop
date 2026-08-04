@@ -46,8 +46,8 @@ from app.api.chat import _sse_from_stream
 from app.api.response import fail
 from app.application.conversation.resume import stream_resume
 from app.middleware.auth import get_current_user_id
-from app.models.catalog import get_catalog_item, get_default_model_id
 from app.services.audit_store import audit_store, mask_payload_summary
+from app.services.model_router import resolve_request_model_id
 from contracts.context import normalize_run_mode
 
 
@@ -130,10 +130,16 @@ async def resume_sse(request: Request, body: ResumeRequest):
     if not body.decisions:
         return JSONResponse(fail(40003, "resume 失败", "decisions 格式无效"), status_code=400)
 
-    model_id = body.model_id or get_default_model_id()
-    if not get_catalog_item(model_id):
+    from app.services.session_store import get_user_messages
+
+    last_msgs = get_user_messages(body.thread_id, limit=1)
+    model_id, model_err = resolve_request_model_id(
+        body.model_id,
+        user_message=last_msgs[-1] if last_msgs else None,
+    )
+    if model_err or not model_id:
         return JSONResponse(
-            fail(40001, "参数错误", "model_id 不在模型目录中或已禁用"),
+            fail(40001, "参数错误", model_err or "model_id 不在模型目录中或已禁用"),
             status_code=400,
         )
 

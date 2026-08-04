@@ -37,9 +37,15 @@ export default function SessionSidebar({
   onCollapse: (collapsed: boolean) => void;
 }) {
   const intl = useIntl();
-  const { sessions, currentThreadId, switchSession, createNewSession, setSessions } =
-    useAiAssistantStore();
-  const { loadSessions, loadThreadHistory } = useAgentStream();
+  const {
+    sessions,
+    currentThreadId,
+    switchSession,
+    createNewSession,
+    setSessions,
+    streamingByThread,
+  } = useAiAssistantStore();
+  const { loadSessions, loadThreadHistory, disposeThreadRuntime } = useAgentStream();
 
   useEffect(() => {
     void loadSessions();
@@ -48,11 +54,13 @@ export default function SessionSidebar({
   const handleSwitch = (threadId: string) => {
     if (threadId === currentThreadId) return;
     switchSession(threadId);
+    // 有快照或后台流时 loadThreadHistory 会自行跳过
     void loadThreadHistory(threadId);
   };
 
   const handleDelete = async (threadId: string) => {
     try {
+      disposeThreadRuntime(threadId);
       await AgentController.deleteSession(threadId);
       setSessions(sessions.filter((s) => s.thread_id !== threadId));
 
@@ -126,6 +134,7 @@ export default function SessionSidebar({
             <ul className={styles.sessionDrawerList}>
               {sessions.map((item) => {
                 const active = item.thread_id === currentThreadId;
+                const running = Boolean(streamingByThread[item.thread_id]);
                 return (
                   <li
                     key={item.thread_id}
@@ -143,9 +152,12 @@ export default function SessionSidebar({
                     >
                       <Text ellipsis className={styles.sessionDrawerTitle}>
                         {item.title}
+                        {running ? <span className={styles.sessionRunningDot} aria-hidden /> : null}
                       </Text>
                       <Text type="secondary" className={styles.sessionDrawerTime}>
-                        {formatSessionTime(item.updated_at)}
+                        {running
+                          ? intl.formatMessage({ id: "aiAssistant.session.running" })
+                          : formatSessionTime(item.updated_at)}
                       </Text>
                     </button>
                     <Popconfirm

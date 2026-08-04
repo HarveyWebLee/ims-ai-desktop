@@ -112,6 +112,7 @@ def _apply_request_auth_context() -> str | None:
         current_run_mode,
         current_thread_id,
         current_user_utterance,
+        decode_http_header_value,
         normalize_recent_user_messages,
         normalize_run_mode,
         normalize_user_utterance,
@@ -124,13 +125,16 @@ def _apply_request_auth_context() -> str | None:
     if bypass_raw in {"1", "true", "yes", "on"}:
         current_hitl_confirm_bypass.set(True)
     current_run_mode.set(normalize_run_mode(run_mode_raw))
+    # Agent 侧对中文等非 ASCII 做百分号编码；此处对称还原
     if utterance_raw:
-        current_user_utterance.set(normalize_user_utterance(utterance_raw))
+        current_user_utterance.set(
+            normalize_user_utterance(decode_http_header_value(utterance_raw))
+        )
     if recent_raw:
         try:
             import json
 
-            parsed = json.loads(recent_raw)
+            parsed = json.loads(decode_http_header_value(recent_raw))
             if isinstance(parsed, list):
                 current_recent_user_messages.set(
                     normalize_recent_user_messages([str(x) for x in parsed])

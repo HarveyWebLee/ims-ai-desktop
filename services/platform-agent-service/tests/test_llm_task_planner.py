@@ -34,7 +34,7 @@ class TestGenerateLlmTaskPlan:
     @patch("app.services.llm_task_planner.settings")
     async def test_disabled_returns_none(self, mock_settings):
         mock_settings.agent_llm_plan_enabled = False
-        result = await generate_llm_task_plan("查告警然后导出", model_id="qwen3.7-plus")
+        result = await generate_llm_task_plan("查告警然后导出", model_id="qwen3-32b")
         assert result is None
 
     @pytest.mark.asyncio
@@ -61,7 +61,7 @@ class TestGenerateLlmTaskPlan:
 
         result = await generate_llm_task_plan(
             "查近三天告警然后导出",
-            model_id="qwen3.7-plus",
+            model_id="qwen3-32b",
         )
         assert result is not None
         assert len(result) == 2
@@ -74,7 +74,7 @@ class TestResolveTaskPlan:
         mock_settings.agent_llm_plan_enabled = False
         plan = await resolve_task_plan(
             "查近三天告警然后导出",
-            model_id="qwen3.7-plus",
+            model_id="qwen3-32b",
         )
         assert plan is not None
         assert len(plan) >= 2

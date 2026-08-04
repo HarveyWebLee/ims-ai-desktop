@@ -9,7 +9,9 @@ from typing import Any
 from langgraph.types import Command
 
 from contracts.context import (
+    current_alarm_focus,
     current_auth_token,
+    current_device_focus,
     current_hitl_confirm_bypass,
     current_message_id,
     current_plan_first,
@@ -125,6 +127,15 @@ async def stream_resume_core(
     utterance_token = current_user_utterance.set(normalize_user_utterance(resume_user_msg))
     recent_prior = prior_msgs[:-1] if len(prior_msgs) > 1 else []
     recent_token = current_recent_user_messages.set(normalize_recent_user_messages(recent_prior))
+    from app.services.thread_history import read_checkpoint_messages
+    from contracts.alarm_focus import extract_alarm_focus_from_messages
+    from contracts.device_focus import extract_device_focus_from_messages
+
+    checkpoint_msgs = await read_checkpoint_messages(thread_id)
+    device_focus = extract_device_focus_from_messages(checkpoint_msgs)
+    alarm_focus = extract_alarm_focus_from_messages(checkpoint_msgs)
+    focus_token = current_device_focus.set(device_focus)
+    alarm_focus_token = current_alarm_focus.set(alarm_focus)
     tool_names = get_remembered_thread_tool_subset(thread_id)
 
     plan_for_wrap = None
@@ -240,6 +251,8 @@ async def stream_resume_core(
             recent_token,
             label="current_recent_user_messages",
         )
+        safe_reset_contextvar(current_device_focus, focus_token, label="current_device_focus")
+        safe_reset_contextvar(current_alarm_focus, alarm_focus_token, label="current_alarm_focus")
         if bypass_token is not None:
             safe_reset_contextvar(
                 current_hitl_confirm_bypass,

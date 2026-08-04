@@ -92,6 +92,7 @@ export default function HitlFormField({ field, value, onChange }: HitlFormFieldP
         value={typeof value === "string" ? value : undefined}
         onChange={(code) => onChange?.(code)}
         description={field.description}
+        defaultFilters={field.defaultFilters}
       />
     );
   }

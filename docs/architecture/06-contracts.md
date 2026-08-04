@@ -46,6 +46,26 @@ MCP Server 与 Agent 解析统一此结构。
 
 改字段须同步：`shared-types` → MCP `tool_result` → Agent `_client_actions_from_*` → 桌面 `parseToolResult` / `ClientToolExecutor`。
 
+### 2.1 ClientActionResult（P2-2 执行回执）
+
+桌面/宿主执行完 SSE `client_action` 后上报（**不**阻塞图、**不**替代 HITL）：
+
+```ts
+interface ClientActionResult {
+  action: ClientAction["action"];
+  ok: boolean;
+  skipped?: boolean; // 无宿主降级跳过
+  summary?: string;
+  error?: string;
+  path?: string;
+  modal?: string;
+}
+```
+
+- API：`POST /api/agent/threads/{thread_id}/client-action-result`
+- 落库：audit `event_type=client_action_result`
+- 宿主：`window.imsPlatformHost`；本地可用 `ims_ai_mock_platform_host=1` 模拟
+
 ## 3. SSE
 
 前端 `AgentController` / `sseParser` 只认本契约事件名与 payload。改事件须同步：

@@ -323,6 +323,21 @@ def _preflight_download_resource(args: dict[str, Any]) -> PreflightResult:
         data["resource"] = decision.resource
         return PreflightResult(args=data, interrupt=None)
 
+    # 用户句无业务域信号，但 checkpoint 有告警焦点（如「查告警」后仅说「导出」）
+    if decision.reason == "no_context":
+        try:
+            from contracts.context import current_alarm_focus
+
+            alarm_focus = current_alarm_focus.get()
+            if (
+                alarm_focus is not None
+                and str(getattr(alarm_focus, "source_tool", "") or "").strip()
+            ):
+                data["resource"] = "alarm_report"
+                return PreflightResult(args=data, interrupt=None)
+        except Exception:  # noqa: BLE001
+            pass
+
     if not utterance and not recent and existing in supported:
         return PreflightResult(args=data, interrupt=None)
 
@@ -698,10 +713,18 @@ def _preflight_send_device_cmd(args: dict[str, Any]) -> PreflightResult:
 
     缺设备/变量/播报正文时直接 ask_params，避免先调平台再失败；
     硬失败（如无 play）不在此拦截，交给工具返回 non_retryable。
+
+    设备槽位已由 ``enrich_tool_args_from_conversation`` 按会话上下文预填；
+    此处再用本轮原话作为 user_text 辅助动作/写入值推断。
+    多台列表焦点：ask_params 的 device_picker 预填上次筛选（如在线）。
     """
+    from contracts.context import current_device_focus, current_user_utterance
     from contracts.device_command_resolver import resolve_device_command
+    from contracts.device_focus import apply_device_focus_to_interrupt
 
     data = dict(args)
+    utterance = (current_user_utterance.get() or "").strip()
+    user_text = utterance or str(data.get("action") or data.get("variable_name") or "")
     resolution = resolve_device_command(
         device_code=str(data.get("device_code") or ""),
         device_name=str(data.get("device_name") or ""),
@@ -709,7 +732,7 @@ def _preflight_send_device_cmd(args: dict[str, Any]) -> PreflightResult:
         variable_value=str(data.get("variable_value") or ""),
         action=str(data.get("action") or ""),
         operate_name=str(data.get("operate_name") or ""),
-        user_text=str(data.get("action") or data.get("variable_name") or ""),
+        user_text=user_text,
     )
     merged = {**data, **resolution.to_tool_args()}
 
@@ -719,6 +742,15 @@ def _preflight_send_device_cmd(args: dict[str, Any]) -> PreflightResult:
     interrupt = resolution.interrupt
     if not interrupt or interrupt.get("type") != "ask_params":
         return PreflightResult(args=merged, interrupt=None)
+
+    focus = current_device_focus.get()
+    interrupt = (
+        apply_device_focus_to_interrupt(
+            interrupt if isinstance(interrupt, dict) else None,
+            focus,
+        )
+        or interrupt
+    )
 
     fields = list(interrupt.get("fields") or [])
     if not fields:
@@ -748,6 +780,7 @@ def preflight_tool(tool_name: str, args: dict[str, Any] | None) -> PreflightResu
 
     分支总览（给小白）:
         开关关 → 原样放行
+        先按会话上下文补空槽（全工具，不覆盖已填值）
         有 catalog preflight → 走时间/one_of，再酌情对照平台必填
         get_alarm_detail → schema + 平台
         其它 → 仅 schema.required；都没有则直接放行
@@ -758,6 +791,11 @@ def preflight_tool(tool_name: str, args: dict[str, Any] | None) -> PreflightResu
     name = (tool_name or "").strip()
     # 字符串参数统一 strip，避免「  空白 」骗过非空检查
     data = {k: (v.strip() if isinstance(v, str) else v) for k, v in dict(args or {}).items()}
+
+    # ── 全工具：会话上下文补空槽（设备/时间等）；已填值不覆盖 ──
+    from contracts.conversation_context import enrich_tool_args_from_conversation
+
+    data = enrich_tool_args_from_conversation(name, data)
 
     # ── 导出：先按会话上下文裁决 resource，歧义则 HITL 选择（全会话上下文，非导出专用通道）──
     if name == "download_file":

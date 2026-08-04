@@ -5,9 +5,7 @@
 
 /** Agent 可选大模型 ID（与 model-catalog 同步） */
 export type AgentModelId =
-  | "qwen3.7-plus"
   | "qwen3.5-flash-2026-02-23"
-  | "qwen-plus-2025-07-28"
   | "qwen-long"
   | "qwen-mt-flash"
   | "qwen-math-turbo"
@@ -285,8 +283,22 @@ export interface HitlField {
   deviceCode?: string;
   /** variable_picker：仅展示可写变量；默认 false（展示全部变量） */
   writableOnly?: boolean;
-  /** variable_picker：依赖的设备编码字段名，默认 device_code */
+  /**
+   * variable_picker：依赖的设备编码字段名，默认 device_code
+   */
   dependsOn?: string;
+  /**
+   * device_picker：预填筛选（如上一轮 query_devices 的在线状态）
+   * onlineStatus: 0 离线 / 1 在线 / 2 异常
+   */
+  defaultFilters?: {
+    deviceGroupId?: string | number;
+    deviceCategoryId?: string | number;
+    regionId?: string | number;
+    deviceName?: string;
+    deviceCode?: string;
+    onlineStatus?: number;
+  };
 }
 
 /** Client Tool 动作协议 */
@@ -305,6 +317,24 @@ export type ClientAction =
     }
   | { action: "refresh"; target?: string }
   | { action: "pause"; seconds: number };
+
+/**
+ * 桌面/宿主执行 client_action 后的回执（P2-2）。
+ * 经 POST /api/agent/threads/{thread_id}/client-action-result 写入审计；不阻塞图、不替代 HITL。
+ */
+export interface ClientActionResult {
+  /** 动作类型，与 ClientAction.action 对齐 */
+  action: ClientAction["action"];
+  ok: boolean;
+  /** true=无宿主或宿主拒绝执行时的产品降级跳过 */
+  skipped?: boolean;
+  summary?: string;
+  error?: string;
+  /** navigate 时的目标路径 */
+  path?: string;
+  /** openModal 时的弹窗名 */
+  modal?: string;
+}
 
 /**
  * 平台工具统一返回（MCP Tool JSON / SSE tool_end.result）。

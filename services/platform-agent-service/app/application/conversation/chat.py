@@ -10,7 +10,9 @@ from langchain_core.messages import HumanMessage
 
 from app.graph.context import assemble_context
 from contracts.context import (
+    current_alarm_focus,
     current_auth_token,
+    current_device_focus,
     current_message_id,
     current_plan_first,
     current_recent_user_messages,
@@ -51,18 +53,37 @@ async def stream_chat_core(
     mode_token = current_run_mode.set(mode)
     plan_first_token = current_plan_first.set(bool(plan_first))
     utterance_token = current_user_utterance.set(normalize_user_utterance(message))
-    recent_token = current_recent_user_messages.set(
-        normalize_recent_user_messages(recent_user_messages)
+
+    # 合并前端近期句 + session_store，供全工具 ContextVar / Prompt 共用
+    from app.services.session_store import get_user_messages
+    from contracts.conversation_context import merge_recent_user_messages
+
+    merged_recent = merge_recent_user_messages(
+        frontend_recent=recent_user_messages,
+        server_recent=get_user_messages(thread_id, limit=8),
+        current_message=message,
+        limit=5,
     )
+    recent_token = current_recent_user_messages.set(normalize_recent_user_messages(merged_recent))
 
     from app.services.prompt_assembly import resolve_recent_messages_for_intent
+    from app.services.thread_history import read_checkpoint_messages
     from app.services.tool_subset import (
         remember_thread_tool_subset,
         select_tool_subset,
     )
     from app.tools.registry import get_agent_tools
+    from contracts.alarm_focus import extract_alarm_focus_from_messages
+    from contracts.device_focus import extract_device_focus_from_messages
 
-    _, intent_note = resolve_recent_messages_for_intent(message, recent_user_messages)
+    # 从 checkpoint 工具结果提取设备/告警焦点（唯一可回填；列表保留筛选供后续空槽）
+    checkpoint_msgs = await read_checkpoint_messages(thread_id)
+    device_focus = extract_device_focus_from_messages(checkpoint_msgs)
+    alarm_focus = extract_alarm_focus_from_messages(checkpoint_msgs)
+    focus_token = current_device_focus.set(device_focus)
+    alarm_focus_token = current_alarm_focus.set(alarm_focus)
+
+    _, intent_note = resolve_recent_messages_for_intent(message, merged_recent)
     suppressed_token = None
     if intent_note:
         suppressed_token = current_turn_suppressed_tools.set(frozenset({"download_file"}))
@@ -71,7 +92,7 @@ async def stream_chat_core(
         subset = select_tool_subset(
             run_mode=mode,
             message=message,
-            recent_user_messages=recent_user_messages,
+            recent_user_messages=merged_recent,
             available_names=available,
         )
         remember_thread_tool_subset(thread_id, subset.tool_names)
@@ -80,7 +101,7 @@ async def stream_chat_core(
             thread_id=thread_id,
             message=message,
             metadata=metadata,
-            recent_user_messages=recent_user_messages,
+            recent_user_messages=merged_recent,
         )
 
         from app.services.session_store import clear_thread_orchestration
@@ -228,6 +249,8 @@ async def stream_chat_core(
             recent_token,
             label="current_recent_user_messages",
         )
+        safe_reset_contextvar(current_device_focus, focus_token, label="current_device_focus")
+        safe_reset_contextvar(current_alarm_focus, alarm_focus_token, label="current_alarm_focus")
 
 
 async def stream_chat(

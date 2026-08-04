@@ -6,7 +6,7 @@
  */
 import type { HitlPayload } from "@ims/shared-types";
 import type { AiMessage, AiMessageBlock } from "../types";
-import { useAiAssistantStore } from "../store";
+import { useAiAssistantStore, getWriteTargetMessages } from "../store";
 
 /** 父图级 HITL：不依赖 tool_call 块即可挂起 */
 export function isGraphLevelHitlType(type: HitlPayload["type"] | string | undefined): boolean {
@@ -247,7 +247,7 @@ export function finalizeTurnResidue(
 ): void {
   const store = useAiAssistantStore.getState();
 
-  const msg = store.messages.find((m) => m.id === messageId);
+  const msg = getWriteTargetMessages(store).find((m) => m.id === messageId);
   if (!msg || msg.role !== "assistant") {
     store.setPendingInterrupt(null);
     store.setStreaming(false);
@@ -266,7 +266,7 @@ export function finalizeTurnResidue(
   }
 
   // 重新取消息，避免上面已改 tool 后用旧快照漏标
-  const latest = useAiAssistantStore.getState().messages.find((m) => m.id === messageId);
+  const latest = getWriteTargetMessages().find((m) => m.id === messageId);
   for (const block of latest?.blocks ?? []) {
     if (
       block.type === "tool_call" &&
@@ -283,7 +283,7 @@ export function finalizeTurnResidue(
   }
 
   const summary = options?.resultSummary;
-  const planMsg = useAiAssistantStore.getState().messages.find((m) => m.id === messageId);
+  const planMsg = getWriteTargetMessages().find((m) => m.id === messageId);
   for (const step of planMsg?.planSteps ?? []) {
     if (
       step.status === "pending" ||

@@ -57,6 +57,7 @@ class AuthHeaderInterceptor:
             current_run_mode,
             current_thread_id,
             current_user_utterance,
+            encode_http_header_value,
         )
 
         headers = dict(request.headers or {})
@@ -73,12 +74,15 @@ class AuthHeaderInterceptor:
         # 自主模式：MCP ask_user_confirm 跳过确认
         headers["X-Run-Mode"] = current_run_mode.get() or "confirm"
         # 会话上下文（全工具共享消歧；导出 resource 等 preflight 读取）
+        # 中文等非 ASCII 须百分号编码，否则 httpx 建连时 UnicodeEncodeError
         utterance = (current_user_utterance.get() or "").strip()
         if utterance:
-            headers["X-User-Utterance"] = utterance
+            headers["X-User-Utterance"] = encode_http_header_value(utterance)
         recent = list(current_recent_user_messages.get() or ())
         if recent:
-            headers["X-Recent-User-Messages"] = json.dumps(recent, ensure_ascii=False)
+            headers["X-Recent-User-Messages"] = encode_http_header_value(
+                json.dumps(recent, ensure_ascii=False)
+            )
         return await handler(request.override(headers=headers or None))
 
 
@@ -323,16 +327,28 @@ def _wrap_mcp_tool(tool: BaseTool, *, authorize: bool) -> BaseTool:
         readonly_denied = _deny_readonly_if_needed()
         if readonly_denied is not None:
             return readonly_denied
+        # ReAct 路径（authorize=True）：Hooks 挂在 wrap；Plan 路径走 Pipeline，避免双跑
+        if authorize:
+            from app.services.tool_hooks import run_before_tool_hooks
+
+            hook_denied = run_before_tool_hooks(tool.name, args)
+            if hook_denied is not None:
+                return hook_denied
 
         def _invoke(call_args: dict[str, Any]) -> str:
             return _extract_tool_text(invoke_underlying_mcp_tool_sync(tool, call_args))
 
-        return _resolve_mcp_hitl_text(
+        text = _resolve_mcp_hitl_text(
             _invoke(args),
             tool_name=tool.name,
             kwargs=args,
             invoke_again=_invoke,
         )
+        if authorize:
+            from app.services.tool_hooks import run_after_tool_hooks
+
+            run_after_tool_hooks(tool.name, args, text)
+        return text
 
     async def _arun(**kwargs: Any) -> str:
         from contracts.context import current_hitl_reject_drain
@@ -346,6 +362,12 @@ def _wrap_mcp_tool(tool: BaseTool, *, authorize: bool) -> BaseTool:
         readonly_denied = _deny_readonly_if_needed()
         if readonly_denied is not None:
             return readonly_denied
+        if authorize:
+            from app.services.tool_hooks import run_before_tool_hooks
+
+            hook_denied = run_before_tool_hooks(tool.name, args)
+            if hook_denied is not None:
+                return hook_denied
 
         async def _ainvoke(call_args: dict[str, Any]) -> str:
             return _extract_tool_text(await tool.ainvoke(call_args))
@@ -353,6 +375,10 @@ def _wrap_mcp_tool(tool: BaseTool, *, authorize: bool) -> BaseTool:
         text = await _ainvoke(args)
         payload = _extract_hitl_payload(text)
         if payload is None:
+            if authorize:
+                from app.services.tool_hooks import run_after_tool_hooks
+
+                run_after_tool_hooks(tool.name, args, text)
             return text
 
         # 异步路径：与 sync 相同的 HITL 还原；重调经线程安全桥接会丢失 contextvar，
@@ -366,7 +392,12 @@ def _wrap_mcp_tool(tool: BaseTool, *, authorize: bool) -> BaseTool:
 
         resume_value = interrupt_or_raise(payload)
         if is_hitl_reject(resume_value):
-            return _cancelled_hitl_tool_result(tool.name)
+            cancelled = _cancelled_hitl_tool_result(tool.name)
+            if authorize:
+                from app.services.tool_hooks import run_after_tool_hooks
+
+                run_after_tool_hooks(tool.name, args, cancelled)
+            return cancelled
 
         merged = _merge_hitl_resume_with_export_lock(resume_value, args, payload)
         bypass_reset = current_hitl_confirm_bypass.set(True)
@@ -374,19 +405,42 @@ def _wrap_mcp_tool(tool: BaseTool, *, authorize: bool) -> BaseTool:
             text2 = await _ainvoke(merged)
             payload2 = _extract_hitl_payload(text2)
             if payload2 is None:
+                if authorize:
+                    from app.services.tool_hooks import run_after_tool_hooks
+
+                    run_after_tool_hooks(tool.name, merged, text2)
                 return text2
             resume2 = interrupt_or_raise(payload2)
             if is_hitl_reject(resume2):
-                return _cancelled_hitl_tool_result(tool.name)
+                cancelled = _cancelled_hitl_tool_result(tool.name)
+                if authorize:
+                    from app.services.tool_hooks import run_after_tool_hooks
+
+                    run_after_tool_hooks(tool.name, merged, cancelled)
+                return cancelled
             merged2 = _merge_hitl_resume_with_export_lock(resume2, merged, payload2)
             text3 = await _ainvoke(merged2)
             payload3 = _extract_hitl_payload(text3)
             if payload3 is not None:
                 resume3 = interrupt_or_raise(payload3)
                 if is_hitl_reject(resume3):
-                    return _cancelled_hitl_tool_result(tool.name)
+                    cancelled = _cancelled_hitl_tool_result(tool.name)
+                    if authorize:
+                        from app.services.tool_hooks import run_after_tool_hooks
+
+                        run_after_tool_hooks(tool.name, merged2, cancelled)
+                    return cancelled
                 merged3 = _merge_hitl_resume_with_export_lock(resume3, merged2, payload3)
-                return await _ainvoke(merged3)
+                final = await _ainvoke(merged3)
+                if authorize:
+                    from app.services.tool_hooks import run_after_tool_hooks
+
+                    run_after_tool_hooks(tool.name, merged3, final)
+                return final
+            if authorize:
+                from app.services.tool_hooks import run_after_tool_hooks
+
+                run_after_tool_hooks(tool.name, merged2, text3)
             return text3
         finally:
             safe_reset_contextvar(

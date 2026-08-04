@@ -47,16 +47,25 @@ def prepare_device_control_hitl_gate(
     - 通用「下发指令」：action 留空，HITL 选设备 + 变量/写入值
     - 三要素已齐时返回 None，交由 ReAct 正常下发
     """
+    from contracts.context import current_device_focus
     from contracts.device_command_resolver import resolve_device_command
+    from contracts.device_context import infer_device_token_from_conversation
+    from contracts.device_focus import apply_device_focus_to_interrupt
 
     message = (ctx.message or "").strip()
     action = parse_device_control_action(message)
     if action is None:
         return None
 
+    # 多轮：从本轮 + 近期用户句 + 工具结果焦点回填已明确的设备
+    device_token = infer_device_token_from_conversation(
+        message,
+        ctx.recent_user_messages,
+    )
     resolution = resolve_device_command(
         action=action,
         user_text=message,
+        device_name=device_token or "",
     )
     if resolution.is_complete():
         return None
@@ -64,6 +73,15 @@ def prepare_device_control_hitl_gate(
     interrupt = resolution.interrupt
     if not interrupt or interrupt.get("type") != "ask_params":
         return None
+
+    focus = current_device_focus.get()
+    interrupt = (
+        apply_device_focus_to_interrupt(
+            interrupt if isinstance(interrupt, dict) else None,
+            focus,
+        )
+        or interrupt
+    )
 
     fields = list(interrupt.get("fields") or [])
     if not fields:

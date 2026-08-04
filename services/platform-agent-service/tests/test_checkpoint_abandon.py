@@ -37,7 +37,7 @@ async def test_stream_resume_reject_clears_checkpoint_without_tool_sse():
     ):
         async for evt in stream_resume(
             thread_id=thread_id,
-            model_id="qwen3.7-plus",
+            model_id="qwen3-32b",
             resume_value={"type": "reject", "approved": False},
             auth_token=None,
             user_id="u1",

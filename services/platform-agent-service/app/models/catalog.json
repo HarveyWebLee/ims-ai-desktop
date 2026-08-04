@@ -1,26 +1,10 @@
 [
   {
-    "modelId": "qwen3.7-plus",
-    "apiModelName": "qwen3.7-plus",
-    "provider": "dashscope",
-    "labelKey": "aiAssistant.model.qwen3.7-plus",
-    "scenarioKey": "aiAssistant.model.scenario.default",
-    "enabled": true,
-    "isDefault": true
-  },
-  {
     "modelId": "qwen3.5-flash-2026-02-23",
     "apiModelName": "qwen3.5-flash-2026-02-23",
     "provider": "dashscope",
     "labelKey": "aiAssistant.model.qwen3.5-flash-2026-02-23",
     "scenarioKey": "aiAssistant.model.scenario.light",
-    "enabled": true
-  },
-  {
-    "modelId": "qwen-plus-2025-07-28",
-    "apiModelName": "qwen-plus-2025-07-28",
-    "provider": "dashscope",
-    "labelKey": "aiAssistant.model.qwen-plus-2025-07-28",
     "enabled": true
   },
   {
@@ -35,6 +19,7 @@
     "apiModelName": "qwen-mt-flash",
     "provider": "dashscope",
     "labelKey": "aiAssistant.model.qwen-mt-flash",
+    "scenarioKey": "aiAssistant.model.scenario.light",
     "enabled": true
   },
   {
@@ -56,6 +41,7 @@
     "apiModelName": "qwen3-8b",
     "provider": "dashscope",
     "labelKey": "aiAssistant.model.qwen3-8b",
+    "scenarioKey": "aiAssistant.model.scenario.light",
     "enabled": true
   },
   {
@@ -63,7 +49,9 @@
     "apiModelName": "qwen3-32b",
     "provider": "dashscope",
     "labelKey": "aiAssistant.model.qwen3-32b",
-    "enabled": true
+    "scenarioKey": "aiAssistant.model.scenario.default",
+    "enabled": true,
+    "isDefault": true
   },
   {
     "modelId": "qwen3-coder-plus",
@@ -92,6 +80,7 @@
     "apiModelName": "deepseek-r1-distill-qwen-7b",
     "provider": "dashscope",
     "labelKey": "aiAssistant.model.deepseek-r1-distill-qwen-7b",
+    "scenarioKey": "aiAssistant.model.scenario.light",
     "enabled": true
   },
   {

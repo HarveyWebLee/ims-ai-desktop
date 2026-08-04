@@ -34,6 +34,7 @@ ContextVar ≈ 每个请求自带的小书包：set 一次，深层 tool/helper 
 - current_run_mode：会话运行模式 readonly | confirm | autonomous
 - current_plan_first：显式「先计划后执行」，覆盖 AI-first 旁路以走 plan_confirm
 - current_user_utterance / current_recent_user_messages：本轮会话上下文（全工具共享，非导出专用）
+- current_device_focus / current_alarm_focus：checkpoint 工具结果焦点（设备/告警空槽回填）
 """
 
 from __future__ import annotations  # 允许在类型注解中引用尚未定义的类型（Python 3.7+ 特性）
@@ -104,6 +105,18 @@ current_recent_user_messages: ContextVar[tuple[str, ...]] = ContextVar(
     default=(),
 )
 
+# 本线程最近设备焦点（由 checkpoint 工具结果解析；供全工具空槽回填与 HITL 预筛）
+current_device_focus: ContextVar[Any] = ContextVar(
+    "current_device_focus",
+    default=None,
+)
+
+# 本线程最近告警焦点（由 checkpoint 工具结果解析；供导出/批量/详情空槽回填）
+current_alarm_focus: ContextVar[Any] = ContextVar(
+    "current_alarm_focus",
+    default=None,
+)
+
 
 def normalize_run_mode(value: str | None) -> str:
     """将请求字段规范为合法 run_mode；非法或缺省 → confirm。"""
@@ -134,6 +147,26 @@ def normalize_recent_user_messages(messages: list[str] | tuple[str, ...] | None)
         if len(out) >= MAX_RECENT_USER_MESSAGES:
             break
     return tuple(out)
+
+
+def encode_http_header_value(value: str) -> str:
+    """
+    将可能含非 ASCII 的字符串编码为 HTTP 头安全值。
+
+    httpx / HTTP 规范要求头值为 latin-1；中文原话直接写入会触发
+    ``UnicodeEncodeError: 'ascii' codec can't encode characters``。
+    统一用百分号编码（``urllib.parse.quote``），MCP 侧对称 ``decode``。
+    """
+    from urllib.parse import quote
+
+    return quote(value or "", safe="")
+
+
+def decode_http_header_value(value: str | None) -> str:
+    """还原 ``encode_http_header_value`` 后的头值；纯 ASCII 明文亦可透传。"""
+    from urllib.parse import unquote
+
+    return unquote(value or "")
 
 
 def safe_reset_contextvar(

@@ -198,8 +198,7 @@ async def test_playbook_watcher_reloads_on_change(
     custom = tmp_path / "pb"
     custom.mkdir()
     target = custom / "hot.md"
-    target.write_text(
-        """---
+    hot_v1 = """---
 id: hot-v1
 title: 热更前
 version: "1"
@@ -209,9 +208,19 @@ triggers:
 ---
 
 版本一
-""",
-        encoding="utf-8",
-    )
+"""
+    hot_v2 = """---
+id: hot-v2
+title: 热更后
+version: "2"
+priority: 1
+triggers:
+  - 热更探针词
+---
+
+版本二
+"""
+    target.write_text(hot_v1, encoding="utf-8")
     monkeypatch.setattr(settings, "agent_playbook_enabled", True)
     monkeypatch.setattr(settings, "agent_playbook_watch", True)
     monkeypatch.setattr(settings, "agent_playbook_dir", str(custom))
@@ -222,30 +231,22 @@ triggers:
     stop = asyncio.Event()
 
     async def writer() -> None:
-        await asyncio.sleep(0.6)
-        target.write_text(
-            """---
-id: hot-v2
-title: 热更后
-version: "2"
-priority: 1
-triggers:
-  - 热更探针词
----
-
-版本二
-""",
-            encoding="utf-8",
-        )
-        for _ in range(40):
-            await asyncio.sleep(0.15)
-            if [p.id for p in list_playbooks()] == ["hot-v2"]:
-                break
+        # 等 awatch 完成首轮基线快照；若写在基线前，轮询会把 hot-v2 当初始态而漏事件
+        await asyncio.sleep(1.2)
+        # 重复写+touch：覆盖「基线晚于首次写入」与 Windows 偶发漏事件
+        for _ in range(20):
+            target.write_text(hot_v2, encoding="utf-8")
+            target.touch()
+            for _ in range(8):
+                await asyncio.sleep(0.2)
+                if [p.id for p in list_playbooks()] == ["hot-v2"]:
+                    stop.set()
+                    return
         stop.set()
 
     await asyncio.wait_for(
         asyncio.gather(_watch_loop(custom, stop), writer()),
-        timeout=12,
+        timeout=25,
     )
     assert [p.id for p in list_playbooks()] == ["hot-v2"]
 

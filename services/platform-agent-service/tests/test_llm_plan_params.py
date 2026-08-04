@@ -88,7 +88,7 @@ class TestGenerateLlmPlanParams:
             {"id": "1", "tool": "query_alarms", "label": "查"},
             {"id": "2", "tool": "download_file", "label": "导"},
         ]
-        assert await generate_llm_plan_params("hello", steps, model_id="qwen3.7-plus") is None
+        assert await generate_llm_plan_params("hello", steps, model_id="qwen3-32b") is None
 
     @pytest.mark.asyncio
     @patch("app.services.llm_plan_params.settings")
@@ -124,7 +124,7 @@ class TestGenerateLlmPlanParams:
         result = await generate_llm_plan_params(
             "7月2号 11:00 到 11:17 查告警并导出",
             steps,
-            model_id="qwen3.7-plus",
+            model_id="qwen3-32b",
         )
         assert result is not None
         assert result["query_alarms"]["end_time"] == "2026-07-02 11:17:00"

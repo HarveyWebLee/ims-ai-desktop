@@ -3,11 +3,17 @@
  */
 import { useCallback, useRef } from "react";
 import { useIntl } from "react-intl";
-import { message } from "@/antd/feedback";
+import { message, notification } from "@/antd/feedback";
 import { v4 as uuidv4 } from "uuid";
 import * as AgentController from "@/services/AgentController";
 import { executeClientAction } from "../ClientToolExecutor";
-import { useAiAssistantStore } from "../store";
+import {
+  useAiAssistantStore,
+  getWriteTargetMessages,
+  getWriteTargetPendingInterrupt,
+  updateWriteTargetMessages,
+} from "../store";
+import { bindAgentSseHandlersToThread, runWithMessageThread } from "../threadRuntime";
 import type { AgentSseHandler } from "../types";
 import { workspaceFromToolEnd, resolveWorkspaceFromMessage } from "../utils/workspaceFromTool";
 import {
@@ -37,13 +43,63 @@ import { enrichPlanStepCatalogMeta } from "@/components/BpmnFlowgram/utils/plan-
 
 export function useAgentStream() {
   const intl = useIntl();
-  const abortRef = useRef<AbortController | null>(null);
+  /** P2-4：按 thread 持有 AbortController，切会话不中断后台流 */
+  const abortByThreadRef = useRef(new Map<string, AbortController>());
   const pendingToolArgsRef = useRef<Record<string, Record<string, unknown>>>({});
   /** 本轮 download_file 已触发的浏览器下载次数（多文件导出进度提示） */
   const exportDownloadCountRef = useRef(0);
 
+  const abortThreadController = useCallback((threadId: string) => {
+    const existing = abortByThreadRef.current.get(threadId);
+    if (!existing) return;
+    existing.abort();
+    abortByThreadRef.current.delete(threadId);
+  }, []);
+
+  const beginThreadController = useCallback(
+    (threadId: string) => {
+      abortThreadController(threadId);
+      const controller = new AbortController();
+      abortByThreadRef.current.set(threadId, controller);
+      return controller;
+    },
+    [abortThreadController],
+  );
+
+  const releaseThreadController = useCallback((threadId: string, controller: AbortController) => {
+    if (abortByThreadRef.current.get(threadId) === controller) {
+      abortByThreadRef.current.delete(threadId);
+    }
+  }, []);
+
+  const notifyBackgroundThread = useCallback(
+    (boundThreadId: string, kind: "done" | "hitl" | "error") => {
+      if (useAiAssistantStore.getState().currentThreadId === boundThreadId) return;
+      const sessionTitle =
+        useAiAssistantStore.getState().sessions.find((s) => s.thread_id === boundThreadId)?.title ??
+        intl.formatMessage({ id: "aiAssistant.session.untitled" });
+      const messageId =
+        kind === "done"
+          ? "aiAssistant.thread.backgroundDone"
+          : kind === "hitl"
+            ? "aiAssistant.thread.backgroundHitl"
+            : "aiAssistant.thread.backgroundError";
+      notification.info({
+        message: intl.formatMessage({ id: messageId }),
+        description: sessionTitle,
+        duration: 6,
+        onClick: () => {
+          const store = useAiAssistantStore.getState();
+          if (store.currentThreadId !== boundThreadId) {
+            store.switchSession(boundThreadId);
+          }
+        },
+      });
+    },
+    [intl],
+  );
+
   const {
-    currentThreadId,
     selectedModelId,
     runMode,
     planFirst,
@@ -79,379 +135,390 @@ export function useAgentStream() {
   /** 按 SSE mid 定位助手气泡；无 mid 时回退绑定 id */
   const resolveAssistantIdByMid = useCallback((fallbackId: string, mid?: string) => {
     if (!mid) return fallbackId;
-    const matched = [...useAiAssistantStore.getState().messages]
+    const matched = [...getWriteTargetMessages()]
       .reverse()
       .find((m) => m.role === "assistant" && m.mid === mid);
     return matched?.id ?? fallbackId;
   }, []);
 
-  /** 创建 SSE 事件处理器（绑定到指定 assistant 消息） */
+  /** 创建 SSE 事件处理器（绑定到指定 assistant 消息与 thread） */
   const createStreamHandlers = useCallback(
-    (assistantId: string): AgentSseHandler => ({
-      onTextDelta: (delta, meta) =>
-        updateAssistantText(resolveAssistantIdByMid(assistantId, meta?.mid), delta),
-      onToolStart: (tool, args, meta) => {
-        const id = resolveAssistantIdByMid(assistantId, meta?.mid);
-        agentDebugLog("sse.tool_start", {
-          assistantId: id.slice(0, 8),
-          mid: meta?.mid,
-          tool,
-          toolCallId: meta?.toolCallId,
-        });
-        if (tool === "download_file") {
-          exportDownloadCountRef.current = 0;
-        }
-        const argsKey = meta?.toolCallId || tool;
-        pendingToolArgsRef.current[argsKey] = args;
-        appendAssistantBlock(id, {
-          type: "tool_call",
-          tool,
-          args,
-          status: "running",
-          toolCallId: meta?.toolCallId,
-          retry: meta?.retry,
-          attempt: meta?.attempt,
-        });
-        // 同步 Plan 步骤：running + 入参 + 开始时间
-        const planMsg = useAiAssistantStore.getState().messages.find((m) => m.id === id);
-        const runningStep = planMsg?.planSteps?.find(
-          (s) =>
-            s.tool === tool &&
-            (s.status === "pending" ||
-              s.status === "awaiting_confirm" ||
-              s.status === "awaiting_hitl" ||
-              s.status === "running"),
-        );
-        if (runningStep) {
-          const enriched = enrichPlanStepCatalogMeta({
-            ...runningStep,
+    (assistantId: string, boundThreadId: string): AgentSseHandler => {
+      const raw: AgentSseHandler = {
+        onTextDelta: (delta, meta) =>
+          updateAssistantText(resolveAssistantIdByMid(assistantId, meta?.mid), delta),
+        onToolStart: (tool, args, meta) => {
+          const id = resolveAssistantIdByMid(assistantId, meta?.mid);
+          agentDebugLog("sse.tool_start", {
+            assistantId: id.slice(0, 8),
+            mid: meta?.mid,
             tool,
+            toolCallId: meta?.toolCallId,
           });
-          updateAssistantPlanStep(id, runningStep.id, "running", {
-            args: args && typeof args === "object" ? (args as Record<string, unknown>) : undefined,
-            startedAt: runningStep.startedAt ?? Date.now(),
-            errorMessage: undefined,
-            resultSummary: undefined,
-            side: enriched.side,
-            riskLevel: enriched.riskLevel,
-            retry: Boolean(meta?.retry),
-            attempt: typeof meta?.attempt === "number" ? meta.attempt : undefined,
+          if (tool === "download_file") {
+            exportDownloadCountRef.current = 0;
+          }
+          const argsKey = meta?.toolCallId || tool;
+          pendingToolArgsRef.current[argsKey] = args;
+          appendAssistantBlock(id, {
+            type: "tool_call",
+            tool,
+            args,
+            status: "running",
+            toolCallId: meta?.toolCallId,
+            retry: meta?.retry,
+            attempt: meta?.attempt,
           });
-        }
-      },
-      onToolEnd: (tool, result, meta) => {
-        const id = resolveAssistantIdByMid(assistantId, meta?.mid);
-        agentDebugLog("sse.tool_end", {
-          assistantId: id.slice(0, 8),
-          mid: meta?.mid,
-          tool,
-          toolCallId: meta?.toolCallId,
-          userCancelled: parseToolResultUserCancelled(result),
-        });
-        if (tool === "download_file" && exportDownloadCountRef.current > 0) {
-          message.destroy();
-          message.success(
-            intl.formatMessage(
-              { id: "aiAssistant.card.action.downloadBatchDone" },
-              { count: exportDownloadCountRef.current },
-            ),
+          const planMsg = getWriteTargetMessages().find((m) => m.id === id);
+          const runningStep = planMsg?.planSteps?.find(
+            (s) =>
+              s.tool === tool &&
+              (s.status === "pending" ||
+                s.status === "awaiting_confirm" ||
+                s.status === "awaiting_hitl" ||
+                s.status === "running"),
           );
-          exportDownloadCountRef.current = 0;
-        }
-        const argsKey = meta?.toolCallId || tool;
-        const args = pendingToolArgsRef.current[argsKey] ?? pendingToolArgsRef.current[tool];
-        delete pendingToolArgsRef.current[argsKey];
-        if (meta?.toolCallId) delete pendingToolArgsRef.current[tool];
-        const userCancelled = parseToolResultUserCancelled(result);
-        const ok = userCancelled ? false : parseToolResultOk(result);
-        const shortSummary = parseToolResultShortSummary(result);
-        const autoRetry = parseToolResultAutoRetry(result);
-        completeAssistantToolCall(
-          id,
-          tool,
-          result,
-          userCancelled ? "cancelled" : ok ? "done" : "error",
-          meta?.toolCallId,
-        );
-        syncAssistantPlanStepFromToolEnd(
-          id,
-          tool,
-          userCancelled ? "skipped" : ok ? "done" : "error",
-          {
-            args: args && typeof args === "object" ? (args as Record<string, unknown>) : undefined,
-            endedAt: Date.now(),
-            resultSummary: ok && shortSummary ? shortSummary : undefined,
-            errorMessage: !ok && !userCancelled ? shortSummary || "工具执行失败" : undefined,
-            ...(() => {
-              const metaEnriched = enrichPlanStepCatalogMeta({ tool });
-              return {
-                side: metaEnriched.side,
-                riskLevel: metaEnriched.riskLevel,
-              };
-            })(),
-            retry: Boolean(meta?.retry) || Boolean(autoRetry),
-            attempt: typeof meta?.attempt === "number" ? meta.attempt : undefined,
-            autoRetryFrom: autoRetry?.from,
-            autoRetryTo: autoRetry?.to,
-            hitl: userCancelled ? { resolution: "cancelled" as const } : undefined,
-          },
-        );
-        reconcileAssistantPlanStepsFromBlocks(id);
-        const workspace = workspaceFromToolEnd(tool, result, args);
-        // device_command 成败都展示结构化卡；其余 Workspace 仍仅成功写入
-        if (workspace && (workspace.kind === "device_command" || ok)) {
-          patchAssistantMessage(id, { workspaceContent: workspace });
-        }
-        void meta;
-      },
-      onInterrupt: (payload) => {
-        const id = resolveAssistantIdByMid(assistantId, payload.mid);
-        const boundMid = useAiAssistantStore.getState().messages.find((m) => m.id === id)?.mid;
-        const interruptPayload = payload.mid || !boundMid ? payload : { ...payload, mid: boundMid };
-        agentDebugLog("sse.interrupt", {
-          assistantId: id.slice(0, 8),
-          mid: interruptPayload.mid,
-          type: interruptPayload.type,
-          tool: interruptPayload.tool,
-        });
-        setPendingInterrupt(interruptPayload);
-        setAssistantInterruptBlock(id, interruptPayload);
-        // plan_confirm：整份计划待批准，步骤标记 awaiting_confirm
-        if (interruptPayload.type === "plan_confirm") {
-          const msg = useAiAssistantStore.getState().messages.find((m) => m.id === id);
-          const steps = msg?.planSteps?.length ? msg.planSteps : (interruptPayload.steps ?? []);
-          steps.forEach((step) => {
-            const enriched = enrichPlanStepCatalogMeta(step);
-            updateAssistantPlanStep(id, step.id, "awaiting_confirm", {
+          if (runningStep) {
+            const enriched = enrichPlanStepCatalogMeta({
+              ...runningStep,
+              tool,
+            });
+            updateAssistantPlanStep(id, runningStep.id, "running", {
+              args:
+                args && typeof args === "object" ? (args as Record<string, unknown>) : undefined,
+              startedAt: runningStep.startedAt ?? Date.now(),
+              errorMessage: undefined,
+              resultSummary: undefined,
               side: enriched.side,
               riskLevel: enriched.riskLevel,
+              retry: Boolean(meta?.retry),
+              attempt: typeof meta?.attempt === "number" ? meta.attempt : undefined,
+            });
+          }
+        },
+        onToolEnd: (tool, result, meta) => {
+          const id = resolveAssistantIdByMid(assistantId, meta?.mid);
+          agentDebugLog("sse.tool_end", {
+            assistantId: id.slice(0, 8),
+            mid: meta?.mid,
+            tool,
+            toolCallId: meta?.toolCallId,
+            userCancelled: parseToolResultUserCancelled(result),
+          });
+          if (tool === "download_file" && exportDownloadCountRef.current > 0) {
+            message.destroy();
+            message.success(
+              intl.formatMessage(
+                { id: "aiAssistant.card.action.downloadBatchDone" },
+                { count: exportDownloadCountRef.current },
+              ),
+            );
+            exportDownloadCountRef.current = 0;
+          }
+          const argsKey = meta?.toolCallId || tool;
+          const args = pendingToolArgsRef.current[argsKey] ?? pendingToolArgsRef.current[tool];
+          delete pendingToolArgsRef.current[argsKey];
+          if (meta?.toolCallId) delete pendingToolArgsRef.current[tool];
+          const userCancelled = parseToolResultUserCancelled(result);
+          const ok = userCancelled ? false : parseToolResultOk(result);
+          const shortSummary = parseToolResultShortSummary(result);
+          const autoRetry = parseToolResultAutoRetry(result);
+          completeAssistantToolCall(
+            id,
+            tool,
+            result,
+            userCancelled ? "cancelled" : ok ? "done" : "error",
+            meta?.toolCallId,
+          );
+          syncAssistantPlanStepFromToolEnd(
+            id,
+            tool,
+            userCancelled ? "skipped" : ok ? "done" : "error",
+            {
+              args:
+                args && typeof args === "object" ? (args as Record<string, unknown>) : undefined,
+              endedAt: Date.now(),
+              resultSummary: ok && shortSummary ? shortSummary : undefined,
+              errorMessage: !ok && !userCancelled ? shortSummary || "工具执行失败" : undefined,
+              ...(() => {
+                const metaEnriched = enrichPlanStepCatalogMeta({ tool });
+                return {
+                  side: metaEnriched.side,
+                  riskLevel: metaEnriched.riskLevel,
+                };
+              })(),
+              retry: Boolean(meta?.retry) || Boolean(autoRetry),
+              attempt: typeof meta?.attempt === "number" ? meta.attempt : undefined,
+              autoRetryFrom: autoRetry?.from,
+              autoRetryTo: autoRetry?.to,
+              hitl: userCancelled ? { resolution: "cancelled" as const } : undefined,
+            },
+          );
+          reconcileAssistantPlanStepsFromBlocks(id);
+          const workspace = workspaceFromToolEnd(tool, result, args);
+          if (workspace && (workspace.kind === "device_command" || ok)) {
+            patchAssistantMessage(id, { workspaceContent: workspace });
+          }
+          void meta;
+        },
+        onInterrupt: (payload) => {
+          const id = resolveAssistantIdByMid(assistantId, payload.mid);
+          const boundMid = getWriteTargetMessages().find((m) => m.id === id)?.mid;
+          const interruptPayload =
+            payload.mid || !boundMid ? payload : { ...payload, mid: boundMid };
+          agentDebugLog("sse.interrupt", {
+            assistantId: id.slice(0, 8),
+            mid: interruptPayload.mid,
+            type: interruptPayload.type,
+            tool: interruptPayload.tool,
+          });
+          setPendingInterrupt(interruptPayload);
+          setAssistantInterruptBlock(id, interruptPayload);
+          if (interruptPayload.type === "plan_confirm") {
+            const msg = getWriteTargetMessages().find((m) => m.id === id);
+            const steps = msg?.planSteps?.length ? msg.planSteps : (interruptPayload.steps ?? []);
+            steps.forEach((step) => {
+              const enriched = enrichPlanStepCatalogMeta(step);
+              updateAssistantPlanStep(id, step.id, "awaiting_confirm", {
+                side: enriched.side,
+                riskLevel: enriched.riskLevel,
+                hitl: {
+                  type: "plan_confirm",
+                  message:
+                    typeof interruptPayload.message === "string"
+                      ? interruptPayload.message.trim().slice(0, 200)
+                      : undefined,
+                },
+              });
+            });
+            if (!msg?.planSteps?.length && interruptPayload.steps?.length) {
+              patchAssistantMessage(id, {
+                planSteps: interruptPayload.steps.map((s) => {
+                  const enriched = enrichPlanStepCatalogMeta(s);
+                  return {
+                    ...enriched,
+                    status: "awaiting_confirm" as const,
+                    hitl: {
+                      type: "plan_confirm" as const,
+                      message:
+                        typeof interruptPayload.message === "string"
+                          ? interruptPayload.message.trim().slice(0, 200)
+                          : undefined,
+                    },
+                  };
+                }),
+                planGraph: interruptPayload.graph ?? null,
+              });
+            } else if (interruptPayload.graph) {
+              patchAssistantMessage(id, {
+                planGraph: interruptPayload.graph,
+              });
+            }
+            notifyBackgroundThread(boundThreadId, "hitl");
+            return;
+          }
+          const msgBefore = getWriteTargetMessages().find((m) => m.id === id);
+          if (msgBefore) {
+            for (const block of msgBefore.blocks) {
+              if (
+                block.type === "tool_call" &&
+                block.tool !== interruptPayload.tool &&
+                block.status === "running" &&
+                block.tool === "download_file"
+              ) {
+                completeAssistantToolCall(id, block.tool, undefined, "cancelled");
+                const staleStep = msgBefore.planSteps?.find(
+                  (s) =>
+                    s.tool === block.tool && (s.status === "running" || s.status === "pending"),
+                );
+                if (staleStep) {
+                  updateAssistantPlanStep(id, staleStep.id, "skipped");
+                }
+              }
+            }
+          }
+          if (msgBefore?.planSteps?.length && interruptPayload.tool) {
+            for (const step of msgBefore.planSteps) {
+              if (
+                step.tool &&
+                step.tool !== interruptPayload.tool &&
+                step.status === "running" &&
+                step.tool !== "download_file"
+              ) {
+                updateAssistantPlanStep(id, step.id, "done");
+              }
+            }
+            for (const block of msgBefore.blocks) {
+              if (
+                block.type === "tool_call" &&
+                block.tool !== interruptPayload.tool &&
+                block.status === "running" &&
+                block.tool !== "download_file"
+              ) {
+                completeAssistantToolCall(id, block.tool, undefined, "done");
+              }
+            }
+          }
+          markAssistantToolAwaitingHitl(id, interruptPayload.tool);
+          const msg = getWriteTargetMessages().find((m) => m.id === id);
+          const hitlStep = msg?.planSteps?.find(
+            (s) =>
+              s.tool === interruptPayload.tool && (s.status === "running" || s.status === "error"),
+          );
+          if (hitlStep) {
+            updateAssistantPlanStep(id, hitlStep.id, "awaiting_hitl", {
+              resultSummary:
+                typeof interruptPayload.message === "string" && interruptPayload.message.trim()
+                  ? interruptPayload.message.trim().slice(0, 200)
+                  : intl.formatMessage({
+                      id: "aiAssistant.card.tool.awaitingHitl",
+                    }),
               hitl: {
-                type: "plan_confirm",
+                type: interruptPayload.type,
                 message:
                   typeof interruptPayload.message === "string"
                     ? interruptPayload.message.trim().slice(0, 200)
                     : undefined,
               },
-            });
-          });
-          if (!msg?.planSteps?.length && interruptPayload.steps?.length) {
-            patchAssistantMessage(id, {
-              planSteps: interruptPayload.steps.map((s) => {
-                const enriched = enrichPlanStepCatalogMeta(s);
-                return {
-                  ...enriched,
-                  status: "awaiting_confirm" as const,
-                  hitl: {
-                    type: "plan_confirm" as const,
-                    message:
-                      typeof interruptPayload.message === "string"
-                        ? interruptPayload.message.trim().slice(0, 200)
-                        : undefined,
-                  },
-                };
-              }),
-              planGraph: interruptPayload.graph ?? null,
-            });
-          } else if (interruptPayload.graph) {
-            patchAssistantMessage(id, {
-              planGraph: interruptPayload.graph,
+              ...(() => {
+                const meta = enrichPlanStepCatalogMeta({
+                  tool: interruptPayload.tool,
+                });
+                return { side: meta.side, riskLevel: meta.riskLevel };
+              })(),
             });
           }
-          return;
-        }
-        // HITL 中断并非工具失败：将关联工具与计划步骤标记为等待人工介入
-        const msgBefore = useAiAssistantStore.getState().messages.find((m) => m.id === id);
-        // 导航等 HITL 到来时，将同轮误触发的 export running 块标为 skipped
-        if (msgBefore) {
-          for (const block of msgBefore.blocks) {
-            if (
-              block.type === "tool_call" &&
-              block.tool !== interruptPayload.tool &&
-              block.status === "running" &&
-              block.tool === "download_file"
-            ) {
-              completeAssistantToolCall(id, block.tool, undefined, "cancelled");
-              const staleStep = msgBefore.planSteps?.find(
-                (s) => s.tool === block.tool && (s.status === "running" || s.status === "pending"),
-              );
-              if (staleStep) {
-                updateAssistantPlanStep(id, staleStep.id, "skipped");
+          notifyBackgroundThread(boundThreadId, "hitl");
+        },
+        onClientAction: async (action) => {
+          appendAssistantBlock(assistantId, {
+            type: "client_action",
+            action,
+            status: "pending",
+          });
+          if (action.action === "download") {
+            exportDownloadCountRef.current += 1;
+            const n = exportDownloadCountRef.current;
+            message.loading(
+              intl.formatMessage(
+                { id: "aiAssistant.card.action.downloadProgress" },
+                { current: n },
+              ),
+              0,
+            );
+          }
+          const result = await executeClientAction(action);
+          if (action.action === "download") {
+            message.destroy();
+          }
+          completeClientAction(assistantId, result.ok ? "done" : "error");
+          if (!result.ok) {
+            message.error(result.error);
+          }
+          if (boundThreadId) {
+            void AgentController.reportClientActionResult(boundThreadId, result).catch((err) => {
+              agentDebugLog("client_action.ack_failed", {
+                action: result.action,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            });
+          }
+        },
+        onPlan: (payload) => {
+          const normalized = Array.isArray(payload) ? { steps: payload } : payload;
+          agentDebugLog("sse.plan", {
+            assistantId: assistantId.slice(0, 8),
+            stepTools: normalized.steps?.map((s) => s.tool),
+            stepStatuses: normalized.steps?.map((s) => s.status),
+          });
+          patchAssistantMessage(assistantId, {
+            planSteps: (normalized.steps ?? []).map((s) => enrichPlanStepCatalogMeta(s)),
+            planGraph: normalized.graph ?? null,
+            planFlowDocument: (normalized.flow_document as FlowDocumentJSON | undefined) ?? null,
+          });
+        },
+        onPlanUpdate: (update) => {
+          const stepId = String(update.step_id || update.node_id || "");
+          updateAssistantPlanStep(assistantId, stepId, update.status, {
+            ...(update.tool ? { tool: update.tool } : {}),
+            ...(update.skipReason ? { skipReason: update.skipReason } : {}),
+            ...(update.matchedBranchKey ? { matchedBranchKey: update.matchedBranchKey } : {}),
+            ...(update.node_id ? { nodeId: String(update.node_id) } : {}),
+            ...(update.node_type ? { nodeType: update.node_type } : {}),
+            ...(update.label ? { label: update.label } : {}),
+          });
+        },
+        onReplan: ({ reason, steps }) => {
+          patchAssistantMessage(assistantId, {
+            planSteps: steps,
+            planReplanReason: reason,
+            planGraph: null,
+            planFlowDocument: null,
+          });
+        },
+        onTrace: (event) => {
+          appendAssistantTraceEvent(assistantId, event);
+        },
+        onDone: () => {
+          const latest = getWriteTargetMessages().find((m) => m.id === assistantId);
+          const hitlBlock = latest?.blocks.find((b) => b.type === "interrupt");
+          if (hitlBlock?.type === "interrupt" && latest) {
+            const payload = hitlBlock.payload;
+            const stillAwaitingHitl = shouldPreserveHitlOnStreamDone(payload, latest.blocks);
+            if (stillAwaitingHitl && !getWriteTargetPendingInterrupt()) {
+              setPendingInterrupt(payload);
+            } else if (!stillAwaitingHitl) {
+              useAiAssistantStore.getState().clearAssistantInterruptBlock(assistantId);
+            }
+          } else if (!getWriteTargetPendingInterrupt()) {
+            void hitlBlock;
+          }
+          const forWorkspace = getWriteTargetMessages().find((m) => m.id === assistantId);
+          if (forWorkspace && !forWorkspace.workspaceContent) {
+            const workspace = resolveWorkspaceFromMessage(forWorkspace);
+            if (workspace?.ok) {
+              patchAssistantMessage(assistantId, { workspaceContent: workspace });
+            }
+          }
+          if (latest) {
+            for (const block of latest.blocks) {
+              if (block.type === "tool_call" && block.status === "running") {
+                completeAssistantToolCall(assistantId, block.tool, undefined, "awaiting_hitl");
               }
             }
           }
-        }
-        // 顺序 ReAct：后续工具 HITL 说明前序 running 步已完成
-        if (msgBefore?.planSteps?.length && interruptPayload.tool) {
-          for (const step of msgBefore.planSteps) {
-            if (
-              step.tool &&
-              step.tool !== interruptPayload.tool &&
-              step.status === "running" &&
-              step.tool !== "download_file"
-            ) {
-              updateAssistantPlanStep(id, step.id, "done");
-            }
+          reconcileAssistantPlanStepsFromBlocks(assistantId);
+          finalizeAssistantMessage(assistantId);
+          loadSessions();
+          if (!getWriteTargetPendingInterrupt()) {
+            notifyBackgroundThread(boundThreadId, "done");
           }
-          for (const block of msgBefore.blocks) {
-            if (
-              block.type === "tool_call" &&
-              block.tool !== interruptPayload.tool &&
-              block.status === "running" &&
-              block.tool !== "download_file"
-            ) {
-              completeAssistantToolCall(id, block.tool, undefined, "done");
-            }
-          }
-        }
-        markAssistantToolAwaitingHitl(id, interruptPayload.tool);
-        const msg = useAiAssistantStore.getState().messages.find((m) => m.id === id);
-        const hitlStep = msg?.planSteps?.find(
-          (s) =>
-            s.tool === interruptPayload.tool && (s.status === "running" || s.status === "error"),
-        );
-        if (hitlStep) {
-          updateAssistantPlanStep(id, hitlStep.id, "awaiting_hitl", {
-            resultSummary:
-              typeof interruptPayload.message === "string" && interruptPayload.message.trim()
-                ? interruptPayload.message.trim().slice(0, 200)
-                : intl.formatMessage({
-                    id: "aiAssistant.card.tool.awaitingHitl",
-                  }),
-            hitl: {
-              type: interruptPayload.type,
-              message:
-                typeof interruptPayload.message === "string"
-                  ? interruptPayload.message.trim().slice(0, 200)
-                  : undefined,
-            },
-            ...(() => {
-              const meta = enrichPlanStepCatalogMeta({
-                tool: interruptPayload.tool,
-              });
-              return { side: meta.side, riskLevel: meta.riskLevel };
-            })(),
+        },
+        onError: (code, msg, data) => {
+          agentDebugLog("sse.error", {
+            assistantId: assistantId.slice(0, 8),
+            code,
+            msg,
           });
-        }
-      },
-      onClientAction: async (action) => {
-        appendAssistantBlock(assistantId, {
-          type: "client_action",
-          action,
-          status: "pending",
-        });
-        if (action.action === "download") {
-          exportDownloadCountRef.current += 1;
-          const n = exportDownloadCountRef.current;
-          message.loading(
-            intl.formatMessage({ id: "aiAssistant.card.action.downloadProgress" }, { current: n }),
-            0,
-          );
-        }
-        const result = await executeClientAction(action);
-        if (action.action === "download") {
-          message.destroy();
-        }
-        completeClientAction(assistantId, result.ok ? "done" : "error");
-        if (!result.ok) {
-          message.error(result.error);
-        }
-      },
-      onPlan: (payload) => {
-        const normalized = Array.isArray(payload) ? { steps: payload } : payload;
-        agentDebugLog("sse.plan", {
-          assistantId: assistantId.slice(0, 8),
-          stepTools: normalized.steps?.map((s) => s.tool),
-          stepStatuses: normalized.steps?.map((s) => s.status),
-        });
-        patchAssistantMessage(assistantId, {
-          planSteps: (normalized.steps ?? []).map((s) => enrichPlanStepCatalogMeta(s)),
-          planGraph: normalized.graph ?? null,
-          planFlowDocument: (normalized.flow_document as FlowDocumentJSON | undefined) ?? null,
-        });
-      },
-      onPlanUpdate: (update) => {
-        const stepId = String(update.step_id || update.node_id || "");
-        updateAssistantPlanStep(assistantId, stepId, update.status, {
-          ...(update.tool ? { tool: update.tool } : {}),
-          ...(update.skipReason ? { skipReason: update.skipReason } : {}),
-          ...(update.matchedBranchKey ? { matchedBranchKey: update.matchedBranchKey } : {}),
-          ...(update.node_id ? { nodeId: String(update.node_id) } : {}),
-          ...(update.node_type ? { nodeType: update.node_type } : {}),
-          ...(update.label ? { label: update.label } : {}),
-        });
-      },
-      onReplan: ({ reason, steps }) => {
-        patchAssistantMessage(assistantId, {
-          planSteps: steps,
-          planReplanReason: reason,
-          planGraph: null,
-          planFlowDocument: null,
-        });
-      },
-      onTrace: (event) => {
-        appendAssistantTraceEvent(assistantId, event);
-      },
-      onDone: () => {
-        // 兜底：interrupt 块已写入但 pendingInterrupt 未同步时，从消息块恢复
-        const latest = useAiAssistantStore.getState().messages.find((m) => m.id === assistantId);
-        const hitlBlock = latest?.blocks.find((b) => b.type === "interrupt");
-        if (hitlBlock?.type === "interrupt" && latest) {
-          const payload = hitlBlock.payload;
-          const stillAwaitingHitl = shouldPreserveHitlOnStreamDone(payload, latest.blocks);
-          if (stillAwaitingHitl && !useAiAssistantStore.getState().pendingInterrupt) {
-            setPendingInterrupt(payload);
-          } else if (!stillAwaitingHitl) {
-            // 工具已结束（含用户取消/失败）时清除残留 interrupt，避免确认卡常驻
-            useAiAssistantStore.getState().clearAssistantInterruptBlock(assistantId);
-          }
-        } else if (!useAiAssistantStore.getState().pendingInterrupt) {
-          void hitlBlock;
-        }
-        // 兜底：tool_end 已写入 blocks 但 workspaceContent 未同步时补全「查看结果」
-        const forWorkspace = useAiAssistantStore
-          .getState()
-          .messages.find((m) => m.id === assistantId);
-        if (forWorkspace && !forWorkspace.workspaceContent) {
-          const workspace = resolveWorkspaceFromMessage(forWorkspace);
-          if (workspace?.ok) {
-            patchAssistantMessage(assistantId, { workspaceContent: workspace });
-          }
-        }
-        // 工具仍 running 且无 interrupt 块：标记为 awaiting_hitl（避免永久转圈）
-        if (latest) {
-          for (const block of latest.blocks) {
-            if (block.type === "tool_call" && block.status === "running") {
-              completeAssistantToolCall(assistantId, block.tool, undefined, "awaiting_hitl");
+          const msgState = getWriteTargetMessages().find((m) => m.id === assistantId);
+          if (msgState) {
+            for (const block of msgState.blocks) {
+              if (block.type === "tool_call" && block.status === "running") {
+                completeAssistantToolCall(assistantId, block.tool, undefined, "error");
+              }
             }
           }
-        }
-        reconcileAssistantPlanStepsFromBlocks(assistantId);
-        finalizeAssistantMessage(assistantId);
-        loadSessions();
-      },
-      onError: (code, msg, data) => {
-        agentDebugLog("sse.error", {
-          assistantId: assistantId.slice(0, 8),
-          code,
-          msg,
-        });
-        // 流异常中断时，将仍 running 的工具块标为失败，避免侧栏永久转圈
-        const msgState = useAiAssistantStore.getState().messages.find((m) => m.id === assistantId);
-        if (msgState) {
-          for (const block of msgState.blocks) {
-            if (block.type === "tool_call" && block.status === "running") {
-              completeAssistantToolCall(assistantId, block.tool, undefined, "error");
-            }
-          }
-        }
-        const toast = formatAgentErrorToast(intl, msg, data);
-        const detail = formatAgentErrorMessage(intl, msg, data);
-        message.error(toast, 6);
-        updateAssistantText(assistantId, `\n\n⚠️ ${detail.replace(/\n/g, "\n\n")}`);
-        finalizeAssistantMessage(assistantId);
-        void code;
-      },
-    }),
+          const toast = formatAgentErrorToast(intl, msg, data);
+          const detail = formatAgentErrorMessage(intl, msg, data);
+          message.error(toast, 6);
+          updateAssistantText(assistantId, `\n\n⚠️ ${detail.replace(/\n/g, "\n\n")}`);
+          finalizeAssistantMessage(assistantId);
+          notifyBackgroundThread(boundThreadId, "error");
+          void code;
+        },
+      };
+      return bindAgentSseHandlersToThread(boundThreadId, raw);
+    },
     [
       appendAssistantBlock,
       setAssistantInterruptBlock,
@@ -461,6 +528,7 @@ export function useAgentStream() {
       completeClientAction,
       finalizeAssistantMessage,
       loadSessions,
+      notifyBackgroundThread,
       patchAssistantMessage,
       setPendingInterrupt,
       updateAssistantPlanStep,
@@ -474,6 +542,11 @@ export function useAgentStream() {
 
   const loadThreadHistory = useCallback(
     async (threadId: string) => {
+      // P2-4：有本地快照（含后台流）时不拉历史，避免冲掉进行中消息
+      if (useAiAssistantStore.getState().hasThreadSnapshot(threadId)) {
+        useAiAssistantStore.getState().setLoadingHistory(false);
+        return;
+      }
       const { setLoadingHistory } = useAiAssistantStore.getState();
       setLoadingHistory(true);
       try {
@@ -520,21 +593,19 @@ export function useAgentStream() {
 
   const appendAssistantPlaceholder = useCallback((mid?: string) => {
     const assistantId = uuidv4();
-    useAiAssistantStore.setState((s) => ({
-      messages: [
-        ...s.messages,
-        {
-          id: assistantId,
-          role: "assistant" as const,
-          mid,
-          blocks: [],
-          createdAt: Date.now(),
-          streaming: true,
-          traceEvents: [],
-          planSteps: [],
-        },
-      ],
-    }));
+    updateWriteTargetMessages((messages) => [
+      ...messages,
+      {
+        id: assistantId,
+        role: "assistant" as const,
+        mid,
+        blocks: [],
+        createdAt: Date.now(),
+        streaming: true,
+        traceEvents: [],
+        planSteps: [],
+      },
+    ]);
     return assistantId;
   }, []);
 
@@ -542,6 +613,7 @@ export function useAgentStream() {
     async (content: string) => {
       if (!content.trim()) return;
 
+      const boundThreadId = useAiAssistantStore.getState().currentThreadId;
       const priorState = useAiAssistantStore.getState();
       // 新意图：收束上一轮未结束的 HITL / 流式残留
       const prevAssistant = [...priorState.messages].reverse().find((m) => m.role === "assistant");
@@ -553,7 +625,9 @@ export function useAgentStream() {
             (b.status === "running" || b.status === "awaiting_hitl" || b.status === "pending"),
         );
         if (hasActiveHitl || hasRunning || prevAssistant.streaming) {
-          finalizeTurnResidue(prevAssistant.id, "superseded");
+          runWithMessageThread(boundThreadId, () => {
+            finalizeTurnResidue(prevAssistant.id, "superseded");
+          });
         }
       }
 
@@ -572,44 +646,46 @@ export function useAgentStream() {
       const assistantId = uuidv4();
       const userMsgId = uuidv4();
       const mid = uuidv4();
-      useAiAssistantStore.setState((s) => ({
-        pendingInterrupt: null,
-        isStreaming: true,
-        messages: [
-          ...s.messages,
-          {
-            id: userMsgId,
-            role: "user" as const,
-            mid,
-            blocks: [{ type: "text" as const, content: content.trim() }],
-            createdAt: Date.now(),
-          },
-          {
-            id: assistantId,
-            role: "assistant" as const,
-            mid,
-            blocks: [],
-            createdAt: Date.now(),
-            streaming: true,
-            traceEvents: [],
-            planSteps: [],
-          },
-        ],
-      }));
+      runWithMessageThread(boundThreadId, () => {
+        updateWriteTargetMessages(
+          (messages) => [
+            ...messages,
+            {
+              id: userMsgId,
+              role: "user" as const,
+              mid,
+              blocks: [{ type: "text" as const, content: content.trim() }],
+              createdAt: Date.now(),
+            },
+            {
+              id: assistantId,
+              role: "assistant" as const,
+              mid,
+              blocks: [],
+              createdAt: Date.now(),
+              streaming: true,
+              traceEvents: [],
+              planSteps: [],
+            },
+          ],
+          { pendingInterrupt: null },
+        );
+        useAiAssistantStore.getState().setStreaming(true);
+      });
       agentDebugLog("chat.send", {
-        threadId: currentThreadId.slice(0, 12),
+        threadId: boundThreadId.slice(0, 12),
         mid: mid.slice(0, 8),
         assistantId: assistantId.slice(0, 8),
         messagePreview: content.trim().slice(0, 80),
-        priorMessages: useAiAssistantStore
-          .getState()
-          .messages.filter((m) => m.role === "assistant")
+        priorMessages: getWriteTargetMessages()
+          .filter((m) => m.role === "assistant")
           .map(summarizeAssistantMessage),
       });
 
-      abortRef.current?.abort();
-      const abortController = new AbortController();
-      abortRef.current = abortController;
+      // 发起即刷新侧栏：本地置顶 + 请求接受后拉取服务端列表（流结束前切走也能看到）
+      useAiAssistantStore.getState().touchSession(boundThreadId, content.trim());
+
+      const abortController = beginThreadController(boundThreadId);
       let abortedByUser = false;
       abortController.signal.addEventListener(
         "abort",
@@ -622,7 +698,7 @@ export function useAgentStream() {
       try {
         await AgentController.chatStream(
           {
-            thread_id: currentThreadId,
+            thread_id: boundThreadId,
             mid,
             message: content.trim(),
             model_id: selectedModelId,
@@ -632,41 +708,47 @@ export function useAgentStream() {
             metadata: { current_path: "/" },
             recent_user_messages: priorUserMessages,
           },
-          createStreamHandlers(assistantId),
+          createStreamHandlers(assistantId, boundThreadId),
           abortController.signal,
+          () => {
+            void loadSessions();
+          },
         );
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           message.error((err as Error).message || "发送失败");
         }
       } finally {
-        setStreaming(false);
-        const latest = useAiAssistantStore.getState().messages.find((m) => m.id === assistantId);
-        // 被新消息 abort 且无内容：移除空白助手占位，避免多条兜底文案
-        if (abortedByUser && latest && !assistantMessageHasVisibleContent(latest)) {
-          useAiAssistantStore.setState((s) => ({
-            messages: s.messages.filter((m) => m.id !== assistantId),
-          }));
-        } else if (!abortedByUser && latest && !assistantMessageHasVisibleContent(latest)) {
-          updateAssistantText(
-            assistantId,
-            intl.formatMessage({ id: "aiAssistant.emptyResponse" }),
-            { markStreaming: false },
-          );
-          agentDebugLog("chat.empty_response_fallback", {
-            assistantId: assistantId.slice(0, 8),
-          });
-        }
-        finalizeAssistantMessage(assistantId);
+        releaseThreadController(boundThreadId, abortController);
+        runWithMessageThread(boundThreadId, () => {
+          setStreaming(false);
+          const latest = getWriteTargetMessages().find((m) => m.id === assistantId);
+          // 被新消息 abort 且无内容：移除空白助手占位，避免多条兜底文案
+          if (abortedByUser && latest && !assistantMessageHasVisibleContent(latest)) {
+            updateWriteTargetMessages((messages) => messages.filter((m) => m.id !== assistantId));
+          } else if (!abortedByUser && latest && !assistantMessageHasVisibleContent(latest)) {
+            updateAssistantText(
+              assistantId,
+              intl.formatMessage({ id: "aiAssistant.emptyResponse" }),
+              { markStreaming: false },
+            );
+            agentDebugLog("chat.empty_response_fallback", {
+              assistantId: assistantId.slice(0, 8),
+            });
+          }
+          finalizeAssistantMessage(assistantId);
+        });
       }
     },
     [
+      beginThreadController,
       createStreamHandlers,
-      currentThreadId,
       finalizeAssistantMessage,
+      loadSessions,
       selectedModelId,
       runMode,
       planFirst,
+      releaseThreadController,
       setStreaming,
       intl,
       updateAssistantText,
@@ -716,8 +798,8 @@ export function useAgentStream() {
       }
 
       setPendingInterrupt(null);
-      abortRef.current?.abort();
-      abortRef.current = new AbortController();
+      const boundThreadId = storeState.currentThreadId;
+      const abortController = beginThreadController(boundThreadId);
 
       const resumeArgs: Record<string, unknown> = { ...values };
       if (hitlTool) {
@@ -725,7 +807,7 @@ export function useAgentStream() {
       }
 
       agentDebugLog("hitl.resume_submit", {
-        threadId: currentThreadId.slice(0, 12),
+        threadId: boundThreadId.slice(0, 12),
         sourceMessageId: sourceMessageId?.slice(0, 8) ?? null,
         mid: sourceMid?.slice(0, 8) ?? null,
         hitlTool,
@@ -744,12 +826,14 @@ export function useAgentStream() {
       try {
         const resumeHandlers: AgentSseHandler = sourceMessageId
           ? (() => {
-              const base = createStreamHandlers(sourceMessageId!);
+              const base = createStreamHandlers(sourceMessageId!, boundThreadId);
               return {
                 ...base,
                 onTextDelta: (delta) => {
-                  updateAssistantText(sourceMessageId!, delta, {
-                    markStreaming: false,
+                  runWithMessageThread(boundThreadId, () => {
+                    updateAssistantText(sourceMessageId!, delta, {
+                      markStreaming: false,
+                    });
                   });
                 },
                 onToolStart: (tool, args, meta) => {
@@ -781,22 +865,28 @@ export function useAgentStream() {
                   base.onDone?.(threadId);
                 },
                 onError: (code, msg, data) => {
-                  const toast = formatAgentErrorToast(intl, msg, data);
-                  const detail = formatAgentErrorMessage(intl, msg, data);
-                  message.error(toast, 6);
-                  updateAssistantText(sourceMessageId!, `\n\n⚠️ ${detail.replace(/\n/g, "\n\n")}`, {
-                    markStreaming: false,
+                  runWithMessageThread(boundThreadId, () => {
+                    const toast = formatAgentErrorToast(intl, msg, data);
+                    const detail = formatAgentErrorMessage(intl, msg, data);
+                    message.error(toast, 6);
+                    updateAssistantText(
+                      sourceMessageId!,
+                      `\n\n⚠️ ${detail.replace(/\n/g, "\n\n")}`,
+                      {
+                        markStreaming: false,
+                      },
+                    );
+                    finalizeSource();
                   });
-                  finalizeSource();
                   void code;
                 },
               };
             })()
-          : createStreamHandlers(fallbackAssistantId!);
+          : createStreamHandlers(fallbackAssistantId!, boundThreadId);
 
         await AgentController.resumeStream(
           {
-            thread_id: currentThreadId,
+            thread_id: boundThreadId,
             mid: sourceMid,
             model_id: selectedModelId,
             run_mode: runMode,
@@ -804,27 +894,31 @@ export function useAgentStream() {
             decisions: [{ type: "respond", args: resumeArgs }],
           },
           resumeHandlers,
-          abortRef.current.signal,
+          abortController.signal,
         );
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           message.error((err as Error).message || "提交失败");
         }
       } finally {
-        finalizeSource();
-        if (fallbackAssistantId) {
-          finalizeAssistantMessage(fallbackAssistantId);
-        }
-        setStreaming(false);
+        releaseThreadController(boundThreadId, abortController);
+        runWithMessageThread(boundThreadId, () => {
+          finalizeSource();
+          if (fallbackAssistantId) {
+            finalizeAssistantMessage(fallbackAssistantId);
+          }
+          setStreaming(false);
+        });
       }
     },
     [
       appendAssistantPlaceholder,
+      beginThreadController,
       clearAssistantInterruptBlock,
       markAssistantToolRunning,
       createStreamHandlers,
-      currentThreadId,
       finalizeAssistantMessage,
+      releaseThreadController,
       intl,
       patchAssistantMessage,
       selectedModelId,
@@ -871,13 +965,13 @@ export function useAgentStream() {
         }
       }
 
-      abortRef.current?.abort();
-      abortRef.current = new AbortController();
+      const boundThreadId = storeState.currentThreadId;
+      const abortController = beginThreadController(boundThreadId);
 
       // 用户拒绝：不新建助手气泡，静默通知后端清理状态，取消文案写回原消息
       if (!approved) {
         agentDebugLog("hitl.confirm_reject", {
-          threadId: currentThreadId.slice(0, 12),
+          threadId: boundThreadId.slice(0, 12),
           sourceMessageId: sourceMessageId?.slice(0, 8) ?? null,
           mid: sourceMid?.slice(0, 8) ?? null,
           interruptType: (() => {
@@ -901,14 +995,14 @@ export function useAgentStream() {
         try {
           await AgentController.resumeStream(
             {
-              thread_id: currentThreadId,
+              thread_id: boundThreadId,
               mid: sourceMid,
               model_id: selectedModelId,
               run_mode: runMode,
               plan_first: planFirst,
               decisions: [{ type: "reject" }],
             },
-            {
+            bindAgentSseHandlersToThread(boundThreadId, {
               onTextDelta: (delta) => {
                 if (sourceMessageId) {
                   // 取消说明为静态追加，不进入流式 loading 态
@@ -925,14 +1019,17 @@ export function useAgentStream() {
               onError: () => {
                 finalizeSource();
               },
-            },
-            abortRef.current.signal,
+            }),
+            abortController.signal,
           );
         } catch {
           // 静默
         } finally {
-          finalizeSource();
-          setStreaming(false);
+          releaseThreadController(boundThreadId, abortController);
+          runWithMessageThread(boundThreadId, () => {
+            finalizeSource();
+            setStreaming(false);
+          });
         }
         return;
       }
@@ -1026,7 +1123,7 @@ export function useAgentStream() {
 
         await AgentController.resumeStream(
           {
-            thread_id: currentThreadId,
+            thread_id: boundThreadId,
             mid: sourceMid,
             model_id: selectedModelId,
             run_mode: runMode,
@@ -1038,28 +1135,32 @@ export function useAgentStream() {
               },
             ],
           },
-          createStreamHandlers(streamMessageId),
-          abortRef.current.signal,
+          createStreamHandlers(streamMessageId, boundThreadId),
+          abortController.signal,
         );
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           message.error((err as Error).message || "操作失败");
         }
       } finally {
-        setStreaming(false);
-        finalizeAssistantMessage(streamMessageId);
+        releaseThreadController(boundThreadId, abortController);
+        runWithMessageThread(boundThreadId, () => {
+          setStreaming(false);
+          finalizeAssistantMessage(streamMessageId);
+        });
       }
     },
     [
       appendAssistantPlaceholder,
+      beginThreadController,
       clearAssistantInterruptBlock,
       completeAssistantToolCall,
       markAssistantToolRunning,
       createStreamHandlers,
-      currentThreadId,
       finalizeAssistantMessage,
       intl,
       loadSessions,
+      releaseThreadController,
       patchAssistantMessage,
       selectedModelId,
       runMode,
@@ -1072,8 +1173,9 @@ export function useAgentStream() {
   );
 
   const abortStream = useCallback(() => {
-    abortRef.current?.abort();
     const state = useAiAssistantStore.getState();
+    const boundThreadId = state.currentThreadId;
+    abortThreadController(boundThreadId);
     const streamingMsg = [...state.messages]
       .reverse()
       .find(
@@ -1081,15 +1183,26 @@ export function useAgentStream() {
           m.role === "assistant" &&
           (m.streaming || m.blocks.some((b) => isActiveInterruptBlock(b))),
       );
-    if (streamingMsg) {
-      finalizeTurnResidue(streamingMsg.id, "aborted", {
-        resultSummary: intl.formatMessage({ id: "aiAssistant.card.hitl.aborted" }),
-      });
-    } else {
-      state.setPendingInterrupt(null);
-      setStreaming(false);
-    }
-  }, [intl, setStreaming]);
+    runWithMessageThread(boundThreadId, () => {
+      if (streamingMsg) {
+        finalizeTurnResidue(streamingMsg.id, "aborted", {
+          resultSummary: intl.formatMessage({ id: "aiAssistant.card.hitl.aborted" }),
+        });
+      } else {
+        state.setPendingInterrupt(null);
+        setStreaming(false);
+      }
+    });
+  }, [abortThreadController, intl, setStreaming]);
+
+  /** 删除会话时中止该 thread 后台流并清理快照 */
+  const disposeThreadRuntime = useCallback(
+    (threadId: string) => {
+      abortThreadController(threadId);
+      useAiAssistantStore.getState().clearThreadSnapshot(threadId);
+    },
+    [abortThreadController],
+  );
 
   return {
     sendMessage,
@@ -1098,5 +1211,6 @@ export function useAgentStream() {
     loadSessions,
     loadThreadHistory,
     abortStream,
+    disposeThreadRuntime,
   };
 }

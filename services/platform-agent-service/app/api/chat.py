@@ -76,7 +76,7 @@ from app.middleware.auth import get_current_user_id
 # ---------------------------------------------------------------------------
 # 本项目：模型目录校验与默认 model_id
 # ---------------------------------------------------------------------------
-from app.models.catalog import get_catalog_item, get_default_model_id
+from app.services.model_router import resolve_request_model_id
 
 # ---------------------------------------------------------------------------
 # 本项目：会话元数据与用户消息缓存（多轮上下文、侧栏列表）
@@ -392,11 +392,14 @@ async def chat_sse(request: Request, body: ChatRequest):
     if not body.thread_id.strip():
         return JSONResponse(fail(40002, "参数错误", "thread_id 不能为空"), status_code=400)
 
-    # 空 model_id 用 catalog 默认；or 短路求值
-    model_id = body.model_id or get_default_model_id()
-    if not get_catalog_item(model_id):
+    # 空 / auto → 路由或默认；仅允许已启用 catalog
+    model_id, model_err = resolve_request_model_id(
+        body.model_id,
+        user_message=body.message,
+    )
+    if model_err or not model_id:
         return JSONResponse(
-            fail(40001, "参数错误", "model_id 不在模型目录中或已禁用"),
+            fail(40001, "参数错误", model_err or "model_id 不在模型目录中或已禁用"),
             status_code=400,
         )
 

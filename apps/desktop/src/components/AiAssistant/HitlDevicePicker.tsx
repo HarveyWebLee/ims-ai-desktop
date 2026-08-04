@@ -55,6 +55,8 @@ export interface HitlDevicePickerProps {
   onChange?: (deviceCode: string | undefined) => void;
   /** 字段说明文案 */
   description?: string;
+  /** 打开时预填的筛选（如上一轮「在线」查询） */
+  defaultFilters?: DeviceFilters;
 }
 
 function normalizeTreePayload(data: unknown): unknown[] {
@@ -107,9 +109,14 @@ function onlineLabel(status: number | undefined, intl: ReturnType<typeof useIntl
 
 const EMPTY_FILTERS: DeviceFilters = {};
 
-export default function HitlDevicePicker({ value, onChange, description }: HitlDevicePickerProps) {
+export default function HitlDevicePicker({
+  value,
+  onChange,
+  description,
+  defaultFilters,
+}: HitlDevicePickerProps) {
   const intl = useIntl();
-  const [filters, setFilters] = useState<DeviceFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<DeviceFilters>(() => ({ ...(defaultFilters || {}) }));
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<DeviceRecord[]>([]);
   const [total, setTotal] = useState(0);
@@ -169,7 +176,9 @@ export default function HitlDevicePicker({ value, onChange, description }: HitlD
           deviceName: String(nextFilters.deviceName || "").trim() || undefined,
           deviceCode: String(nextFilters.deviceCode || "").trim() || undefined,
           onlineStatus:
-            nextFilters.onlineStatus === 0 || nextFilters.onlineStatus === 1
+            nextFilters.onlineStatus === 0 ||
+            nextFilters.onlineStatus === 1 ||
+            nextFilters.onlineStatus === 2
               ? nextFilters.onlineStatus
               : undefined,
         });
@@ -204,8 +213,9 @@ export default function HitlDevicePicker({ value, onChange, description }: HitlD
 
   useEffect(() => {
     void loadTrees();
-    void fetchList(1, DEFAULT_PAGE_SIZE, EMPTY_FILTERS);
-    // 仅挂载时拉取
+    const initial = { ...(defaultFilters || {}) };
+    void fetchList(1, DEFAULT_PAGE_SIZE, initial);
+    // 仅挂载时拉取；defaultFilters 来自 HITL 字段，打开时固定
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -214,8 +224,9 @@ export default function HitlDevicePicker({ value, onChange, description }: HitlD
   };
 
   const handleReset = () => {
-    setFilters(EMPTY_FILTERS);
-    void fetchList(1, pageSize, EMPTY_FILTERS);
+    const initial = { ...(defaultFilters || {}) };
+    setFilters(initial);
+    void fetchList(1, pageSize, initial);
   };
 
   const handleTableChange = (pagination: TablePaginationConfig) => {

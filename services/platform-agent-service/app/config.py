@@ -124,7 +124,7 @@ class Settings(BaseSettings):
     transcribe_dictionary_path: str = ""
     transcribe_rag_top_k: int = 2
     # 纠错用聊天模型（catalog modelId）；默认 flash 以控制延迟
-    transcribe_correct_model: str = "qwen3.5-flash-2026-02-23"
+    transcribe_correct_model: str = "qwen3-8b"
     # 纠错超时宜短：超时直接回退 ASR 原文，避免拖慢侧栏
     transcribe_correct_timeout_seconds: float = 6.0
     # 相似度低于此值的命中不进入纠错（减少无效 LLM）
@@ -192,6 +192,14 @@ class Settings(BaseSettings):
     agent_mcp_cache_ttl_seconds: int = 300
     # catalog.required_permissions：JWT 未声明 permissions 时是否拒绝写工具（默认 true）
     agent_tool_permission_fail_closed: bool = True
+    # P2-3：model_id=auto（或空且本开关开启）时按意图从已启用 catalog 选型
+    agent_model_route_enabled: bool = True
+    # P2-1 运行时 Hooks：工具前后钩子（审计/拦截）；不替代 interrupt
+    agent_tool_hooks_enabled: bool = True
+    # 逗号分隔工具名黑名单；命中则返回 ToolResult 拒绝，并写 audit tool_hook_deny
+    agent_tool_hook_deny_tools: str = ""
+    # true=每次工具成功后额外写 tool_hook_after（与 SSE tool_end 并存，默认关）
+    agent_tool_hooks_audit_after: bool = False
 
     # Qdrant 向量库（docker compose 默认映射宿主机 16333 → 容器 6333）
     # 留空则禁用向量能力；健康检查与入库脚本会跳过/报错
@@ -217,8 +225,8 @@ class Settings(BaseSettings):
     agent_subagent_knowledge_enabled: bool = True
     # true=短模型摘要；false/失败=抽取式截断
     agent_subagent_knowledge_llm: bool = True
-    # 空=优先 current_model_id，否则 qwen3.5-flash
-    agent_subagent_knowledge_model: str = "qwen3.5-flash-2026-02-23"
+    # 空=优先 current_model_id，否则轻量已启用模型
+    agent_subagent_knowledge_model: str = "qwen3-8b"
     agent_subagent_knowledge_timeout_seconds: float = 8.0
     agent_subagent_knowledge_max_tokens: int = 400
     agent_subagent_knowledge_snippet_chars: int = 220

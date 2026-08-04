@@ -90,6 +90,18 @@ START → classify
 | 被动 RAG | `format_rag_section` 按 `AGENT_RAG_PASSIVE_SNIPPET_CHARS` 截断注入 HumanMessage           |
 | 对称路径 | chat / resume 共用同一本地工具；Gateway `call_platform_tool(retrieve_knowledge)` 同步受益 |
 
+### 3.4 运行时工具 Hooks（P2-1）
+
+对齐 Cursor Lifecycle Hooks：**不**替代 `interrupt` / HITL。挂在授权通过之后、真实 MCP 调用之前/之后。
+
+| 项       | 说明                                                                                     |
+| -------- | ---------------------------------------------------------------------------------------- |
+| 协议     | `app/domain/tool_hooks.py` → `ToolLifecycleHook.before_tool` / `after_tool`              |
+| 默认实现 | `DenyListToolHook`（`AGENT_TOOL_HOOK_DENY_TOOLS`）+ 可选 `AuditToolHook`                 |
+| 挂载     | Plan：`ToolExecutionPipeline`；ReAct：`_wrap_mcp_tool(authorize=True)`（避免 Plan 双跑） |
+| 拒绝     | 返回统一 ToolResult（`error_code=tool_hook_deny_*`），并写 audit `tool_hook_deny`        |
+| 开关     | `AGENT_TOOL_HOOKS_ENABLED`（默认 true）；`AGENT_TOOL_HOOKS_AUDIT_AFTER`（默认 false）    |
+
 **禁止**：直绑业务 `@tool` 实现；Platform MCP 不可达时不回退本机工具。
 **禁止**：Agent 生产代码 / 测试 `import platform_mcp`（含 `from platform_mcp...`）；共享 HITL / preflight / catalog / 平台客户端走 `contracts`。
 
@@ -157,13 +169,23 @@ JSON 非流接口统一 `{ code, data, message }`，`code === 0` 成功。
 - `thread_id` + AsyncPostgres checkpointer
 - 新会话 = 新 `thread_id`；删除会话清理持久化
 
-## 9. Client Action 桥接
+## 9. Client Action 桥接（P2-2）
 
 ```text
 MCP ToolResult.client_action 或 .client_actions
   → Agent 展开为一条或多条 SSE client_action
-  → 前端 ClientToolExecutor 执行
-  → 无 /tool-result 回调
+  → 前端 ClientToolExecutor
+       ├─ 有 window.imsPlatformHost（或模拟宿主）→ 真实 navigate / openModal
+       └─ 无宿主 → 跳过 + 可读降级提示（M1）
+  → POST /api/agent/threads/{thread_id}/client-action-result
+       → audit `client_action_result`（不阻塞图、不替代 interrupt）
 ```
 
-契约见 [`06-contracts.md`](./06-contracts.md) §2；类型源：`@ims/shared-types` 的 `ToolResult`。
+| 项       | 说明                                                           |
+| -------- | -------------------------------------------------------------- |
+| 宿主注入 | 父页设置 `window.imsPlatformHost = { navigate, openModal }`    |
+| 本地验收 | `localStorage.setItem('ims_ai_mock_platform_host','1')` 后刷新 |
+| 回执契约 | `@ims/shared-types` 的 `ClientActionResult`                    |
+| 对称路径 | chat / resume 共用 `useAgentStream.onClientAction`             |
+
+契约见 [`06-contracts.md`](./06-contracts.md) §2；类型源：`@ims/shared-types` 的 `ToolResult` / `ClientActionResult`。
