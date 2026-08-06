@@ -83,7 +83,7 @@ def _llm_summarize(query: str, blocks: list[dict[str, Any]]) -> str | None:
     model_id = (settings.agent_subagent_knowledge_model or "").strip()
     if not model_id:
         # 优先会话当前模型；否则 flash
-        model_id = (current_model_id.get() or "").strip() or "qwen3.5-flash-2026-02-23"
+        model_id = (current_model_id.get() or "").strip() or "qwen3-8b"
 
     snippet_chars = max(80, int(settings.agent_subagent_knowledge_snippet_chars))
     ref_parts: list[str] = []

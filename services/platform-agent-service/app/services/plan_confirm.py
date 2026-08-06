@@ -39,8 +39,7 @@ from typing import Any
 
 from app.config import settings
 from app.graph.context import AgentContext
-from app.services.task_planner import build_task_plan, extract_alarm_status_from_message
-from contracts.time_range import extract_alarm_time_range_from_message
+from app.services.task_planner import build_task_plan
 
 # plan_confirm interrupt 占位 tool 名（非真实工具）
 PLAN_CONFIRM_TOOL = "__plan__"
@@ -81,10 +80,7 @@ _ALARM_QUERY_TO_EXPORT_KEYS = (
     "alarm_level",
 )
 
-# 从用户原话抽取相对时间片段（供 query_alarms / download_file 预填 start_time）
-# 绝对时间与命名参数见 time_range.extract_alarm_time_range_from_message
-
-# 导航目标片段（「打开设备管理然后…」）
+# 导航目标片段（「打开设备管理然后…」；供 label / 门控解析，非空槽正则补参）
 _NAV_TARGET_RE = re.compile(
     r"(?:打开|跳转|导航到?|进入)\s*(.+?)(?:然后|接着|再|之后|并|，|,|$)",
 )
@@ -291,15 +287,13 @@ def infer_plan_params(
     steps: list[dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
     """
-    为规则 Plan 各步骤推断初始工具参数（最小可用）。
+    为规则 Plan 各步骤提供**空槽骨架**（不再从用户句正则抽时间/状态/resource）。
 
-    设备类槽位不在此用正则猜测；条件图路径由 Flow IR.args 提供。
-    缺参时工具内仍会触发 ask_params HITL。
+    参数由 ``generate_llm_plan_params``（若启用）或工具 invoke 前 HITL 补齐。
+    设备类槽位本就不由规则猜测；条件图路径由 Flow IR.args 提供。
+    ``message`` 保留签名兼容，不参与推断。
     """
-    msg = (message or "").strip()
-    start_time, end_time = extract_alarm_time_range_from_message(msg)
-    alarm_status = extract_alarm_status_from_message(msg)
-    nav_target = extract_nav_target(msg)
+    _ = (message or "").strip()
     params_by_tool: dict[str, dict[str, Any]] = {}
 
     for step in steps:
@@ -307,42 +301,15 @@ def infer_plan_params(
         if not tool or tool in params_by_tool:
             continue
         if tool == "query_alarms":
-            query_params: dict[str, Any] = {
-                "start_time": start_time,
-                "end_time": end_time,
-            }
-            if alarm_status:
-                query_params["status"] = alarm_status
-            params_by_tool[tool] = query_params
+            params_by_tool[tool] = {"start_time": "", "end_time": ""}
         elif tool == "download_file":
-            from contracts.context import current_recent_user_messages
-            from contracts.export_infer import resolve_export_resource
-
-            decision = resolve_export_resource(
-                msg,
-                recent_messages=list(current_recent_user_messages.get() or ()),
-            )
-            resource = decision.resource or ""
-            export_params: dict[str, Any] = {
-                "resource": resource,
-                "start_time": start_time,
-                "end_time": end_time,
-            }
-            if resource == "alarm_report" and alarm_status:
-                export_params["status"] = alarm_status
-            params_by_tool[tool] = export_params
+            params_by_tool[tool] = {"resource": "", "start_time": "", "end_time": ""}
         elif tool == "navigate_to":
-            params_by_tool[tool] = {"path": nav_target or msg[:64]}
+            params_by_tool[tool] = {"path": ""}
         elif tool == "get_alarm_detail":
             params_by_tool[tool] = {}
         elif tool in ("batch_process_alarms", "batch_confirm_alarms"):
-            batch_params: dict[str, Any] = {
-                "start_time": start_time,
-                "end_time": end_time,
-            }
-            if alarm_status:
-                batch_params["status"] = alarm_status
-            params_by_tool[tool] = batch_params
+            params_by_tool[tool] = {"start_time": "", "end_time": ""}
 
     return params_by_tool
 
@@ -354,7 +321,7 @@ def merge_plan_params(
     llm_params: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """
-    规则 infer + LLM 抽取合并：LLM 合法值覆盖规则层，规则层仍作兜底。
+    规则空槽骨架 + LLM 抽取合并：LLM 合法值覆盖骨架；无 LLM 时保持空槽交 HITL。
     """
     from app.services.llm_plan_params import merge_tool_params, sanitize_llm_tool_params
 

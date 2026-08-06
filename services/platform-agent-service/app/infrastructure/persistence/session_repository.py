@@ -13,6 +13,7 @@ from app.infrastructure.persistence.bpmn_repository import (
     set_thread_bpmn_snapshot,
 )
 from app.infrastructure.persistence.orchestration_cleanup import clear_thread_orchestration
+from app.infrastructure.persistence.tool_subset_repository import clear_thread_tool_subset
 from app.utils.psycopg_rows import as_dict_row
 
 
@@ -79,6 +80,7 @@ class InMemorySessionStore:
         self._sessions[user_id] = next_sessions
         self._thread_user_messages.pop(thread_id, None)
         clear_thread_orchestration(thread_id)
+        clear_thread_tool_subset(thread_id)
         return True
 
     def set_thread_bpmn_snapshot(self, thread_id: str, snapshot: dict[str, Any]) -> None:
@@ -215,6 +217,7 @@ class PostgresSessionStore:
                 )
         if deleted:
             clear_thread_orchestration(thread_id)
+            clear_thread_tool_subset(thread_id)
         return deleted
 
     def set_thread_bpmn_snapshot(self, thread_id: str, snapshot: dict[str, Any]) -> None:

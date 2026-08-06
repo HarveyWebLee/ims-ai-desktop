@@ -476,6 +476,7 @@ async def wrap_stream_with_plan_trace(
     run_id: str,
     user_id: str,
     user_message: str,
+    model_id: str | None = None,
     plan_steps: list[dict[str, Any]] | None = None,
     plan_graph: dict[str, Any] | None = None,
     plan_flow_document: dict[str, Any] | None = None,
@@ -490,6 +491,7 @@ async def wrap_stream_with_plan_trace(
         run_id: 本轮运行 UUID
         user_id: 用户 ID（审计用）
         user_message: 用户原话
+        model_id: 本轮模型（error 写入 checkpoint 时用；可回落 ContextVar）
         plan_steps: 可选预生成计划；None 则完全动态
         plan_graph / plan_flow_document: BPMN/流程图附加数据
         auto_replan: True 时 envelope 在工具失败且仍有 pending 步时自动 Re-plan
@@ -499,6 +501,7 @@ async def wrap_stream_with_plan_trace(
         `__keepalive__` 原样透传，不记 audit。
 
     副作用:
+        SSE ``error`` 时 ``persist_run_error_message`` 写入 checkpoint，供历史恢复；
         finally 中 `trace_store.save_run`（含 plan_snapshot）；审计失败静默忽略。
 
     说明:
@@ -513,6 +516,27 @@ async def wrap_stream_with_plan_trace(
         flow_document=plan_flow_document,
         user_message=user_message,
     )
+    error_persisted = False
+
+    async def _persist_error_to_history(payload: dict[str, Any] | None) -> None:
+        nonlocal error_persisted
+        if error_persisted:
+            return
+        from app.graph.checkpoint_utils import persist_run_error_message
+        from contracts.context import current_message_id, current_model_id
+
+        resolved_model = (model_id or "").strip() or (current_model_id.get() or "").strip()
+        if not resolved_model:
+            return
+        turn_mid = (current_message_id.get() or "").strip() or None
+        ok = await persist_run_error_message(
+            thread_id,
+            resolved_model,
+            payload if isinstance(payload, dict) else None,
+            mid=turn_mid,
+        )
+        if ok:
+            error_persisted = True
 
     # 已有预生成 Plan（如 plan_confirm 批准后）时流首即下发，供 TaskProgress 立即展示
     if tracker.has_plan:
@@ -640,6 +664,9 @@ async def wrap_stream_with_plan_trace(
                 yield (event_name, payload)
                 continue  # 跳过后方重复 yield
 
+            if event_name == "error":
+                await _persist_error_to_history(payload if isinstance(payload, dict) else None)
+
             trace_evt = collector.record_sse(event_name, payload)
             if trace_evt:
                 audit_fields = build_audit_from_sse(event_name, payload)
@@ -656,6 +683,16 @@ async def wrap_stream_with_plan_trace(
                 yield ("trace", trace_evt)
 
             yield (event_name, payload)
+    except Exception as exc:
+        # 内层未转为 SSE error 的异常：补记 trace + checkpoint，再推给前端
+        from app.services.llm_error_mapper import format_llm_error_event
+
+        err_payload = format_llm_error_event(exc, code=50002, fallback_message="Agent 执行失败")
+        trace_evt = collector.record_sse("error", err_payload)
+        if trace_evt:
+            yield ("trace", trace_evt)
+        await _persist_error_to_history(err_payload)
+        yield ("error", err_payload)
     finally:
         # 无论正常结束还是异常，都尝试持久化 trace（含 plan 快照供历史恢复）
         try:

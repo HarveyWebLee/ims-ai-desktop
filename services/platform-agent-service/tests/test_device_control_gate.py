@@ -74,8 +74,8 @@ class TestPrepareDeviceControlHitlGate:
         assert gate.interrupt_payload["type"] == "ask_params"
         assert msg
 
-    def test_followup_with_recent_device_skips_device_picker(self):
-        """近期已明确设备时，通用下发不应再强制弹设备表（可只问变量）。"""
+    def test_followup_with_recent_device_does_not_regex_fill(self):
+        """近期用户句不再经正则填入 device_name；无唯一 focus 时设备槽留空交 HITL/模型。"""
         ctx = AgentContext(
             thread_id="t-ctx",
             message="给它下发指令",
@@ -86,19 +86,18 @@ class TestPrepareDeviceControlHitlGate:
             mock_resolve.return_value.is_complete.return_value = False
             mock_resolve.return_value.interrupt = {
                 "type": "ask_params",
-                "message": "请选择变量",
-                "fields": [{"type": "variable_picker", "name": "variable_name"}],
+                "message": "请选择设备",
+                "fields": [{"type": "device_picker", "name": "device_code"}],
             }
-            mock_resolve.return_value.to_tool_args.return_value = {
-                "device_name": "502_DLJ",
-            }
+            mock_resolve.return_value.to_tool_args.return_value = {}
             gate = prepare_device_control_hitl_gate(ctx)
             assert gate is not None
             mock_resolve.assert_called_once()
             kwargs = mock_resolve.call_args.kwargs
-            assert kwargs.get("device_name") == "502_DLJ"
+            assert not str(kwargs.get("device_name") or "").strip()
+            assert not str(kwargs.get("device_code") or "").strip()
             fields = gate.interrupt_payload.get("fields") or []
-            assert not any(f.get("type") == "device_picker" for f in fields)
+            assert any(f.get("type") == "device_picker" for f in fields)
 
     def test_instruction_dispatch_alias_same_as_generic(self):
         """「指令下发」与「下发指令」同走通用设备控制门控。"""

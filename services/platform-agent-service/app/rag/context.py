@@ -104,9 +104,9 @@ def retrieve_entity_blocks(
             payload = dict(h.get("payload") or {})
             terms = _entity_terms_from_payload(payload)
             title = (
-                str(payload.get("device_name") or "").strip()
+                str(payload.get("deviceName") or payload.get("device_name") or "").strip()
                 or str(payload.get("show_name") or "").strip()
-                or str(payload.get("device_code") or "").strip()
+                or str(payload.get("deviceCode") or payload.get("device_code") or "").strip()
                 or str(h.get("entity_key") or "").strip()
             )
             blocks.append(
@@ -128,11 +128,16 @@ def retrieve_entity_blocks(
 
 def _entity_terms_from_payload(payload: dict[str, Any]) -> list[str]:
     """从实体 payload 抽取设备名/编码、变量名等纠错候选。"""
+    # 设备同步已改为 camelCase；兼容历史 snake_case 与变量字段
     keys = (
+        "deviceName",
         "device_name",
+        "deviceCode",
         "device_code",
         "show_name",
         "var_name",
+        "commDeviceName",
+        "commDeviceCode",
     )
     seen: set[str] = set()
     terms: list[str] = []

@@ -1,4 +1,4 @@
-"""告警焦点与会话空槽回填单测。"""
+"""告警焦点构造单测（空槽回填已交由大模型，不再经 enrich）。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ from contracts.alarm_focus import (
     AlarmFocus,
     alarm_focus_from_tool_result,
 )
-from contracts.context import current_alarm_focus
 from contracts.conversation_context import (
     TurnContext,
     enrich_tool_args_from_conversation,
@@ -73,67 +72,28 @@ class TestAlarmFocusFromToolResult:
         assert focus.is_unique_alarm
 
 
-class TestEnrichUsesAlarmFocus:
-    def test_download_fills_time_from_focus_when_user_text_has_none(self):
+class TestEnrichNoLongerAppliesAlarmFocus:
+    def test_enrich_does_not_fill_from_focus(self):
+        """即便存在 AlarmFocus，enrich 也不再静默写入工具参数。"""
         focus = AlarmFocus(
             start_time="2026-08-01 00:00:00",
             end_time="2026-08-04 23:59:59",
             status="1",
-            total=88,
+            alarm_id="ALM-1",
+            total=1,
             source_tool="query_alarms",
         )
-        token = current_alarm_focus.set(focus)
-        try:
-            args = enrich_tool_args_from_conversation(
-                "download_file",
-                {"resource": "alarm_report", "start_time": "", "end_time": ""},
-                turn=TurnContext(utterance="导出一下", recent=()),
-            )
-            assert args["start_time"] == "2026-08-01 00:00:00"
-            assert args["end_time"] == "2026-08-04 23:59:59"
-            assert args["status"] == "1"
-        finally:
-            current_alarm_focus.reset(token)
-
-    def test_detail_fills_unique_alarm_id(self):
-        focus = AlarmFocus(alarm_id="ALM-1", total=1, source_tool="query_alarms")
-        token = current_alarm_focus.set(focus)
-        try:
-            args = enrich_tool_args_from_conversation(
-                "get_alarm_detail",
-                {"alarm_id": ""},
-                turn=TurnContext(utterance="打开这条详情", recent=()),
-            )
-            assert args["alarm_id"] == "ALM-1"
-        finally:
-            current_alarm_focus.reset(token)
-
-    def test_batch_unique_fills_alarm_ids(self):
-        focus = AlarmFocus(alarm_id="ALM-1", total=1, source_tool="query_alarms")
-        token = current_alarm_focus.set(focus)
-        try:
-            args = enrich_tool_args_from_conversation(
-                "batch_confirm_alarms",
-                {"alarm_ids": "", "start_time": "", "end_time": ""},
-                turn=TurnContext(utterance="确认这条", recent=()),
-            )
-            assert args["alarm_ids"] == "ALM-1"
-        finally:
-            current_alarm_focus.reset(token)
-
-    def test_does_not_overwrite_explicit_time(self):
-        focus = AlarmFocus(
-            start_time="2026-08-01 00:00:00",
-            end_time="2026-08-04 23:59:59",
-            source_tool="query_alarms",
+        assert focus.start_time
+        args = enrich_tool_args_from_conversation(
+            "download_file",
+            {"resource": "alarm_report", "start_time": "", "end_time": ""},
+            turn=TurnContext(utterance="导出一下", recent=()),
         )
-        token = current_alarm_focus.set(focus)
-        try:
-            args = enrich_tool_args_from_conversation(
-                "query_alarms",
-                {"start_time": "近七天", "end_time": ""},
-                turn=TurnContext(utterance="再查一遍", recent=()),
-            )
-            assert args["start_time"] == "近七天"
-        finally:
-            current_alarm_focus.reset(token)
+        assert args == {"resource": "alarm_report", "start_time": "", "end_time": ""}
+
+        detail = enrich_tool_args_from_conversation(
+            "get_alarm_detail",
+            {"alarm_id": ""},
+            turn=TurnContext(utterance="打开这条详情", recent=()),
+        )
+        assert detail == {"alarm_id": ""}

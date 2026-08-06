@@ -1,5 +1,7 @@
 # 01 — 系统上下文与部署
 
+> 组件部署见下文；**对话请求如何穿过这些组件**见 [`07-conversation-flow.md`](./07-conversation-flow.md)。
+
 ## 1. 组件图
 
 ```text

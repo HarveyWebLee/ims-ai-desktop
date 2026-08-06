@@ -62537,6 +62537,416 @@
         }
       }
     },
+    "/rs/delKeyWords": {
+      "post": {
+        "tags": ["rsApi"],
+        "summary": "批量删除关键词",
+        "description": "<p></p>",
+        "operationId": "createRsDelKeyWords",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRsDelKeyWordsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRsDelKeyWordsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rs/addKeyWords": {
+      "post": {
+        "tags": ["rsApi"],
+        "summary": "批量添加关键词",
+        "description": "<p></p>",
+        "operationId": "createRsCreateKeyWords",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRsCreateKeyWordsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRsCreateKeyWordsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rs/searchKeyWords": {
+      "post": {
+        "tags": ["rsApi"],
+        "summary": "近似排名查询关键词",
+        "description": "<p></p>",
+        "operationId": "createRsSearchKeyWords",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRsSearchKeyWordsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRsSearchKeyWordsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migrateDevice/execMigrateDevice": {
+      "post": {
+        "tags": ["migrateDeviceApi"],
+        "summary": "执行迁移",
+        "description": "",
+        "operationId": "createMigrateDeviceExecMigrateDevice",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMigrateDeviceExecMigrateDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateMigrateDeviceExecMigrateDeviceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migrateDevice/terminateMigrateTask": {
+      "post": {
+        "tags": ["migrateDeviceApi"],
+        "summary": "终止执行迁移",
+        "description": "<p></p>",
+        "operationId": "createMigrateDeviceTerminateMigrateTask",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMigrateDeviceTerminateMigrateTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateMigrateDeviceTerminateMigrateTaskResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migrateDevice/getMigrateDeviceStatusList": {
+      "post": {
+        "tags": ["migrateDeviceApi"],
+        "summary": "获取任务设备状态数据",
+        "description": "",
+        "operationId": "createMigrateDeviceGetMigrateDeviceStatusList",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMigrateDeviceGetMigrateDeviceStatusListRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateMigrateDeviceGetMigrateDeviceStatusListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migrateDevice/getMigrateTaskSource": {
+      "post": {
+        "tags": ["migrateDeviceApi"],
+        "summary": "获取任务资源数据",
+        "description": "<p></p>",
+        "operationId": "createMigrateDeviceGetMigrateTaskSource",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMigrateDeviceGetMigrateTaskSourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateMigrateDeviceGetMigrateTaskSourceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/logDeleteSharding/deleteLoginLogs": {
+      "post": {
+        "tags": ["logDeleteShardingApi"],
+        "summary": "删除登陆日志",
+        "description": "",
+        "operationId": "createLogDeleteShardingDeleteLoginLogs",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLogDeleteShardingDeleteLoginLogsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateLogDeleteShardingDeleteLoginLogsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/logDeleteSharding/deleteOperateLogs": {
+      "post": {
+        "tags": ["logDeleteShardingApi"],
+        "summary": "删除系统操作日志",
+        "description": "",
+        "operationId": "createLogDeleteShardingDeleteOperateLogs",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLogDeleteShardingDeleteOperateLogsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateLogDeleteShardingDeleteOperateLogsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/logDeleteSharding/deleteSystemLogs": {
+      "post": {
+        "tags": ["logDeleteShardingApi"],
+        "summary": "删除设备操作日志",
+        "description": "<p></p>",
+        "operationId": "createLogDeleteShardingDeleteSystemLogs",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLogDeleteShardingDeleteSystemLogsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateLogDeleteShardingDeleteSystemLogsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/dic/deleteMajor": {
       "post": {
         "tags": ["dictionaryApi"],
@@ -73328,7 +73738,12 @@
             "description": "增加通信设备启用状态"
           }
         },
-        "required": ["id", "collectServerId", "commDeviceName", "commDeviceCode"]
+        "required": [
+          "id",
+          "collectServerId",
+          "commDeviceName",
+          "commDeviceCode"
+        ]
       },
       "CreateServerDeleteCommDeviceResponse": {
         "type": "object",
@@ -73517,7 +73932,12 @@
             "description": "增加通信设备启用状态"
           }
         },
-        "required": ["id", "collectServerId", "commDeviceName", "commDeviceCode"]
+        "required": [
+          "id",
+          "collectServerId",
+          "commDeviceName",
+          "commDeviceCode"
+        ]
       },
       "CreateServerUpdateCommDeviceResponse": {
         "type": "object",
@@ -73667,7 +74087,12 @@
             "description": "增加通信设备启用状态"
           }
         },
-        "required": ["id", "collectServerId", "commDeviceName", "commDeviceCode"]
+        "required": [
+          "id",
+          "collectServerId",
+          "commDeviceName",
+          "commDeviceCode"
+        ]
       },
       "CreateServerCreateCommDeviceResponse": {
         "type": "object",
@@ -73841,7 +74266,12 @@
             "description": "增加通信设备启用状态"
           }
         },
-        "required": ["id", "collectServerId", "commDeviceName", "commDeviceCode"]
+        "required": [
+          "id",
+          "collectServerId",
+          "commDeviceName",
+          "commDeviceCode"
+        ]
       },
       "CreateServerGetProtocolParamsResponse": {
         "type": "object",
@@ -74001,7 +74431,12 @@
             "description": "增加通信设备启用状态"
           }
         },
-        "required": ["id", "collectServerId", "commDeviceName", "commDeviceCode"]
+        "required": [
+          "id",
+          "collectServerId",
+          "commDeviceName",
+          "commDeviceCode"
+        ]
       },
       "CreateServerGetCommDeviceByIdResponse": {
         "type": "object",
@@ -86849,7 +87284,13 @@
             "type": "string"
           }
         },
-        "required": ["taskName", "taskType", "showName", "cronExp", "taskStatus"]
+        "required": [
+          "taskName",
+          "taskType",
+          "showName",
+          "cronExp",
+          "taskStatus"
+        ]
       },
       "CreateScheduleTaskCreateScheduleTaskResponse": {
         "type": "object",
@@ -86893,7 +87334,14 @@
             "type": "string"
           }
         },
-        "required": ["id", "taskName", "taskType", "showName", "cronExp", "taskStatus"]
+        "required": [
+          "id",
+          "taskName",
+          "taskType",
+          "showName",
+          "cronExp",
+          "taskStatus"
+        ]
       },
       "CreateScheduleTaskUpdateScheduleTaskResponse": {
         "type": "object",
@@ -96382,7 +96830,14 @@
             "type": "string"
           }
         },
-        "required": ["id", "projectWarehouseCode", "temp", "hum", "checkTime", "checkPerson"]
+        "required": [
+          "id",
+          "projectWarehouseCode",
+          "temp",
+          "hum",
+          "checkTime",
+          "checkPerson"
+        ]
       },
       "CreateProjectSafeUpdateProjectCheckHumitureResponse": {
         "type": "object",
@@ -96768,7 +97223,13 @@
             "type": "string"
           }
         },
-        "required": ["projectWarehouseCode", "temp", "hum", "checkTime", "checkPerson"]
+        "required": [
+          "projectWarehouseCode",
+          "temp",
+          "hum",
+          "checkTime",
+          "checkPerson"
+        ]
       },
       "CreateProjectSafeCreateProjectCheckHumitureResponse": {
         "type": "object",
@@ -97603,7 +98064,12 @@
             "type": "string"
           }
         },
-        "required": ["id", "projectBastionName", "projectDeviceType", "deviceName"]
+        "required": [
+          "id",
+          "projectBastionName",
+          "projectDeviceType",
+          "deviceName"
+        ]
       },
       "CreateProjectQualityUpdateProjectDeviceResponse": {
         "type": "object",
@@ -98450,7 +98916,13 @@
             "type": "string"
           }
         },
-        "required": ["id", "projectDeviceName", "projectDeviceCode", "organizeName", "username"]
+        "required": [
+          "id",
+          "projectDeviceName",
+          "projectDeviceCode",
+          "organizeName",
+          "username"
+        ]
       },
       "CreateProjectUsualUpdateProjectDeviceDutyResponse": {
         "type": "object",
@@ -98972,7 +99444,12 @@
             "type": "string"
           }
         },
-        "required": ["projectDeviceName", "projectDeviceCode", "organizeName", "username"]
+        "required": [
+          "projectDeviceName",
+          "projectDeviceCode",
+          "organizeName",
+          "username"
+        ]
       },
       "CreateProjectUsualCreateProjectDeviceDutyResponse": {
         "type": "object",
@@ -113167,7 +113644,14 @@
             "description": ""
           }
         },
-        "required": ["id", "module", "errorType", "deviceCode", "errorInfo", "errorTime"]
+        "required": [
+          "id",
+          "module",
+          "errorType",
+          "deviceCode",
+          "errorInfo",
+          "errorTime"
+        ]
       },
       "CreateConfigErrorInfoUpdateConfigErrorInfoResponse": {
         "type": "object",
@@ -113230,7 +113714,14 @@
             "description": ""
           }
         },
-        "required": ["id", "module", "errorType", "deviceCode", "errorInfo", "errorTime"]
+        "required": [
+          "id",
+          "module",
+          "errorType",
+          "deviceCode",
+          "errorInfo",
+          "errorTime"
+        ]
       },
       "CreateConfigErrorInfoDelConfigErrorInfoResponse": {
         "type": "object",
@@ -113293,7 +113784,14 @@
             "description": ""
           }
         },
-        "required": ["id", "module", "errorType", "deviceCode", "errorInfo", "errorTime"]
+        "required": [
+          "id",
+          "module",
+          "errorType",
+          "deviceCode",
+          "errorInfo",
+          "errorTime"
+        ]
       },
       "CreateConfigErrorInfoCreateConfigErrorInfoResponse": {
         "type": "object",
@@ -113493,7 +113991,14 @@
                       }
                     }
                   },
-                  "required": ["id", "deviceName", "deviceCode", "varName", "showName", "realData"]
+                  "required": [
+                    "id",
+                    "deviceName",
+                    "deviceCode",
+                    "varName",
+                    "showName",
+                    "realData"
+                  ]
                 }
               },
               "total": {
@@ -114789,7 +115294,14 @@
             }
           }
         },
-        "required": ["id", "scheduleName", "scheduleConfig", "scheduleStatus", "cronRule", "ids"]
+        "required": [
+          "id",
+          "scheduleName",
+          "scheduleConfig",
+          "scheduleStatus",
+          "cronRule",
+          "ids"
+        ]
       },
       "CreateScheduleRuleUpdateScheduleRuleResponse": {
         "type": "object",
@@ -114865,7 +115377,14 @@
             }
           }
         },
-        "required": ["id", "scheduleName", "scheduleConfig", "scheduleStatus", "cronRule", "ids"]
+        "required": [
+          "id",
+          "scheduleName",
+          "scheduleConfig",
+          "scheduleStatus",
+          "cronRule",
+          "ids"
+        ]
       },
       "CreateScheduleRuleUpdateScheduleStatusResponse": {
         "type": "object",
@@ -114907,7 +115426,14 @@
             }
           }
         },
-        "required": ["id", "scheduleName", "scheduleConfig", "scheduleStatus", "cronRule", "ids"]
+        "required": [
+          "id",
+          "scheduleName",
+          "scheduleConfig",
+          "scheduleStatus",
+          "cronRule",
+          "ids"
+        ]
       },
       "CreateScheduleRuleDelScheduleRulesResponse": {
         "type": "object",
@@ -114949,7 +115475,14 @@
             }
           }
         },
-        "required": ["id", "scheduleName", "scheduleConfig", "scheduleStatus", "cronRule", "ids"]
+        "required": [
+          "id",
+          "scheduleName",
+          "scheduleConfig",
+          "scheduleStatus",
+          "cronRule",
+          "ids"
+        ]
       },
       "CreateScheduleRuleCreateScheduleRuleResponse": {
         "type": "object",
@@ -114991,7 +115524,14 @@
             }
           }
         },
-        "required": ["id", "scheduleName", "scheduleConfig", "scheduleStatus", "cronRule", "ids"]
+        "required": [
+          "id",
+          "scheduleName",
+          "scheduleConfig",
+          "scheduleStatus",
+          "cronRule",
+          "ids"
+        ]
       },
       "CreateScheduleRuleGetScheduleRuleResponse": {
         "type": "object",
@@ -115982,7 +116522,13 @@
             "type": "string"
           }
         },
-        "required": ["id", "backupTime", "backupModel", "backupType", "filePath"]
+        "required": [
+          "id",
+          "backupTime",
+          "backupModel",
+          "backupType",
+          "filePath"
+        ]
       },
       "CreateDataBackupDelBackupRecordResponse": {
         "type": "object",
@@ -116021,7 +116567,14 @@
             "type": "integer"
           }
         },
-        "required": ["id", "cronRule", "instanceNum", "status", "filePath", "backupType"]
+        "required": [
+          "id",
+          "cronRule",
+          "instanceNum",
+          "status",
+          "filePath",
+          "backupType"
+        ]
       },
       "CreateDataBackupManualBackupDataResponse": {
         "type": "object",
@@ -116193,7 +116746,14 @@
             "type": "integer"
           }
         },
-        "required": ["id", "cronRule", "instanceNum", "status", "filePath", "backupType"]
+        "required": [
+          "id",
+          "cronRule",
+          "instanceNum",
+          "status",
+          "filePath",
+          "backupType"
+        ]
       },
       "CreateDataBackupSetDataBackupConfigResponse": {
         "type": "object",
@@ -116232,7 +116792,14 @@
             "type": "string"
           }
         },
-        "required": ["serverIp", "serverPort", "username", "password", "status", "filePath"]
+        "required": [
+          "serverIp",
+          "serverPort",
+          "username",
+          "password",
+          "status",
+          "filePath"
+        ]
       },
       "CreateDataBackupSetDataBackupNodeInfoResponse": {
         "type": "object",
@@ -116268,7 +116835,13 @@
             "type": "string"
           }
         },
-        "required": ["id", "backupTime", "backupModel", "backupType", "filePath"]
+        "required": [
+          "id",
+          "backupTime",
+          "backupModel",
+          "backupType",
+          "filePath"
+        ]
       },
       "CreateDataBackupRecoverDbResponse": {
         "type": "object",
@@ -116434,7 +117007,14 @@
             "type": "string"
           }
         },
-        "required": ["startTime", "endTime", "devNoList", "page", "size", "taskNo"]
+        "required": [
+          "startTime",
+          "endTime",
+          "devNoList",
+          "page",
+          "size",
+          "taskNo"
+        ]
       },
       "CreateSysMonitorGetDevDataListResponse": {
         "type": "object",
@@ -116559,7 +117139,14 @@
             "type": "string"
           }
         },
-        "required": ["startTime", "endTime", "devNoList", "page", "size", "taskNo"]
+        "required": [
+          "startTime",
+          "endTime",
+          "devNoList",
+          "page",
+          "size",
+          "taskNo"
+        ]
       },
       "CreateAppv2SysMonitorGetDevDataListResponse": {
         "type": "object",
@@ -116684,7 +117271,14 @@
             "type": "string"
           }
         },
-        "required": ["startTime", "endTime", "devNoList", "page", "size", "taskNo"]
+        "required": [
+          "startTime",
+          "endTime",
+          "devNoList",
+          "page",
+          "size",
+          "taskNo"
+        ]
       },
       "CreateSysMonitorGetDevDataSimpleListResponse": {
         "type": "object",
@@ -116779,7 +117373,14 @@
             "type": "string"
           }
         },
-        "required": ["startTime", "endTime", "devNoList", "page", "size", "taskNo"]
+        "required": [
+          "startTime",
+          "endTime",
+          "devNoList",
+          "page",
+          "size",
+          "taskNo"
+        ]
       },
       "CreateAppv2SysMonitorGetDevDataSimpleListResponse": {
         "type": "object",
@@ -116929,7 +117530,14 @@
             "type": "string"
           }
         },
-        "required": ["startTime", "endTime", "devNoList", "page", "size", "taskNo"]
+        "required": [
+          "startTime",
+          "endTime",
+          "devNoList",
+          "page",
+          "size",
+          "taskNo"
+        ]
       },
       "CreateSysMonitorGetDevVarDataListResponse": {
         "type": "object",
@@ -117057,7 +117665,14 @@
             "type": "string"
           }
         },
-        "required": ["startTime", "endTime", "devNoList", "page", "size", "taskNo"]
+        "required": [
+          "startTime",
+          "endTime",
+          "devNoList",
+          "page",
+          "size",
+          "taskNo"
+        ]
       },
       "CreateAppv2SysMonitorGetDevVarDataListResponse": {
         "type": "object",
@@ -117195,7 +117810,14 @@
             "description": ""
           }
         },
-        "required": ["startTime", "endTime", "devNoList", "page", "size", "taskNo"],
+        "required": [
+          "startTime",
+          "endTime",
+          "devNoList",
+          "page",
+          "size",
+          "taskNo"
+        ],
         "description": "分页请求参数"
       },
       "CreateSysMonitorGetDevDataList2Response": {
@@ -118312,7 +118934,14 @@
             "description": ""
           }
         },
-        "required": ["startTime", "endTime", "devNoList", "page", "size", "taskNo"]
+        "required": [
+          "startTime",
+          "endTime",
+          "devNoList",
+          "page",
+          "size",
+          "taskNo"
+        ]
       },
       "CreateSysMonitorGetDevVarDataList2Response": {
         "type": "object",
@@ -119846,7 +120475,14 @@
             "description": ""
           }
         },
-        "required": ["id", "personName", "militaryName", "profession", "major", "skillLevel"]
+        "required": [
+          "id",
+          "personName",
+          "militaryName",
+          "profession",
+          "major",
+          "skillLevel"
+        ]
       },
       "CreatePositionPersonUpdatePositionPersonResponse": {
         "type": "object",
@@ -119900,7 +120536,14 @@
             "description": ""
           }
         },
-        "required": ["id", "personName", "militaryName", "profession", "major", "skillLevel"]
+        "required": [
+          "id",
+          "personName",
+          "militaryName",
+          "profession",
+          "major",
+          "skillLevel"
+        ]
       },
       "CreatePositionPersonDeletePositionPersonResponse": {
         "type": "object",
@@ -119954,7 +120597,14 @@
             "description": ""
           }
         },
-        "required": ["id", "personName", "militaryName", "profession", "major", "skillLevel"]
+        "required": [
+          "id",
+          "personName",
+          "militaryName",
+          "profession",
+          "major",
+          "skillLevel"
+        ]
       },
       "CreatePositionPersonCreatePositionPersonResponse": {
         "type": "object",
@@ -120008,7 +120658,14 @@
             "description": ""
           }
         },
-        "required": ["id", "personName", "militaryName", "profession", "major", "skillLevel"]
+        "required": [
+          "id",
+          "personName",
+          "militaryName",
+          "profession",
+          "major",
+          "skillLevel"
+        ]
       },
       "CreatePositionPersonGetPositionPersonResponse": {
         "type": "object",
@@ -120260,7 +120917,14 @@
             "description": ""
           }
         },
-        "required": ["id", "personName", "militaryName", "profession", "major", "skillLevel"]
+        "required": [
+          "id",
+          "personName",
+          "militaryName",
+          "profession",
+          "major",
+          "skillLevel"
+        ]
       },
       "CreatePositionPersonGetPositionPersonListResponse": {
         "type": "object",
@@ -121401,7 +122065,14 @@
             "type": "integer"
           }
         },
-        "required": ["id", "categoryName", "categoryPid", "isUse", "isReserve", "isMeterage"]
+        "required": [
+          "id",
+          "categoryName",
+          "categoryPid",
+          "isUse",
+          "isReserve",
+          "isMeterage"
+        ]
       },
       "CreateMisFacilityCategoryUpdateMisFacilityCategoryResponse": {
         "type": "object",
@@ -121461,7 +122132,13 @@
             "type": "integer"
           }
         },
-        "required": ["categoryName", "categoryPid", "isUse", "isReserve", "isMeterage"]
+        "required": [
+          "categoryName",
+          "categoryPid",
+          "isUse",
+          "isReserve",
+          "isMeterage"
+        ]
       },
       "CreateMisFacilityCategoryCreateMisFacilityCategoryResponse": {
         "type": "object",
@@ -123720,7 +124397,14 @@
             }
           }
         },
-        "required": ["sceneId", "taskManager", "taskSigner", "startTime", "endTime", "deviceCodes"]
+        "required": [
+          "sceneId",
+          "taskManager",
+          "taskSigner",
+          "startTime",
+          "endTime",
+          "deviceCodes"
+        ]
       },
       "CreateMisUpkeepTaskCreateMisUpkeepTaskResponse": {
         "type": "object",
@@ -127617,7 +128301,14 @@
             "description": "备注"
           }
         },
-        "required": ["flowVersion", "flowId", "flowCode", "flowName", "flowType", "sourceCode"],
+        "required": [
+          "flowVersion",
+          "flowId",
+          "flowCode",
+          "flowName",
+          "flowType",
+          "sourceCode"
+        ],
         "description": "事件流快照请求"
       },
       "CreateAppv2EventFlowVersionSaveResponse": {
@@ -130223,7 +130914,13 @@
             "type": "string"
           }
         },
-        "required": ["id", "fileCode", "fileName", "fileCategoryId", "fileLevel"]
+        "required": [
+          "id",
+          "fileCode",
+          "fileName",
+          "fileCategoryId",
+          "fileLevel"
+        ]
       },
       "CreateMisFileUpdateMisFileResponse": {
         "type": "object",
@@ -130655,7 +131352,12 @@
             "description": "限制表达式"
           }
         },
-        "required": ["sourceCode", "sourceName", "flowVersionId", "versionName"],
+        "required": [
+          "sourceCode",
+          "sourceName",
+          "flowVersionId",
+          "versionName"
+        ],
         "description": "事件来源请求"
       },
       "CreateAppv2EventSourceSaveResponse": {
@@ -130708,7 +131410,12 @@
             "description": "限制表达式"
           }
         },
-        "required": ["sourceCode", "sourceName", "flowVersionId", "versionName"],
+        "required": [
+          "sourceCode",
+          "sourceName",
+          "flowVersionId",
+          "versionName"
+        ],
         "description": "事件来源请求"
       },
       "CreateAppv2EventSourceUpdateIdResponse": {
@@ -133630,7 +134337,14 @@
             "type": "integer"
           }
         },
-        "required": ["id", "repairObject", "repairProject", "startTime", "endTime", "taskStatus"]
+        "required": [
+          "id",
+          "repairObject",
+          "repairProject",
+          "startTime",
+          "endTime",
+          "taskStatus"
+        ]
       },
       "CreateMisRepairTaskUpdateMisRepairTaskResponse": {
         "type": "object",
@@ -133764,7 +134478,13 @@
             "type": "integer"
           }
         },
-        "required": ["repairObject", "repairProject", "startTime", "endTime", "taskStatus"]
+        "required": [
+          "repairObject",
+          "repairProject",
+          "startTime",
+          "endTime",
+          "taskStatus"
+        ]
       },
       "CreateMisRepairTaskCreateMisRepairTaskResponse": {
         "type": "object",
@@ -137483,6 +138203,297 @@
                 }
               }
             }
+          }
+        }
+      },
+      "CreateRsDelKeyWordsRequest": {
+        "type": "object",
+        "properties": {
+          "keyWords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["keyWords"]
+      },
+      "CreateRsDelKeyWordsResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "CreateRsCreateKeyWordsRequest": {
+        "type": "object",
+        "properties": {
+          "keyWords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["keyWords"]
+      },
+      "CreateRsCreateKeyWordsResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "CreateRsSearchKeyWordsRequest": {
+        "type": "object",
+        "properties": {
+          "keyWord": {
+            "type": "string"
+          }
+        },
+        "required": ["keyWord"]
+      },
+      "CreateRsSearchKeyWordsResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "CreateMigrateDeviceExecMigrateDeviceRequest": {
+        "type": "object",
+        "properties": {
+          "migrateType": {
+            "type": "integer"
+          },
+          "oldServerId": {
+            "type": "integer"
+          },
+          "oldGateWayId": {
+            "type": "integer"
+          },
+          "newServerId": {
+            "type": "integer"
+          },
+          "newGateWayId": {
+            "type": "integer"
+          },
+          "deviceCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreateMigrateDeviceExecMigrateDeviceResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "CreateMigrateDeviceTerminateMigrateTaskRequest": {
+        "type": "object",
+        "properties": {
+          "taskNo": {
+            "type": "string"
+          }
+        },
+        "required": ["taskNo"]
+      },
+      "CreateMigrateDeviceTerminateMigrateTaskResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "CreateMigrateDeviceGetMigrateDeviceStatusListRequest": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "taskNo": {
+            "type": "integer"
+          },
+          "search": {
+            "type": "string"
+          }
+        },
+        "required": ["page", "size", "taskNo"]
+      },
+      "CreateMigrateDeviceGetMigrateDeviceStatusListResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "CreateMigrateDeviceGetMigrateTaskSourceRequest": {
+        "type": "object",
+        "properties": {
+          "taskNo": {
+            "type": "string"
+          }
+        },
+        "required": ["taskNo"]
+      },
+      "CreateMigrateDeviceGetMigrateTaskSourceResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "CreateLogDeleteShardingDeleteLoginLogsRequest": {
+        "type": "object",
+        "properties": {
+          "isAll": {
+            "type": "integer",
+            "description": "1-删除全部，0-部分删除"
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateLogDeleteShardingDeleteLoginLogsResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "CreateLogDeleteShardingDeleteOperateLogsRequest": {
+        "type": "object",
+        "properties": {
+          "isAll": {
+            "type": "integer"
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateLogDeleteShardingDeleteOperateLogsResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "CreateLogDeleteShardingDeleteSystemLogsRequest": {
+        "type": "object",
+        "properties": {
+          "isAll": {
+            "type": "integer"
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
+          },
+          "deviceNo": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateLogDeleteShardingDeleteSystemLogsResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {}
           }
         }
       },

@@ -204,3 +204,98 @@ describe("applyBpmnSnapshotToMessages", () => {
     expect(result).toEqual(messages);
   });
 });
+
+describe("enrichMessagesWithTraceRuns error recovery", () => {
+  it("synthesizes assistant bubble from trace error when checkpoint has no assistant", () => {
+    const messages: AiMessage[] = [userMessage("u1")];
+    const enriched = enrichMessagesWithTraceRuns(messages, [
+      {
+        run_id: "run-err",
+        events: [
+          {
+            id: "e1",
+            ts: 1,
+            kind: "error",
+            label: "当前模型免费额度已用尽或账户未开通按量付费",
+            detail: {
+              message: "当前模型免费额度已用尽或账户未开通按量付费",
+              data: { kind: "quota_exhausted", hint: "请开通按量付费或切换模型" },
+            },
+          },
+        ],
+      },
+    ]);
+
+    expect(enriched).toHaveLength(2);
+    expect(enriched[1].role).toBe("assistant");
+    expect(enriched[1].blocks[0]).toMatchObject({
+      type: "text",
+      content: expect.stringContaining("免费额度"),
+    });
+    expect(String((enriched[1].blocks[0] as { content: string }).content)).toContain("⚠️");
+    expect(enriched[1].traceEvents?.some((e) => e.kind === "error")).toBe(true);
+  });
+
+  it("appends error text when assistant exists but has no text blocks", () => {
+    const messages: AiMessage[] = [
+      userMessage("u1"),
+      assistantMessage({
+        id: "a-empty",
+        blocks: [],
+        planSteps: undefined,
+        planFlowDocument: null,
+      }),
+    ];
+    const enriched = enrichMessagesWithTraceRuns(messages, [
+      {
+        run_id: "run-2",
+        events: [
+          {
+            id: "e1",
+            ts: 1,
+            kind: "error",
+            label: "模型 API Key 无效",
+            detail: { message: "模型 API Key 无效、过期或未配置", data: { kind: "auth" } },
+          },
+        ],
+      },
+    ]);
+
+    expect(enriched).toHaveLength(2);
+    const text = enriched[1].blocks.find((b) => b.type === "text");
+    expect(text).toMatchObject({
+      type: "text",
+      content: expect.stringContaining("API Key"),
+    });
+  });
+
+  it("does not duplicate error text when assistant already has content", () => {
+    const messages: AiMessage[] = [
+      userMessage("u1"),
+      assistantMessage({
+        id: "a1",
+        blocks: [{ type: "text", content: "⚠️ 当前模型免费额度已用尽或账户未开通按量付费" }],
+      }),
+    ];
+    const enriched = enrichMessagesWithTraceRuns(messages, [
+      {
+        run_id: "run-3",
+        events: [
+          {
+            id: "e1",
+            ts: 1,
+            kind: "error",
+            label: "当前模型免费额度已用尽或账户未开通按量付费",
+            detail: {
+              message: "当前模型免费额度已用尽或账户未开通按量付费",
+              data: { hint: "请开通按量付费" },
+            },
+          },
+        ],
+      },
+    ]);
+
+    const texts = enriched[1].blocks.filter((b) => b.type === "text");
+    expect(texts).toHaveLength(1);
+  });
+});

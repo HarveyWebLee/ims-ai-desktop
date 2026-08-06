@@ -103,8 +103,14 @@ Python 侧使用官方只读连接参数（host / port / user / password），�
 
 | 业务 | 达梦表名            | 说明                                |
 | ---- | ------------------- | ----------------------------------- |
-| 设备 | `p_device`          | 专用文本模板（编码/名称等）         |
+| 设备 | `p_device`          | 白名单字段写入向量（见下）          |
 | 变量 | `p_device_variable` | 专用文本模板（设备编码 + 变量名等） |
+
+设备（`p_device`）同步到 `platform_entities` 的 payload **仅保留**与平台设备 API 对齐的字段：
+
+`id` / `deviceName` / `deviceCode` / `subSystemId` / `subSystemName` / `deviceGroupId` / `deviceGroupName` / `commDeviceId` / `commDeviceCode` / `commDeviceName` / `collectServerId` / `collectServerName` / `deviceCategoryId` / `deviceCategoryName` / `ipAddress` / `userName` / `location` / `lngLat`。
+
+**禁止**写入 `password`（即使达梦行含该列）。Embedding 正文由编码、名称、子系统/分组/网关/数采/类型、IP、位置等拼成，不含账号密码。变更字段后须重新触发实体同步以覆盖旧点。
 
 环境变量 **`ENTITY_SYNC_TABLES`** 控制「哪些表要转成向量」：
 

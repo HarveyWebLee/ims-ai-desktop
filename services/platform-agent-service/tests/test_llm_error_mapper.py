@@ -42,3 +42,25 @@ class TestLlmErrorMapper:
         event = format_llm_error_event(exc, fallback_message="自定义失败")
         assert event["message"] == "自定义失败"
         assert event["data"]["kind"] == "unknown"
+
+    def test_format_error_assistant_content_includes_hint(self):
+        from app.services.llm_error_mapper import format_error_assistant_content
+
+        event = format_llm_error_event(
+            Exception(
+                "Error code: 403 - {'error': {'message': 'The free quota has been exhausted.', "
+                "'type': 'AllocationQuota.FreeTierOnly'}}"
+            )
+        )
+        text = format_error_assistant_content(event)
+        assert text.startswith("⚠️")
+        assert "免费额度" in text
+        assert "按量付费" in text
+        assert "\n\n" in text
+
+    def test_format_error_assistant_content_none_payload(self):
+        from app.services.llm_error_mapper import format_error_assistant_content
+
+        text = format_error_assistant_content(None)
+        assert text.startswith("⚠️")
+        assert "失败" in text

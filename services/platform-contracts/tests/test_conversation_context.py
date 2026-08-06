@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-from contracts.context import (
-    current_recent_user_messages,
-    current_user_utterance,
-)
 from contracts.conversation_context import (
     TurnContext,
     enrich_tool_args_from_conversation,
@@ -19,6 +15,8 @@ from contracts.device_context import (
 
 
 class TestDeviceContext:
+    """device_context 纯文本抽取仍可供 Prompt/辅助分析，但不再写入 tool args。"""
+
     def test_control_and_paren_code(self):
         assert extract_device_token_from_text("给 502_DLJ 下发指令") == "502_DLJ"
         assert (
@@ -40,6 +38,21 @@ class TestDeviceContext:
         )
         assert token == "东大门"
 
+    def test_alarm_time_query_is_not_device_name(self):
+        assert extract_device_token_from_text("查询近一月的报警数据") is None
+        assert extract_device_token_from_text("查询近三天未确认告警") is None
+        assert (
+            infer_device_token_from_conversation(
+                "执行上面未完成的任务",
+                ["查询近一月的报警数据"],
+            )
+            is None
+        )
+
+    def test_device_of_alarm_still_extracts_name(self):
+        assert extract_device_token_from_text("查一下一号泵的报警") == "一号泵"
+        assert extract_device_token_from_text("查询东大门告警") == "东大门"
+
 
 class TestConversationContext:
     def test_followup_detection(self):
@@ -58,30 +71,29 @@ class TestConversationContext:
         assert "给它下发指令" not in merged
         assert merged[-2:] == ["查告警", "导出"]
 
-    def test_enrich_fills_device_and_time_when_empty(self):
-        ut = current_user_utterance.set("给它下发指令")
-        rt = current_recent_user_messages.set(("查近三天告警", "查一下502_DLJ"))
-        try:
-            device_args = enrich_tool_args_from_conversation(
-                "send_device_cmd",
-                {"action": "", "device_name": "", "device_code": ""},
-            )
-            assert device_args.get("device_code") == "502_DLJ" or device_args.get("device_name")
-
-            time_args = enrich_tool_args_from_conversation(
-                "query_alarms",
-                {"start_time": "", "end_time": ""},
-                turn=TurnContext(utterance="再查一遍", recent=("查近三天告警",)),
-            )
-            assert str(time_args.get("start_time") or "").strip()
-        finally:
-            current_user_utterance.reset(ut)
-            current_recent_user_messages.reset(rt)
-
-    def test_enrich_does_not_overwrite(self):
+    def test_enrich_is_passthrough_no_regex_fill(self):
+        """enrich 分路已关闭：不从会话正则补 device/time。"""
         args = enrich_tool_args_from_conversation(
             "send_device_cmd",
-            {"device_name": "已指定设备"},
-            turn=TurnContext(utterance="给它下发", recent=("查一下502_DLJ",)),
+            {"action": "", "device_name": "", "device_code": ""},
+            turn=TurnContext(utterance="给它下发指令", recent=("查一下502_DLJ",)),
         )
-        assert args["device_name"] == "已指定设备"
+        assert args == {"action": "", "device_name": "", "device_code": ""}
+
+        time_args = enrich_tool_args_from_conversation(
+            "query_alarms",
+            {"start_time": "", "end_time": ""},
+            turn=TurnContext(utterance="再查一遍", recent=("查近三天告警",)),
+        )
+        assert time_args == {"start_time": "", "end_time": ""}
+
+    def test_enrich_preserves_explicit_args(self):
+        args = enrich_tool_args_from_conversation(
+            "query_alarms",
+            {"start_time": "近一月", "end_time": ""},
+            turn=TurnContext(
+                utterance="执行上面未完成的任务",
+                recent=("查询近一月的报警数据",),
+            ),
+        )
+        assert args == {"start_time": "近一月", "end_time": ""}

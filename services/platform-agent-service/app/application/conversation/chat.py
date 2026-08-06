@@ -121,6 +121,7 @@ async def stream_chat_core(
             thread_id=thread_id,
             run_mode=mode,
             domains=sorted(subset.domains),
+            strategy=subset.strategy,
             fallback_full=subset.fallback_full,
             tools=sorted(subset.tool_names),
         )
@@ -289,6 +290,7 @@ async def stream_chat(
         run_id=str(uuid.uuid4()),
         user_id=user_id,
         user_message=message,
+        model_id=model_id,
         plan_steps=None,
         auto_replan=False,
     ):

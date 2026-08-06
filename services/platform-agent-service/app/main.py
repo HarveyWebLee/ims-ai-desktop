@@ -33,9 +33,14 @@ from app.api.bpmn import (
     BpmnValidateRequest,
 )
 from app.api.client_action_result import ClientActionResultBody
-from app.api.entities import EntitySearchBody
+from app.api.entities import EntityDropBody, EntitySearchBody
 from app.api.entity_sync import EntitySyncRequest
-from app.api.knowledge import KnowledgeDeleteBody, KnowledgeExportBody, KnowledgeSearchBody
+from app.api.knowledge import (
+    KnowledgeDeleteBody,
+    KnowledgeDropBody,
+    KnowledgeExportBody,
+    KnowledgeSearchBody,
+)
 from app.api.voiceprints import VoiceprintCreateBody, VoiceprintUpdateBody
 from app.config import settings
 from app.models.router import has_real_model_credentials
@@ -370,6 +375,17 @@ async def post_entity_search(
     return await entities_api.entity_search(body, authorization)
 
 
+@app.post("/api/agent/entities/drop-collection")
+async def post_entity_drop_collection(
+    body: EntityDropBody,
+    authorization: str | None = Header(default=None),
+):
+    """清空实体术语 collection（须 confirm=true；换 Embedding 后重建用）。"""
+    from app.api import entities as entities_api
+
+    return await entities_api.entity_drop_collection(body, authorization)
+
+
 @app.get("/api/agent/knowledge/stats")
 async def get_knowledge_stats(authorization: str | None = Header(default=None)):
     """文档知识库统计（Qdrant platform_knowledge）。"""
@@ -434,6 +450,49 @@ async def post_knowledge_ingest(
     return await knowledge_api.knowledge_ingest(file, authorization)
 
 
+@app.post("/api/agent/knowledge/ingest-jobs")
+async def post_knowledge_ingest_job_create(
+    authorization: str | None = Header(default=None),
+):
+    """创建批量入库任务。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_ingest_job_create(authorization)
+
+
+@app.post("/api/agent/knowledge/ingest-jobs/{job_id}/files")
+async def post_knowledge_ingest_job_append(
+    job_id: str,
+    files: Annotated[list[UploadFile], File()],
+    authorization: str | None = Header(default=None),
+):
+    """向入库任务分片追加文件（落盘入队，不立即向量化）。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_ingest_job_append(job_id, files, authorization)
+
+
+@app.post("/api/agent/knowledge/ingest-jobs/{job_id}/commit")
+async def post_knowledge_ingest_job_commit(
+    job_id: str,
+    authorization: str | None = Header(default=None),
+):
+    """提交入库任务，后台逐文件处理。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_ingest_job_commit(job_id, authorization)
+
+
+@app.get("/api/agent/knowledge/ingest-jobs/active")
+async def get_knowledge_ingest_job_active(
+    authorization: str | None = Header(default=None),
+):
+    """当前用户最近入库任务（跨页进度回显）。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_ingest_job_status(authorization)
+
+
 @app.post("/api/agent/knowledge/replace")
 async def post_knowledge_replace(
     file: Annotated[UploadFile, File()],
@@ -462,10 +521,21 @@ async def delete_knowledge_by_source(
     body: KnowledgeDeleteBody,
     authorization: str | None = Header(default=None),
 ):
-    """按 payload.source 精确删除（不提供 drop collection）。"""
+    """按 payload.source 精确删除。"""
     from app.api import knowledge as knowledge_api
 
     return await knowledge_api.knowledge_delete(body, authorization)
+
+
+@app.post("/api/agent/knowledge/drop-collection")
+async def post_knowledge_drop_collection(
+    body: KnowledgeDropBody,
+    authorization: str | None = Header(default=None),
+):
+    """清空文档知识 collection（须 confirm=true；换 Embedding 后重建用）。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_drop_collection(body, authorization)
 
 
 @app.get("/api/agent/voiceprints")

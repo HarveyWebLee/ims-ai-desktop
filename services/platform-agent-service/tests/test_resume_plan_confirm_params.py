@@ -25,12 +25,17 @@ def _merge_like_parent_graph(
 
 
 def test_merge_plan_params_for_new_download_step():
+    """规则 infer 不再抽参；同计划 query→export 由 propagate 复用查询筛选。"""
     steps = [
         {"id": "1", "label": "查询告警", "tool": "query_alarms", "status": "pending"},
         {"id": "2", "label": "导出报表", "tool": "download_file", "status": "pending"},
     ]
     existing = {
-        "query_alarms": {"start_time": "近三天", "end_time": "现在"},
+        "query_alarms": {
+            "start_time": "近三天",
+            "end_time": "现在",
+            "status": "未处理",
+        },
     }
 
     merged = _merge_like_parent_graph(
@@ -41,7 +46,8 @@ def test_merge_plan_params_for_new_download_step():
 
     assert merged["query_alarms"]["start_time"] == "近三天"
     assert merged["download_file"]["resource"] == "alarm_report"
-    assert str(merged["download_file"].get("status") or "").strip()
+    assert merged["download_file"]["start_time"] == "近三天"
+    assert str(merged["download_file"].get("status") or "").strip() == "未处理"
 
 
 def test_merge_plan_params_drops_removed_tool():

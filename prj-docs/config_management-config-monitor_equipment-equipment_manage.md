@@ -1,0 +1,886 @@
+# 设备管理（equipment_manage）知识库
+
+## 0. 路由与归属信息
+
+| 项                 | 内容                                                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| 模块名称（中文）   | 设备管理                                                                                                         |
+| 模块名称（英文）   | Equipment Management                                                                                             |
+| 所属 Group（中文） | 监控设备                                                                                                         |
+| 所属 Group（英文） | Monitor Equipment                                                                                                |
+| Group ID           | `monitor_equipment`                                                                                              |
+| 菜单位置           | 配置管理平台 → 配置管理 → 监控设备 → 设备管理                                                                    |
+| 路由路径           | `/config_management/config/equipment_manage`                                                                     |
+| 页面目录           | `src/pages/config_management/config/monitor_equipment/equipment_manage`                                          |
+| 选型复用路由       | `/module_manage/select/device`（模块管理-选择设备，复用本页面；可通过 `isSelect`、`isMulti` 等参数进入选择模式） |
+
+## 1. 模块定位与项目作用
+
+设备管理是综合信息平台「配置管理」域下的核心基础模块，位于监控设备配置体系中。它负责维护平台内所有监控设备的主数据（身份、归属、通信、协议、权限与运维信息），是设备变量、告警、历史数据、2D 组态、流程自动化、数采驱动等业务链路的上游数据源。
+
+在整个项目中，本模块承担以下作用：
+
+- **设备主数据中心**：统一维护设备名称、编码、分组、子系统、区域、类型等组织与分类信息。
+- **通信拓扑入口**：定义设备如何接入平台（数采通信、网关通信、网关设备、无通信），并关联数采服务器与通信网关。
+- **协议与驱动配置载体**：绑定通讯协议及协议参数，供数采驱动解析与采集。
+- **运行态管控入口**：支持启用/停用、布防/撤防、在线状态检测、访问权限与操作密码等运维操作。
+- **下游模块选型基础**：告警查询、历史数据、设备动态属性、设备变量、设备迁移、连接拓扑图、设备选择器等模块均依赖本模块维护的设备清单与字段定义。
+
+设备配置变更（尤其是导入、批量修改）后，通常需要到「数采服务器」管理页面对相关驱动执行「更新配置」，变更才会真正生效。
+
+---
+
+## 2. 页面与交互结构
+
+页面采用「左侧树筛选 + 右侧列表/表单」的配置管理通用布局。
+
+### 2.1 左侧树筛选
+
+支持按以下维度切换树并过滤设备列表：
+
+| 树类型   | 作用                     |
+| -------- | ------------------------ |
+| 设备分组 | 按设备分组树筛选设备     |
+| 区域     | 按区域树筛选设备         |
+| 设备类型 | 按监控设备类型树筛选设备 |
+
+新建设备时，可从当前选中的设备分组节点自动带入分组信息。
+
+### 2.2 列表与表单
+
+- 列表支持分页查询、条件过滤、勾选批量操作、导入导出、复制、编辑、删除。
+- 表单用于新增/编辑设备详情，字段较多，覆盖身份、归属、通信、协议、权限、运维等信息。
+- 默认列表查询会排除「网关设备」通信模式（仅查数采通信、网关通信、无通信三类），避免与网关设备管理场景混淆；也可按通信模式精确筛选。
+
+### 2.3 选择模式（嵌入选型）
+
+通过 URL 参数进入选择模式后，页面可作为设备选择器嵌入其他页面或 iframe：
+
+- 单选或多选
+- 隐藏新建、导出、编辑、导入等管理按钮
+- 将勾选结果通过消息回传给父窗口
+
+该能力使设备管理既是管理页，也是平台内通用的设备选型数据源。
+
+---
+
+## 3. 属性字段说明
+
+以下字段为设备主数据及表单/列表中涉及的核心属性。部分字段成对出现：一端为选择控件提交的 ID，一端为列表展示或导出用的名称。
+
+### 3.1 基础身份
+
+| 字段名           | 中文含义         | 作用说明                                                                                                                    |
+| ---------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| id               | 主键 ID          | 设备唯一标识，系统内部引用、更新、删除使用                                                                                  |
+| deviceName       | 设备名称         | 业务可见名称，必填；支持搜索过滤与默认列表展示                                                                              |
+| deviceCode       | 设备编码         | 业务唯一编码，必填；批量启用/停用、布防、离线检测、权限设置等均以编码为操作键；下游变量、指令、实时数据也依赖该编码关联设备 |
+| deviceStatus     | 启用状态         | 控制设备是否启用（启用/停用）；停用后通常不再参与正常采集与业务调度                                                         |
+| onlineStatus     | 在线状态         | 运行态：离线、在线、异常；列表以色标展示，搜索可按离线/在线过滤                                                             |
+| onlineStatusName | 在线状态名称     | 在线状态的展示/导出用文本                                                                                                   |
+| isTemplate       | 是否为模板设备   | 标记该设备是否可作为模板；模板设备可被普通设备引用为父模板                                                                  |
+| templateId       | 父模板设备 ID    | 关联模板设备，便于从模板继承结构或批量复制                                                                                  |
+| templateName     | 父模板设备名称   | 父模板的展示名称                                                                                                            |
+| alertInterval    | 告警间隔（分钟） | 设备级告警抑制或间隔控制参数                                                                                                |
+| defenceStatus    | 撤布防状态       | 布防/撤防；影响安防类业务对设备的防护策略                                                                                   |
+| remark           | 备注             | 自由文本说明                                                                                                                |
+
+### 3.2 组织归属
+
+| 字段名             | 中文含义         | 作用说明                                            |
+| ------------------ | ---------------- | --------------------------------------------------- |
+| deviceGroupId      | 设备分组 ID      | 必填；设备归属的分组节点，决定树筛选与权限/组织视图 |
+| deviceGroupName    | 设备分组名称     | 分组展示名                                          |
+| subSystemId        | 所属子系统 ID    | 必填；设备归属的业务子系统（从菜单树二级节点选取）  |
+| subSystemName      | 所属子系统名称   | 子系统展示名                                        |
+| regionId           | 所属区域 ID      | 设备物理/逻辑区域归属                               |
+| regionName         | 所属区域名称     | 区域展示名                                          |
+| location           | 所在位置         | 更细粒度的位置描述文本                              |
+| lngLat             | 经纬度           | 地图定位坐标，用于空间展示或 GIS 相关能力           |
+| deviceCategoryId   | 监控设备类型 ID  | 必填；设备分类，影响类型树筛选及同类设备管理        |
+| deviceCategoryName | 监控设备类型名称 | 类型展示名                                          |
+
+### 3.3 通信与接入
+
+| 字段名            | 中文含义                  | 作用说明                                                                             |
+| ----------------- | ------------------------- | ------------------------------------------------------------------------------------ |
+| commModel         | 通信模式                  | 必填；决定设备如何接入平台。可选：数采通信、网关通信、网关设备、无                   |
+| commDeviceId      | 通信网关 ID               | 通信模式为「网关通信」时必填；指向充当网关的设备                                     |
+| commDeviceName    | 通信网关名称              | 网关展示名                                                                           |
+| commDeviceCode    | 网关编码                  | 关联网关设备的编码                                                                   |
+| collectServerId   | 代理设备 / 数采服务器 ID  | 通信模式为数采通信或网关通信时必填；关联驱动类型数采服务器，是设备与采集驱动的桥梁   |
+| collectServerName | 代理设备 / 数采服务器名称 | 数采服务器展示名                                                                     |
+| protocolId        | 通讯协议 ID               | 绑定设备使用的通讯协议字典项                                                         |
+| protocolName      | 通讯协议名称              | 协议展示名                                                                           |
+| protocolParams    | 协议参数                  | 随所选协议动态生成的参数集合（保存时序列化）；切换协议时会清空旧参数，避免串协议配置 |
+
+通信模式业务含义简述：
+
+1. **数采通信**：设备直接由数采服务器驱动采集，必须关联数采服务器。
+2. **网关通信**：设备通过通信网关接入，必须关联网关；选择网关时可自动带出网关上的数采服务器。
+3. **网关设备**：设备本身作为网关（本页默认列表通常排除此类）。
+4. **无**：不走数采/网关通信链路，保存时会清空网关与数采关联。
+
+### 3.4 厂商、型号与接入账号
+
+| 字段名       | 中文含义 | 作用说明                                                                                          |
+| ------------ | -------- | ------------------------------------------------------------------------------------------------- |
+| manufacturer | 生产厂家 | 如摄像头-海康、摄像头-燧石、广播-世邦、广播-湖山等；影响型号可选范围                              |
+| model        | 规格型号 | 在特定厂家下为必填；例如世邦/湖山广播可选控制主机、对讲终端、音频广播；燧石摄像头可选对应型号清单 |
+| userName     | 设备账号 | 访问设备本体所需账号                                                                              |
+| password     | 设备密码 | 访问设备本体所需密码                                                                              |
+| ipAddress    | IP 地址  | 设备网络地址，列表默认可展示                                                                      |
+
+### 3.5 权限与安全
+
+| 字段名                  | 中文含义     | 作用说明                                       |
+| ----------------------- | ------------ | ---------------------------------------------- |
+| accessPermissionControl | 设备访问权限 | 是否启用访问权限控制（启用/禁用）              |
+| operationPassword       | 操作密码     | 受控操作时使用的密码；支持单设备配置与批量授权 |
+
+### 3.6 运维与多媒体
+
+| 字段名               | 中文含义     | 作用说明                           |
+| -------------------- | ------------ | ---------------------------------- |
+| firstUseTime         | 首次使用时间 | 设备投入使用时间                   |
+| devicePic            | 照片         | 设备图片，上传至对象存储后保存 URL |
+| maintenanceSituation | 保养情况     | 保养记录描述                       |
+| repairSituation      | 检修情况     | 检修记录描述                       |
+
+---
+
+## 4. 功能清单
+
+### 4.1 基础 CRUD
+
+- 新建设备
+- 编辑设备
+- 删除设备
+- 查看列表与详情
+- 按树节点与表单条件查询
+
+### 4.2 导入导出
+
+- 导出设备列表
+- 勾选导出
+- 导入设备（建议单次不超过约 3000 台）
+- 批量修改导入
+
+导入或批量修改成功后，系统会提示前往数采服务器页面执行驱动「更新配置」。
+
+### 4.3 复制设备及变量
+
+- 普通设备：复制设备及其变量
+- 模板设备：复制模板设备及变量，并可指定新设备是否仍为模板
+
+复制时需填写新设备名称、新设备编码，以及是否作为模板设备。该功能与设备变量模块强相关，可快速克隆同类设备点位体系。
+
+### 4.4 运行态批量/单行操作
+
+| 功能                    | 说明                           |
+| ----------------------- | ------------------------------ |
+| 批量/单行启用           | 将设备置为启用                 |
+| 批量/单行停用           | 将设备置为停用（需确认）       |
+| 批量/单行布防           | 将设备置为布防                 |
+| 批量/单行撤防           | 将设备置为撤防                 |
+| 批量离线设置 / 状态检测 | 触发设备离线相关状态检测或设置 |
+| 批量授权                | 统一设置访问权限开关与操作密码 |
+
+### 4.5 选择模式
+
+- 作为通用设备选择页被其他功能嵌入
+- 支持单选、多选
+- 将选中设备回传给调用方
+
+---
+
+## 5. 与其他功能模块的关系
+
+### 5.1 上游依赖
+
+| 关联模块/能力          | 关系说明                                     |
+| ---------------------- | -------------------------------------------- |
+| 设备分组               | 提供设备分组树，设备必须归属分组             |
+| 区域管理               | 提供区域树，用于位置归属与树筛选             |
+| 子系统（菜单树）       | 提供子系统选项，设备归属业务子系统           |
+| 设备类型 / 设备分类树  | 提供监控设备类型                             |
+| 数采服务器             | 提供驱动型采集服务，设备通过代理设备字段关联 |
+| 通讯协议字典与协议参数 | 定义协议及动态参数表单项                     |
+| 对象存储（图片上传）   | 存储设备照片                                 |
+
+### 5.2 下游消费
+
+| 关联模块                                  | 关系说明                                                                           |
+| ----------------------------------------- | ---------------------------------------------------------------------------------- |
+| 设备变量（var）                           | 变量必须挂在监控设备上；设备管理提供设备选型与字段定义复用；支持「复制设备及变量」 |
+| 二次变量、变量告警、实时变量数据          | 以设备/变量为业务对象，最终追溯到本模块设备主数据                                  |
+| 设备动态属性                              | 按设备配置动态属性                                                                 |
+| 设备迁移                                  | 迁移对象即为本模块维护的设备，调整其数采/网关归属                                  |
+| 设备连接拓扑图                            | 可视化设备与网关、数采之间的连接关系                                               |
+| 历史数据查询 / 设备注册索引               | 按设备筛选历史或注册数据                                                           |
+| 告警信息查询 / 统计                       | 按设备维度查询与统计告警                                                           |
+| 2D 组态 / 页面编辑                        | 绑定设备与设备变量做可视化展示与控制                                               |
+| 流程自动化（Flowgram）                    | 节点中选择设备执行自动化逻辑                                                       |
+| 通信配置、岗哨信息等配置页                | 复用设备列表或设备字段能力                                                         |
+| 通用组件（设备选择器、DeviceVariable 等） | 复用通信模式枚举、设备列表接口与字段定义                                           |
+
+### 5.3 同域兄弟模块
+
+本模块与「监控设备」目录下的设备迁移、设备连接拓扑图、设备动态属性共同构成监控设备配置闭环：
+
+- 设备管理：建档与日常运维
+- 动态属性：扩展设备运行属性
+- 连接拓扑图：看清接入关系
+- 设备迁移：调整接入归属而不重建主数据
+
+---
+
+## 6. 关键业务规则与注意事项
+
+1. **通信模式决定必填项**：数采通信必须关联数采服务器；网关通信必须关联网关。
+2. **列表默认排除网关设备**：普通设备管理列表默认不包含通信模式为「网关设备」的记录。
+3. **协议切换清空旧参数**：更换通讯协议后旧协议参数不可保留，避免错误下发驱动。
+4. **厂家决定型号约束**：广播世邦/湖山、摄像头燧石等厂家下型号为必填且选项受厂家限制。
+5. **模板机制**：模板设备可用于快速复制同类设备与变量结构；普通设备可挂父模板。
+6. **配置生效依赖驱动更新**：导入、批量修改等操作完成后，需在数采服务器管理页更新驱动配置。
+7. **设备编码是跨模块主键语义**：大量运行态接口与实时链路以设备编码而非仅主键 ID 关联。
+8. **选择模式与管理模式行为不同**：嵌入选型时隐藏管理类操作，避免误改主数据。
+
+---
+
+## 7. 在配置管理链路中的位置（总结）
+
+设备管理是「监控设备 → 设备变量 → 采集/告警/历史/可视化/控制」整条链路的起点。没有正确的设备主数据与通信拓扑，后续变量点位、数采驱动、告警规则、组态绑点、自动化控制均无法稳定工作。因此本模块在项目中属于高影响面的基础配置模块，变更时需同时关注通信模式、协议参数、数采关联及对下游变量体系的影响。
+
+## 8. 接口清单
+
+以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自 `swaggerApi.json`（若可匹配）。
+
+### 8.1 获取设备分组树
+
+| 项          | 内容                                  |
+| ----------- | ------------------------------------- |
+| 接口路径    | `/device/getDeviceGroupTree`          |
+| 请求方法    | `POST`                                |
+| 前端封装    | `SystemController.getDeviceGroupTree` |
+| Swagger Tag | deviceManagementApi                   |
+| 作用说明    | 获取设备分组树                        |
+
+**请求参数（Body）：**
+
+_无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 未展开）。_
+
+**响应体：**
+
+| 字段         | 类型            | 说明 |
+| ------------ | --------------- | ---- |
+| `code`       | `integer`       |      |
+| `message`    | `string`        |      |
+| `data`       | `array<object>` |      |
+| `data[].key` | `object`        |      |
+
+---
+
+### 8.2 获取菜单树
+
+| 项          | 内容                           |
+| ----------- | ------------------------------ |
+| 接口路径    | `/menu/getMenuTree`            |
+| 请求方法    | `POST`                         |
+| 前端封装    | `SystemController.getMenuTree` |
+| Swagger Tag | menuManagementApi              |
+| 作用说明    | 获取菜单树                     |
+
+**请求参数（Body）：**
+
+_无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 未展开）。_
+
+**响应体：**
+
+| 字段      | 类型      | 说明 |
+| --------- | --------- | ---- |
+| `code`    | `integer` |      |
+| `message` | `string`  |      |
+| `data`    | `object`  |      |
+
+---
+
+### 8.3 获取设备列表
+
+| 项          | 内容                             |
+| ----------- | -------------------------------- |
+| 接口路径    | `/device/getDeviceList`          |
+| 请求方法    | `POST`                           |
+| 前端封装    | `SystemController.getDeviceList` |
+| Swagger Tag | deviceManagementApi              |
+| 作用说明    | 获取设备列表                     |
+
+**请求参数（Body）：**
+
+| 字段              | 类型             | 说明                                       |
+| ----------------- | ---------------- | ------------------------------------------ |
+| `page`            | `integer`        |                                            |
+| `size`            | `integer`        |                                            |
+| `search`          | `string`         |                                            |
+| `fieldList`       | `array<string>`  |                                            |
+| `sorter`          | `array<object>`  |                                            |
+| `sorter[].order`  | `string`         |                                            |
+| `sorter[].field`  | `string`         |                                            |
+| `deviceCode`      | `string`         |                                            |
+| `deviceName`      | `string`         |                                            |
+| `deviceGroupId`   | `integer`        |                                            |
+| `subSystemId`     | `integer`        |                                            |
+| `regionId`        | `integer`        |                                            |
+| `deviceStatus`    | `integer`        |                                            |
+| `onlineStatus`    | `integer`        |                                            |
+| `commDeviceId`    | `integer`        |                                            |
+| `collectServerId` | `integer`        |                                            |
+| `deviceCombId`    | `integer`        | 新增组合设备查询                           |
+| `isTemplate`      | `integer`        | 新增是否模板设备查询                       |
+| `containSubLevel` | `integer`        | 新增是否包含下级查询                       |
+| `commModel`       | `array<integer>` | 新增通信模式字段（1-直接，2-间接，3-网关） |
+
+**响应体：**
+
+| 字段      | 类型      | 说明 |
+| --------- | --------- | ---- |
+| `code`    | `integer` |      |
+| `message` | `string`  |      |
+| `data`    | `object`  |      |
+
+---
+
+### 8.4 获取区域树
+
+| 项          | 内容                             |
+| ----------- | -------------------------------- |
+| 接口路径    | `/region/getRegionTree`          |
+| 请求方法    | `GET`                            |
+| 前端封装    | `SystemController.getRegionTree` |
+| Swagger Tag | regionManagementApi              |
+| 作用说明    | 获取区域树                       |
+
+**请求参数（Body）：**
+
+_无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 未展开）。_
+
+**响应体：**
+
+| 字段         | 类型            | 说明 |
+| ------------ | --------------- | ---- |
+| `code`       | `integer`       |      |
+| `message`    | `string`        |      |
+| `data`       | `array<object>` |      |
+| `data[].key` | `object`        |      |
+
+---
+
+### 8.5 获取数据采集服务器分页列表
+
+| 项          | 内容                                    |
+| ----------- | --------------------------------------- |
+| 接口路径    | `/server/getCollectServerList`          |
+| 请求方法    | `POST`                                  |
+| 前端封装    | `SystemController.getCollectServerList` |
+| Swagger Tag | serverManagementApi                     |
+| 作用说明    | 获取数据采集服务器分页列表              |
+
+**请求参数（Body）：**
+
+| 字段        | 类型            | 说明 |
+| ----------- | --------------- | ---- |
+| `page`      | `integer`       |      |
+| `size`      | `integer`       |      |
+| `search`    | `string`        |      |
+| `fieldList` | `array<string>` |      |
+
+**响应体：**
+
+| 字段      | 类型      | 说明 |
+| --------- | --------- | ---- |
+| `code`    | `integer` |      |
+| `message` | `string`  |      |
+| `data`    | `object`  |      |
+
+---
+
+### 8.6 获取设备类型树
+
+| 项          | 内容                                     |
+| ----------- | ---------------------------------------- |
+| 接口路径    | `/device/getDeviceCategoryTree`          |
+| 请求方法    | `POST`                                   |
+| 前端封装    | `SystemController.getDeviceCategoryTree` |
+| Swagger Tag | deviceManagementApi                      |
+| 作用说明    | 获取设备类型树                           |
+
+**请求参数（Body）：**
+
+_无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 未展开）。_
+
+**响应体：**
+
+| 字段         | 类型            | 说明 |
+| ------------ | --------------- | ---- |
+| `code`       | `integer`       |      |
+| `message`    | `string`        |      |
+| `data`       | `array<object>` |      |
+| `data[].key` | `object`        |      |
+
+---
+
+### 8.7 获取通讯协议字典
+
+| 项          | 内容                              |
+| ----------- | --------------------------------- |
+| 接口路径    | `/server/getProtocolDic`          |
+| 请求方法    | `GET`                             |
+| 前端封装    | `SystemController.getProtocolDic` |
+| Swagger Tag | serverManagementApi               |
+| 作用说明    | 获取通讯协议字典                  |
+
+**请求参数（Body）：**
+
+_无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 未展开）。_
+
+**响应体：**
+
+| 字段           | 类型            | 说明 |
+| -------------- | --------------- | ---- |
+| `code`         | `integer`       |      |
+| `message`      | `string`        |      |
+| `data`         | `array<object>` |      |
+| `data[].id`    | `integer`       |      |
+| `data[].name`  | `string`        |      |
+| `data[].cname` | `string`        |      |
+
+---
+
+### 8.8 获取通信协议参数
+
+| 项          | 内容                                 |
+| ----------- | ------------------------------------ |
+| 接口路径    | `/server/getProtocolParams`          |
+| 请求方法    | `POST`                               |
+| 前端封装    | `SystemController.getProtocolParams` |
+| Swagger Tag | serverManagementApi                  |
+| 作用说明    | 获取通信协议参数                     |
+
+**请求参数（Body）：**
+
+| 字段                  | 类型             | 说明                 |
+| --------------------- | ---------------- | -------------------- |
+| `id`                  | `integer`        |                      |
+| `collectServerId`     | `integer`        |                      |
+| `commDeviceName`      | `string`         |                      |
+| `commDeviceCode`      | `string`         |                      |
+| `subSystemId`         | `integer`        |                      |
+| `manufacturer`        | `string`         |                      |
+| `model`               | `string`         |                      |
+| `ipAddress`           | `string`         |                      |
+| `location`            | `string`         |                      |
+| `firstTime`           | `string`         |                      |
+| `remark`              | `string`         |                      |
+| `monitorDeviceTypeId` | `integer`        |                      |
+| `commDevicePicture`   | `string`         |                      |
+| `protocolId`          | `integer`        |                      |
+| `protocolParams`      | `string`         |                      |
+| `ids`                 | `array<integer>` |                      |
+| `onlineStatus`        | `integer`        | 增加通信设备在线状态 |
+| `deviceStatus`        | `integer`        | 增加通信设备启用状态 |
+
+**响应体：**
+
+| 字段         | 类型            | 说明 |
+| ------------ | --------------- | ---- |
+| `code`       | `integer`       |      |
+| `message`    | `string`        |      |
+| `data`       | `array<object>` |      |
+| `data[].key` | `object`        |      |
+
+---
+
+### 8.9 批量设置设备离线
+
+| 项          | 内容                                     |
+| ----------- | ---------------------------------------- |
+| 接口路径    | `/device/batchSetDeviceOffline`          |
+| 请求方法    | `POST`                                   |
+| 前端封装    | `SystemController.batchSetDeviceOffline` |
+| Swagger Tag | deviceManagementApi                      |
+| 作用说明    | 批量设置设备离线                         |
+
+**请求参数（Body）：**
+
+| 字段   | 类型    | 说明 |
+| ------ | ------- | ---- |
+| `root` | `array` |      |
+
+**响应体：**
+
+| 字段      | 类型      | 说明 |
+| --------- | --------- | ---- |
+| `code`    | `integer` |      |
+| `message` | `string`  |      |
+| `data`    | `boolean` |      |
+
+---
+
+### 8.10 设备批量启用、停用
+
+| 项          | 内容                           |
+| ----------- | ------------------------------ |
+| 接口路径    | `/device/batchEnable`          |
+| 请求方法    | `POST`                         |
+| 前端封装    | `SystemController.batchEnable` |
+| Swagger Tag | deviceManagementApi            |
+| 作用说明    | 设备批量启用、停用             |
+
+**请求参数（Body）：**
+
+| 字段          | 类型            | 说明 |
+| ------------- | --------------- | ---- |
+| `deviceCodes` | `array<string>` |      |
+| `notifyType`  | `integer`       |      |
+
+**响应体：**
+
+| 字段      | 类型      | 说明 |
+| --------- | --------- | ---- |
+| `code`    | `integer` |      |
+| `message` | `string`  |      |
+| `data`    | `boolean` |      |
+
+---
+
+### 8.11 batchSetDefenceOnline
+
+| 项       | 内容                                     |
+| -------- | ---------------------------------------- |
+| 接口路径 | `/device/batchSetDefenceOnline`          |
+| 请求方法 | `POST`                                   |
+| 前端封装 | `SystemController.batchSetDefenceOnline` |
+| 作用说明 | 见模块业务逻辑                           |
+
+_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+
+---
+
+### 8.12 batchSetDefenceOffline
+
+| 项       | 内容                                      |
+| -------- | ----------------------------------------- |
+| 接口路径 | `/device/batchSetDefenceOffline`          |
+| 请求方法 | `POST`                                    |
+| 前端封装 | `SystemController.batchSetDefenceOffline` |
+| 作用说明 | 见模块业务逻辑                            |
+
+_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+
+---
+
+### 8.13 batchSetDevicePermission
+
+| 项       | 内容                                        |
+| -------- | ------------------------------------------- |
+| 接口路径 | `/device/batchSetDevicePermission`          |
+| 请求方法 | `POST`                                      |
+| 前端封装 | `SystemController.batchSetDevicePermission` |
+| 作用说明 | 见模块业务逻辑                              |
+
+_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+
+---
+
+### 8.14 exportDevice1
+
+| 项       | 内容                             |
+| -------- | -------------------------------- |
+| 接口路径 | `/device/exportDevice1`          |
+| 请求方法 | `GET`                            |
+| 前端封装 | `SystemController.exportDevice1` |
+| 作用说明 | 见模块业务逻辑                   |
+
+_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+
+---
+
+### 8.15 导出设备
+
+| 项          | 内容                            |
+| ----------- | ------------------------------- |
+| 接口路径    | `/device/exportDevice`          |
+| 请求方法    | `GET`                           |
+| 前端封装    | `SystemController.exportDevice` |
+| Swagger Tag | deviceManagementApi             |
+| 作用说明    | 导出设备                        |
+
+**Query/Path 参数：**
+
+| 参数名            | 位置  | 必填 | 类型     | 说明                                       |
+| ----------------- | ----- | ---- | -------- | ------------------------------------------ |
+| `page`            | query | 是   | `string` |                                            |
+| `size`            | query | 是   | `string` |                                            |
+| `search`          | query | 否   | `string` |                                            |
+| `fieldList[0]`    | query | 否   | `string` |                                            |
+| `sorter[0].order` | query | 否   | `string` |                                            |
+| `sorter[0].field` | query | 否   | `string` |                                            |
+| `deviceCode`      | query | 否   | `string` |                                            |
+| `deviceName`      | query | 否   | `string` |                                            |
+| `deviceGroupId`   | query | 否   | `string` |                                            |
+| `subSystemId`     | query | 否   | `string` |                                            |
+| `regionId`        | query | 否   | `string` |                                            |
+| `deviceStatus`    | query | 否   | `string` |                                            |
+| `onlineStatus`    | query | 否   | `string` |                                            |
+| `commDeviceId`    | query | 否   | `string` |                                            |
+| `collectServerId` | query | 否   | `string` |                                            |
+| `deviceCombId`    | query | 否   | `string` | 新增组合设备查询                           |
+| `isTemplate`      | query | 否   | `string` | 新增是否模板设备查询                       |
+| `containSubLevel` | query | 否   | `string` | 新增是否包含下级查询                       |
+| `commModel[0]`    | query | 否   | `string` | 新增通信模式字段（1-直接，2-间接，3-网关） |
+
+**请求参数（Body）：**
+
+_无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 未展开）。_
+
+**响应体：**
+
+_无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 未展开）。_
+
+---
+
+### 8.16 添加设备
+
+| 项          | 内容                         |
+| ----------- | ---------------------------- |
+| 接口路径    | `/device/addDevice`          |
+| 请求方法    | `POST`                       |
+| 前端封装    | `SystemController.addDevice` |
+| Swagger Tag | deviceManagementApi          |
+| 作用说明    | 添加设备                     |
+
+**请求参数（Body）：**
+
+| 字段                   | 类型             | 说明                                     |
+| ---------------------- | ---------------- | ---------------------------------------- |
+| `id`                   | `integer`        |                                          |
+| `deviceName`           | `string`         |                                          |
+| `deviceCode`           | `string`         |                                          |
+| `subSystemId`          | `integer`        |                                          |
+| `deviceGroupId`        | `integer`        |                                          |
+| `commDeviceId`         | `integer`        |                                          |
+| `collectServerId`      | `integer`        |                                          |
+| `deviceCategoryId`     | `integer`        |                                          |
+| `manufacturer`         | `string`         |                                          |
+| `model`                | `string`         |                                          |
+| `ipAddress`            | `string`         |                                          |
+| `port`                 | `string`         |                                          |
+| `userName`             | `string`         |                                          |
+| `password`             | `string`         |                                          |
+| `location`             | `string`         |                                          |
+| `firstUseTime`         | `string`         |                                          |
+| `parentDeviceId`       | `integer`        |                                          |
+| `srcZoneId`            | `integer`        |                                          |
+| `maintenanceSituation` | `string`         |                                          |
+| `repairSituation`      | `string`         |                                          |
+| `devicePic`            | `string`         |                                          |
+| `remark`               | `string`         |                                          |
+| `deviceStatus`         | `integer`        | 增加设备是否启用和报警间隔、设备在线状态 |
+| `alertInterval`        | `integer`        |                                          |
+| `onlineStatus`         | `integer`        |                                          |
+| `ids`                  | `array<integer>` |                                          |
+| `protocolId`           | `integer`        | 增加协议                                 |
+| `protocolParams`       | `string`         |                                          |
+| `regionId`             | `integer`        | 增加区域位置信息                         |
+| `faultStatus`          | `integer`        | 增加设备故障状态                         |
+| `configInfo`           | `string`         | 增加组态设备图元配置信息                 |
+| `isTemplate`           | `integer`        | 新增是否模板设备字段                     |
+| `templateId`           | `integer`        | 新增模板设备id                           |
+| `commModel`            | `integer`        | 新增通信模式字段                         |
+| `thirdDeviceId`        | `string`         | 新增第三方设备Id字段                     |
+
+**响应体：**
+
+| 字段      | 类型      | 说明 |
+| --------- | --------- | ---- |
+| `code`    | `integer` |      |
+| `message` | `string`  |      |
+| `data`    | `boolean` |      |
+
+---
+
+### 8.17 更新设备
+
+| 项          | 内容                            |
+| ----------- | ------------------------------- |
+| 接口路径    | `/device/updateDevice`          |
+| 请求方法    | `POST`                          |
+| 前端封装    | `SystemController.updateDevice` |
+| Swagger Tag | deviceManagementApi             |
+| 作用说明    | 更新设备                        |
+
+**请求参数（Body）：**
+
+| 字段                   | 类型             | 说明                                     |
+| ---------------------- | ---------------- | ---------------------------------------- |
+| `id`                   | `integer`        |                                          |
+| `deviceName`           | `string`         |                                          |
+| `deviceCode`           | `string`         |                                          |
+| `subSystemId`          | `integer`        |                                          |
+| `deviceGroupId`        | `integer`        |                                          |
+| `commDeviceId`         | `integer`        |                                          |
+| `collectServerId`      | `integer`        |                                          |
+| `deviceCategoryId`     | `integer`        |                                          |
+| `manufacturer`         | `string`         |                                          |
+| `model`                | `string`         |                                          |
+| `ipAddress`            | `string`         |                                          |
+| `port`                 | `string`         |                                          |
+| `userName`             | `string`         |                                          |
+| `password`             | `string`         |                                          |
+| `location`             | `string`         |                                          |
+| `firstUseTime`         | `string`         |                                          |
+| `parentDeviceId`       | `integer`        |                                          |
+| `srcZoneId`            | `integer`        |                                          |
+| `maintenanceSituation` | `string`         |                                          |
+| `repairSituation`      | `string`         |                                          |
+| `devicePic`            | `string`         |                                          |
+| `remark`               | `string`         |                                          |
+| `deviceStatus`         | `integer`        | 增加设备是否启用和报警间隔、设备在线状态 |
+| `alertInterval`        | `integer`        |                                          |
+| `onlineStatus`         | `integer`        |                                          |
+| `ids`                  | `array<integer>` |                                          |
+| `protocolId`           | `integer`        | 增加协议                                 |
+| `protocolParams`       | `string`         |                                          |
+| `regionId`             | `integer`        | 增加区域位置信息                         |
+| `faultStatus`          | `integer`        | 增加设备故障状态                         |
+| `configInfo`           | `string`         | 增加组态设备图元配置信息                 |
+| `isTemplate`           | `integer`        | 新增是否模板设备字段                     |
+| `templateId`           | `integer`        | 新增模板设备id                           |
+| `commModel`            | `integer`        | 新增通信模式字段                         |
+| `thirdDeviceId`        | `string`         | 新增第三方设备Id字段                     |
+
+**响应体：**
+
+| 字段      | 类型      | 说明 |
+| --------- | --------- | ---- |
+| `code`    | `integer` |      |
+| `message` | `string`  |      |
+| `data`    | `boolean` |      |
+
+---
+
+### 8.18 删除设备
+
+| 项          | 内容                            |
+| ----------- | ------------------------------- |
+| 接口路径    | `/device/deleteDevice`          |
+| 请求方法    | `POST`                          |
+| 前端封装    | `SystemController.deleteDevice` |
+| Swagger Tag | deviceManagementApi             |
+| 作用说明    | 删除设备                        |
+
+**请求参数（Body）：**
+
+| 字段                   | 类型             | 说明                                     |
+| ---------------------- | ---------------- | ---------------------------------------- |
+| `id`                   | `integer`        |                                          |
+| `deviceName`           | `string`         |                                          |
+| `deviceCode`           | `string`         |                                          |
+| `subSystemId`          | `integer`        |                                          |
+| `deviceGroupId`        | `integer`        |                                          |
+| `commDeviceId`         | `integer`        |                                          |
+| `collectServerId`      | `integer`        |                                          |
+| `deviceCategoryId`     | `integer`        |                                          |
+| `manufacturer`         | `string`         |                                          |
+| `model`                | `string`         |                                          |
+| `ipAddress`            | `string`         |                                          |
+| `port`                 | `string`         |                                          |
+| `userName`             | `string`         |                                          |
+| `password`             | `string`         |                                          |
+| `location`             | `string`         |                                          |
+| `firstUseTime`         | `string`         |                                          |
+| `parentDeviceId`       | `integer`        |                                          |
+| `srcZoneId`            | `integer`        |                                          |
+| `maintenanceSituation` | `string`         |                                          |
+| `repairSituation`      | `string`         |                                          |
+| `devicePic`            | `string`         |                                          |
+| `remark`               | `string`         |                                          |
+| `deviceStatus`         | `integer`        | 增加设备是否启用和报警间隔、设备在线状态 |
+| `alertInterval`        | `integer`        |                                          |
+| `onlineStatus`         | `integer`        |                                          |
+| `ids`                  | `array<integer>` |                                          |
+| `protocolId`           | `integer`        | 增加协议                                 |
+| `protocolParams`       | `string`         |                                          |
+| `regionId`             | `integer`        | 增加区域位置信息                         |
+| `faultStatus`          | `integer`        | 增加设备故障状态                         |
+| `configInfo`           | `string`         | 增加组态设备图元配置信息                 |
+| `isTemplate`           | `integer`        | 新增是否模板设备字段                     |
+| `templateId`           | `integer`        | 新增模板设备id                           |
+| `commModel`            | `integer`        | 新增通信模式字段                         |
+| `thirdDeviceId`        | `string`         | 新增第三方设备Id字段                     |
+
+**响应体：**
+
+| 字段      | 类型      | 说明 |
+| --------- | --------- | ---- |
+| `code`    | `integer` |      |
+| `message` | `string`  |      |
+| `data`    | `boolean` |      |
+
+---
+
+### 8.19 importDevice1
+
+| 项       | 内容                             |
+| -------- | -------------------------------- |
+| 接口路径 | `/device/importDevice/1`         |
+| 请求方法 | `POST`                           |
+| 前端封装 | `SystemController.importDevice1` |
+| 作用说明 | 见模块业务逻辑                   |
+
+_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+
+---
+
+### 8.20 batchUpdateDevice1
+
+| 项       | 内容                                  |
+| -------- | ------------------------------------- |
+| 接口路径 | `/device/batchUpdateDevice/1`         |
+| 请求方法 | `POST`                                |
+| 前端封装 | `SystemController.batchUpdateDevice1` |
+| 作用说明 | 见模块业务逻辑                        |
+
+_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+
+---
+
+### 8.21 复制设备、设备变量、报警规则
+
+| 项          | 内容                                |
+| ----------- | ----------------------------------- |
+| 接口路径    | `/device/copyDeviceAndVar`          |
+| 请求方法    | `POST`                              |
+| 前端封装    | `SystemController.copyDeviceAndVar` |
+| Swagger Tag | deviceManagementApi                 |
+| 作用说明    | 复制设备、设备变量、报警规则        |
+
+**请求参数（Body）：**
+
+| 字段            | 类型      | 说明 |
+| --------------- | --------- | ---- |
+| `oldDeviceId`   | `integer` |      |
+| `newDeviceCode` | `string`  |      |
+| `newDeviceName` | `string`  |      |
+| `isTemplate`    | `integer` |      |
+| `templateId`    | `integer` |      |
+
+**响应体：**
+
+| 字段      | 类型      | 说明 |
+| --------- | --------- | ---- |
+| `code`    | `integer` |      |
+| `message` | `string`  |      |
+| `data`    | `boolean` |      |
+
+---

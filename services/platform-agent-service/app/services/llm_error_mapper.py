@@ -229,3 +229,19 @@ def format_llm_error_event(
             "detail": _truncate(str(exc)),
         },
     }
+
+
+def format_error_assistant_content(payload: dict[str, Any] | None) -> str:
+    """
+    将 SSE error 载荷格式化为可写入 checkpoint / 历史气泡的助手正文。
+
+    与桌面端 ``formatAgentErrorMessage`` + ``⚠️`` 前缀对齐，保证实时与历史观感一致。
+    """
+    if not isinstance(payload, dict):
+        return f"⚠️ {_USER_MESSAGES['unknown']}"
+
+    message = str(payload.get("message") or "").strip() or _USER_MESSAGES["unknown"]
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    hint = str((data or {}).get("hint") or "").strip()
+    body = f"{message}\n\n{hint}" if hint else message
+    return f"⚠️ {body}"

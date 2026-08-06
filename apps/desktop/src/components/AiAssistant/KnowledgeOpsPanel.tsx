@@ -1,7 +1,7 @@
 /**
  * 知识库运营面板：文档级分页列表；展开行用 Markdown 预览器懒加载全文
  */
-import { useCallback, useEffect, useMemo, useState, type Key } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Key } from "react";
 import {
   Alert,
   Button,
@@ -10,6 +10,7 @@ import {
   Empty,
   Input,
   Popconfirm,
+  Progress,
   Space,
   Spin,
   Table,
@@ -23,6 +24,7 @@ import {
   CloudUploadOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  ClearOutlined,
   ReloadOutlined,
   SearchOutlined,
   UploadOutlined,
@@ -33,6 +35,7 @@ import MarkdownContent from "@/components/MarkdownContent";
 import * as AgentController from "@/services/AgentController";
 import type {
   KnowledgeDocumentItem,
+  KnowledgeIngestJob,
   KnowledgePointItem,
   KnowledgeStats,
 } from "@/services/AgentController";
@@ -40,6 +43,7 @@ import type {
 const { Text, Paragraph } = Typography;
 
 const DEFAULT_PAGE_SIZE = 20;
+const INGEST_POLL_MS = 1200;
 
 type KnowledgeDocRow = {
   key: string;
@@ -171,6 +175,8 @@ export default function KnowledgeOpsPanel() {
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [dropping, setDropping] = useState(false);
+  const [ingestJob, setIngestJob] = useState<KnowledgeIngestJob | null>(null);
   const [busySource, setBusySource] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState("");
   const [appliedFilter, setAppliedFilter] = useState("");
@@ -180,6 +186,7 @@ export default function KnowledgeOpsPanel() {
   const [searchPageSize, setSearchPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [expandedKeys, setExpandedKeys] = useState<readonly Key[]>([]);
   const [previews, setPreviews] = useState<Record<string, PreviewState>>({});
+  const ingestCompletionNotifiedRef = useRef<string | null>(null);
 
   const loadStats = useCallback(async () => {
     try {
@@ -303,21 +310,99 @@ export default function KnowledgeOpsPanel() {
     }
   };
 
-  const handleUpload = async (file: File) => {
-    setUploading(true);
-    const hide = message.loading(intl.formatMessage({ id: "aiAssistant.knowledge.uploading" }), 0);
+  const opsLocked = uploading || dropping || ingestJob?.status === "running";
+
+  const refreshIngestJob = useCallback(async (): Promise<KnowledgeIngestJob | null> => {
     try {
-      const result = await AgentController.ingestKnowledgeFile(file);
+      const data = await AgentController.getKnowledgeIngestJobActive();
+      setIngestJob(data.job);
+      return data.job;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshIngestJob();
+  }, [refreshIngestJob]);
+
+  useEffect(() => {
+    if (!ingestJob?.in_progress) return;
+    const timer = window.setInterval(() => {
+      void (async () => {
+        const job = await refreshIngestJob();
+        if (job && !job.in_progress) {
+          if (ingestCompletionNotifiedRef.current === job.job_id) return;
+          ingestCompletionNotifiedRef.current = job.job_id;
+          setSearchHits(null);
+          await loadStats();
+          await loadDocuments(1, pageSize, appliedFilter);
+          const errorSummary = (job.items || [])
+            .filter((item) => item.status === "error" || item.status === "skipped")
+            .map((item) => `${item.filename}: ${item.error || "?"}`)
+            .slice(0, 5)
+            .join("；");
+          if (job.failed === 0) {
+            message.success(
+              intl.formatMessage(
+                { id: "aiAssistant.knowledge.uploadBatchOk" },
+                {
+                  succeeded: job.succeeded,
+                  chunks: job.chunks_total,
+                  deleted: job.deleted_total,
+                },
+              ),
+            );
+          } else if (job.succeeded === 0) {
+            message.error(
+              intl.formatMessage(
+                { id: "aiAssistant.knowledge.uploadBatchAllFailed" },
+                { failed: job.failed, errors: errorSummary || "—" },
+              ),
+            );
+          } else {
+            message.warning(
+              intl.formatMessage(
+                { id: "aiAssistant.knowledge.uploadBatchPartial" },
+                {
+                  succeeded: job.succeeded,
+                  failed: job.failed,
+                  chunks: job.chunks_total,
+                  errors: errorSummary || "—",
+                },
+              ),
+            );
+          }
+        }
+      })();
+    }, INGEST_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [
+    ingestJob?.in_progress,
+    ingestJob?.job_id,
+    refreshIngestJob,
+    loadStats,
+    loadDocuments,
+    pageSize,
+    appliedFilter,
+    intl,
+  ]);
+
+  const handleUploadBatch = async (files: File[]) => {
+    if (files.length === 0 || opsLocked) return;
+    setUploading(true);
+    const hide = message.loading(
+      intl.formatMessage({ id: "aiAssistant.knowledge.uploadEnqueueing" }, { count: files.length }),
+      0,
+    );
+    try {
+      const job = await AgentController.enqueueKnowledgeIngestFiles(files);
       hide();
-      message.success(
-        intl.formatMessage(
-          { id: "aiAssistant.knowledge.uploadOk" },
-          { chunks: result.chunks, deleted: result.deleted_before },
-        ),
+      ingestCompletionNotifiedRef.current = null;
+      setIngestJob(job);
+      message.info(
+        intl.formatMessage({ id: "aiAssistant.knowledge.uploadJobStarted" }, { total: job.total }),
       );
-      setSearchHits(null);
-      await loadStats();
-      await loadDocuments(1, pageSize, appliedFilter);
     } catch (err) {
       hide();
       message.error(
@@ -326,10 +411,10 @@ export default function KnowledgeOpsPanel() {
           { reason: err instanceof Error ? err.message : String(err) },
         ),
       );
+      await refreshIngestJob();
     } finally {
       setUploading(false);
     }
-    return false;
   };
 
   const handleDownload = async (row: KnowledgeDocRow) => {
@@ -364,7 +449,7 @@ export default function KnowledgeOpsPanel() {
   };
 
   const handleReplace = async (source: string, file: File) => {
-    if (!source || busySource) return false;
+    if (!source || busySource || opsLocked) return false;
     setBusySource(source);
     const hide = message.loading(intl.formatMessage({ id: "aiAssistant.knowledge.updating" }), 0);
     try {
@@ -399,6 +484,7 @@ export default function KnowledgeOpsPanel() {
   };
 
   const handleDelete = async (source: string) => {
+    if (opsLocked) return;
     try {
       const result = await AgentController.deleteKnowledgeBySource(source);
       message.success(
@@ -423,6 +509,52 @@ export default function KnowledgeOpsPanel() {
           { reason: err instanceof Error ? err.message : String(err) },
         ),
       );
+    }
+  };
+
+  const handleDropCollection = async () => {
+    if (opsLocked) return;
+    setDropping(true);
+    const hide = message.loading(
+      intl.formatMessage({ id: "aiAssistant.knowledge.dropCollectionRunning" }),
+      0,
+    );
+    try {
+      const result = await AgentController.dropKnowledgeCollection();
+      hide();
+      if (result.dropped) {
+        message.success(
+          intl.formatMessage(
+            { id: "aiAssistant.knowledge.dropCollectionOk" },
+            { collection: result.collection },
+          ),
+        );
+      } else {
+        message.info(
+          intl.formatMessage(
+            { id: "aiAssistant.knowledge.dropCollectionSkipped" },
+            { collection: result.collection },
+          ),
+        );
+      }
+      setSearchHits(null);
+      setDocs([]);
+      setDocTotal(0);
+      setPreviews({});
+      setExpandedKeys([]);
+      setPage(1);
+      await loadStats();
+      await loadDocuments(1, pageSize, appliedFilter);
+    } catch (err) {
+      hide();
+      message.error(
+        intl.formatMessage(
+          { id: "aiAssistant.knowledge.dropCollectionFailed" },
+          { reason: err instanceof Error ? err.message : String(err) },
+        ),
+      );
+    } finally {
+      setDropping(false);
     }
   };
 
@@ -523,7 +655,7 @@ export default function KnowledgeOpsPanel() {
               <Upload
                 accept=".md,.txt,.docx,.pdf,.xlsx,.csv,.png,.jpg,.jpeg"
                 showUploadList={false}
-                disabled={!!busySource}
+                disabled={!!busySource || opsLocked}
                 beforeUpload={(file) => {
                   void handleReplace(row.source, file);
                   return false;
@@ -534,7 +666,7 @@ export default function KnowledgeOpsPanel() {
                   size="small"
                   icon={<UploadOutlined />}
                   loading={busySource === row.source}
-                  disabled={!!busySource && busySource !== row.source}
+                  disabled={opsLocked || (!!busySource && busySource !== row.source)}
                 />
               </Upload>
             </Tooltip>
@@ -544,7 +676,7 @@ export default function KnowledgeOpsPanel() {
               onConfirm={() => void handleDelete(row.source)}
               okText={intl.formatMessage({ id: "aiAssistant.knowledge.deleteOkBtn" })}
               cancelText={intl.formatMessage({ id: "aiAssistant.knowledge.deleteCancel" })}
-              disabled={!!busySource}
+              disabled={!!busySource || opsLocked}
             >
               <Tooltip title={intl.formatMessage({ id: "aiAssistant.knowledge.delete" })}>
                 <Button
@@ -552,7 +684,7 @@ export default function KnowledgeOpsPanel() {
                   danger
                   size="small"
                   icon={<DeleteOutlined />}
-                  disabled={!!busySource}
+                  disabled={!!busySource || opsLocked}
                 />
               </Tooltip>
             </Popconfirm>
@@ -568,23 +700,109 @@ export default function KnowledgeOpsPanel() {
           {intl.formatMessage({ id: "aiAssistant.knowledge.intro" })}
         </Paragraph>
         <Space wrap>
-          <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void handleRefresh()}>
+          <Button
+            icon={<ReloadOutlined />}
+            loading={loading}
+            disabled={opsLocked}
+            onClick={() => void handleRefresh()}
+          >
             {intl.formatMessage({ id: "aiAssistant.knowledge.refresh" })}
           </Button>
           <Upload
+            multiple
             accept=".md,.txt,.docx,.pdf,.xlsx,.csv,.png,.jpg,.jpeg"
             showUploadList={false}
-            beforeUpload={(file) => {
-              void handleUpload(file);
+            beforeUpload={(file, fileList) => {
+              const last = fileList[fileList.length - 1];
+              if (last && file.uid === last.uid) {
+                void handleUploadBatch(fileList.map((item) => item as File));
+              }
               return false;
             }}
-            disabled={uploading || stats?.enabled === false}
+            disabled={opsLocked || stats?.enabled === false}
           >
-            <Button type="primary" icon={<CloudUploadOutlined />} loading={uploading}>
+            <Button
+              type="primary"
+              icon={<CloudUploadOutlined />}
+              loading={uploading || Boolean(ingestJob?.in_progress)}
+              disabled={opsLocked || stats?.enabled === false}
+            >
               {intl.formatMessage({ id: "aiAssistant.knowledge.upload" })}
             </Button>
           </Upload>
+          <Popconfirm
+            title={intl.formatMessage({ id: "aiAssistant.knowledge.dropCollectionConfirm" })}
+            okText={intl.formatMessage({ id: "aiAssistant.knowledge.dropCollectionOkBtn" })}
+            cancelText={intl.formatMessage({ id: "aiAssistant.knowledge.dropCollectionCancel" })}
+            okButtonProps={{ danger: true }}
+            disabled={opsLocked || stats?.enabled === false}
+            onConfirm={() => void handleDropCollection()}
+          >
+            <Button
+              danger
+              icon={<ClearOutlined />}
+              loading={dropping}
+              disabled={opsLocked || stats?.enabled === false}
+            >
+              {intl.formatMessage({ id: "aiAssistant.knowledge.dropCollection" })}
+            </Button>
+          </Popconfirm>
         </Space>
+        {ingestJob ? (
+          <div style={{ marginTop: 16 }}>
+            {ingestJob.status === "running" ? (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 12 }}
+                title={intl.formatMessage({ id: "aiAssistant.knowledge.jobLockedHint" })}
+              />
+            ) : null}
+            <Text strong style={{ display: "block", marginBottom: 8 }}>
+              {intl.formatMessage({ id: "aiAssistant.knowledge.jobProgressTitle" })}
+            </Text>
+            <Progress
+              percent={ingestJob.percent}
+              status={
+                ingestJob.in_progress
+                  ? "active"
+                  : ingestJob.status === "interrupted" ||
+                      (ingestJob.failed > 0 && ingestJob.succeeded === 0)
+                    ? "exception"
+                    : ingestJob.failed > 0
+                      ? "normal"
+                      : "success"
+              }
+              format={() => `${ingestJob.done}/${ingestJob.total}`}
+            />
+            <Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
+              {ingestJob.message ||
+                (ingestJob.current_filename
+                  ? intl.formatMessage(
+                      { id: "aiAssistant.knowledge.jobCurrentFile" },
+                      { name: ingestJob.current_filename },
+                    )
+                  : null)}
+            </Paragraph>
+            <Space size="middle" wrap style={{ marginTop: 8 }}>
+              <Text type="secondary">
+                {intl.formatMessage(
+                  { id: "aiAssistant.knowledge.jobCounts" },
+                  {
+                    succeeded: ingestJob.succeeded,
+                    failed: ingestJob.failed,
+                    chunks: ingestJob.chunks_total,
+                  },
+                )}
+              </Text>
+              <Tag>
+                {intl.formatMessage({
+                  id: `aiAssistant.knowledge.jobStatus.${ingestJob.status}`,
+                })}
+              </Tag>
+            </Space>
+          </div>
+        ) : null}
       </Card>
 
       {stats ? (

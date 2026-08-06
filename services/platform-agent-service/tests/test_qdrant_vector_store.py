@@ -119,3 +119,46 @@ def test_upsert_texts_batches_without_losing_chunk_index(
     assert len(hits) == 7
     indices = sorted(int(h.payload.get("chunk_index", -1)) for h in hits)
     assert indices == list(range(7))
+
+
+def test_ingest_file_replacing_drops_stale_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """内容变短后先 upsert 再删陈旧点，不残留旧片段。"""
+    monkeypatch.setattr(
+        "app.infrastructure.vector.store.settings.qdrant_vector_size",
+        8,
+    )
+    monkeypatch.setattr(
+        "app.infrastructure.vector.store.settings.vector_chunk_size",
+        40,
+    )
+    monkeypatch.setattr(
+        "app.infrastructure.vector.store.settings.vector_chunk_overlap",
+        0,
+    )
+
+    client = QdrantClient(":memory:")
+    store = VectorStoreService(
+        collection="test_replace",
+        client=client,
+        embeddings=_FakeEmbeddings(size=8),
+    )
+    store.ensure_collection()
+
+    doc = tmp_path / "policy.md"
+    # 足够长以切出多块
+    doc.write_text(("旧规程段落内容。" * 20) + "\n", encoding="utf-8")
+    first_chunks, first_deleted = store.ingest_file_replacing(doc)
+    assert first_chunks >= 2
+    assert first_deleted == 0
+
+    doc.write_text("新短规程。\n", encoding="utf-8")
+    second_chunks, second_deleted = store.ingest_file_replacing(doc)
+    assert second_chunks >= 1
+    assert second_deleted >= 1
+
+    hits, _ = store.scroll_points(limit=50, source_equals=str(doc.resolve()))
+    assert len(hits) == second_chunks
+    assert all("新短规程" in h.text for h in hits)

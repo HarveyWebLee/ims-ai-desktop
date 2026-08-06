@@ -67,3 +67,7 @@ Thumbs.db
 tmp/
 # 本地预训练权重缓存（勿提交）
 app/data/pretrained/
+# 文档规程：批量入库进度快照（按用户，运行时生成）
+app/data/knowledge_ingest_jobs/
+# 旧版上传落盘目录（现行默认落盘仓根 prj-docs；本地残留勿提交）
+app/data/knowledge_uploads/

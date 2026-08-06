@@ -246,6 +246,7 @@ def build_multiturn_context_intent_note(
         "（设备、时间范围、告警对象、导出业务类型等）补全工具参数；"
         "**禁止**因本轮省略主语就将参数全留空并重新弹出全量选择表。"
         "仅当上下文无法唯一确定时，才将对应槽位留空交由 HITL 补缺。"
+        "服务端**不会**静默改写你留下的空槽，须由你在 tool call 中主动带参。"
         "**必须立即** tool call，禁止用自然语言重复追问上文已给出的信息。"
     )
 
@@ -280,25 +281,27 @@ def build_device_control_intent_note(
     或未 tool call 却声称「已下发 / 正在等待执行结果」。
     条件句（如在线开门/离线查历史）不注入，避免压制 get_device_detail 等查询步骤。
 
-    多轮：若本轮或近期用户句已明确设备（含「给它下发」回指），须带上设备参数，
-    **禁止**再要求参数全留空弹设备表。
+    多轮：不由服务端正则猜设备名；提示模型自行结合会话历史与工具结果填参。
     """
     from contracts.context import current_device_focus
-    from contracts.device_context import infer_device_token_from_conversation
 
     action = parse_device_control_action(message)
     if action is None:
         return None
 
+    _ = recent_user_messages
     text = (message or "").strip()
     param_hints: list[str] = []
-    device_token = infer_device_token_from_conversation(text, recent_user_messages)
     focus = current_device_focus.get()
-    if device_token:
-        param_hints.append(
-            f'会话已明确目标设备，请传 `device_name` 或 `device_code`="{device_token}"'
-            "（**禁止**留空设备参数再弹设备表）"
-        )
+    if focus is not None and getattr(focus, "is_unique", False):
+        code = str(getattr(focus, "device_code", "") or "").strip()
+        name = str(getattr(focus, "device_name", "") or "").strip()
+        token = code or name
+        if token:
+            param_hints.append(
+                f'上一轮工具结果已唯一确定目标设备，请传 `device_name` 或 `device_code`="{token}"'
+                "（**禁止**留空设备参数再弹设备表）"
+            )
     elif focus is not None and not getattr(focus, "is_unique", False):
         hint = str(getattr(focus, "hint_message", "") or "").strip()
         if hint:
@@ -315,49 +318,30 @@ def build_device_control_intent_note(
         "**禁止**在尚未收到工具返回前用自然语言声称「已下发 / 已播报 / 正在等待执行结果」；"
         "须先完成 `send_device_cmd` tool call，再根据工具结果总结。"
     )
+    history_clause = (
+        "须结合「近期用户消息」与会话历史自行补全 `device_name`/`device_code` 等参数；"
+        "**禁止**因本轮省略主语就将设备参数全留空（除非上下文确实无法唯一确定）。"
+    )
 
     if action:
-        device_clause = (
-            "若原话与近期消息均未指明设备，请将 `device_code`/`device_name` 留空，"
-            "由系统弹出可筛选设备表格供单选。"
-            if not device_token
-            else ""
-        )
         return (
             "## 重要提示\n\n"
             f"本轮为设备控制意图（{action}）。**必须立即**调用工具 `send_device_cmd`，"
             f'至少传入 `action="{action}"`。'
             f"{param_line}"
-            f"{device_clause}"
+            f"{history_clause}"
             "**禁止**仅用自然语言追问设备名称或设备编码。"
-            f"{anti_hallucination}"
-        )
-
-    if device_token:
-        return (
-            "## 重要提示\n\n"
-            "本轮为设备控制/下发指令意图（未指定具体动作）。"
-            f"{param_line}"
-            "**必须立即**调用工具 `send_device_cmd`，"
-            f'传入 `device_name` 或 `device_code`="{device_token}"；'
-            "`action`/`variable_name`/`variable_value` 若原话未给出可留空，由系统按可写变量渐进补参。"
-            "支持**任意具备可写变量的设备**（不限于门禁开门/关门或广播播报）。"
-            "**禁止**忽略已明确的设备而再次弹出设备选择表；"
-            "**禁止**仅用自然语言追问设备或把能力限定为开门/关门/播报；"
-            "**禁止**用闲聊代替工具调用。"
             f"{anti_hallucination}"
         )
 
     return (
         "## 重要提示\n\n"
-        "本轮为设备控制/下发指令意图（未指定具体动作，且会话中尚无唯一目标设备）。"
+        "本轮为设备控制/下发指令意图（未指定具体动作）。"
         f"{param_line}"
-        "**必须立即**调用工具 `send_device_cmd`，"
-        "可将 `action`/`device_code`/`device_name`/`variable_name`/`variable_value` 留空；"
-        "由系统弹出设备表格（若上一轮有查询筛选会自动带上），并按可写变量渐进补参。"
+        "**必须立即**调用工具 `send_device_cmd`；"
+        f"{history_clause}"
+        "`action`/`variable_name`/`variable_value` 若原话未给出可留空，由系统按可写变量渐进补参。"
         "支持**任意具备可写变量的设备**（不限于门禁开门/关门或广播播报）。"
-        "若近期对话或工具结果已出现**唯一**目标设备，须优先填入 `device_name`/`device_code`，"
-        "**禁止**无故留空设备参数。"
         "**禁止**仅用自然语言追问设备或把能力限定为开门/关门/播报；"
         "**禁止**用闲聊代替工具调用。"
         f"{anti_hallucination}"

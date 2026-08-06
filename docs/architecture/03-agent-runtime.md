@@ -1,5 +1,7 @@
 # 03 — Agent Runtime
 
+> **端到端时序（用户需求 → 回复 / 多轮 / HITL）**：见 [`07-conversation-flow.md`](./07-conversation-flow.md)。
+
 ## 1. 职责
 
 `platform-agent-service` 负责：
@@ -19,10 +21,12 @@ HTTP 层只做鉴权、构造初始 state / `Command(resume=...)`、把 `astream
 ```text
 START → classify
   ├─ chat_direct   → create_agent(tools=[]) → END
-  ├─ device_gate   → interrupt(ask_params) → react 或 END
+  ├─ device_gate   → interrupt(ask_params) → 节点内调 MCP → END
   ├─ plan_confirm  → interrupt(plan_confirm) → plan_execute | bpmn_execute → END
-  └─ react         → create_agent(tools=MCP+RAG) → END
+  └─ react         → create_agent(tools=MCP+retrieve_knowledge) → END
 ```
+
+> `device_gate` 批准后**不**再进入 `react`：在本节点执行设备工具并结束（见 `device_gate_node`）。
 
 ### 默认：`AGENT_INTENT_AI_FIRST=true`（生产 / `.env.example` 默认）
 
@@ -50,11 +54,11 @@ START → classify
 
 **会话运行模式**（请求字段 `run_mode`，默认 `confirm`；ContextVar `current_run_mode`；MCP 经 `X-Run-Mode`）：
 
-| 模式         | 绑定                                                            | 调用时                                    |
-| ------------ | --------------------------------------------------------------- | ----------------------------------------- |
-| `readonly`   | 仅非写工具（无 `required_permissions` 且 risk≠medium/high）     | 写工具若被调用 → ToolResult 拒绝          |
-| `confirm`    | 关键词推断 catalog `domains` 子集；未命中回退该模式全部允许工具 | 写操作必经 `ask_user_confirm` → interrupt |
-| `autonomous` | 同 confirm 子集策略                                             | 跳过 confirm HITL；缺参仍 `ask_params`    |
+| 模式         | 绑定                                                                                                  | 调用时                                    |
+| ------------ | ----------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `readonly`   | 仅非写工具（无 `required_permissions` 且 risk≠medium/high）                                           | 写工具若被调用 → ToolResult 拒绝          |
+| `confirm`    | 关键词推断 catalog `domains`；命中则 core∪matched；**未命中绑 safe_default（core∪非写），不回退全量** | 写操作必经 `ask_user_confirm` → interrupt |
+| `autonomous` | 同 confirm 子集策略                                                                                   | 跳过 confirm HITL；缺参仍 `ask_params`    |
 
 **显式 Plan**（请求字段 `plan_first`，桌面开关「先计划」；ContextVar `current_plan_first`）：
 
@@ -62,7 +66,7 @@ START → classify
 - 多步命中后 `interrupt(plan_confirm)`，用户确认（Build）后才 `plan_execute` / 写工具
 - `plan_first` 下只读多步也需确认（覆盖 `write_only` 跳过）
 
-**工具子集**：catalog 条目含 `domains`（alarm/device/export/nav/…）；`retrieve_knowledge` 与 nav 低风险工具恒保留。chat 记住 thread 工具指纹，resume 复用同一父图。
+**工具子集**：catalog 条目含 `domains`（alarm/device/export/nav/…）；`retrieve_knowledge` 与 nav 低风险工具恒保留。写工具仅在领域命中时进入绑定集。chat 将 tool_names 写入内存 + `agent_thread_tool_subset`（Postgres），resume 复用同一父图；删会话时清理。
 
 ### 3.2 运行时 Playbook（P1-1）
 

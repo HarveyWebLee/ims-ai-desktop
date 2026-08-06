@@ -725,6 +725,111 @@ export async function ingestKnowledgeFile(
   return parseJsonResponse(res);
 }
 
+export type KnowledgeIngestJobStatus = "receiving" | "running" | "completed" | "interrupted";
+
+export interface KnowledgeIngestJobItem {
+  filename: string;
+  path?: string;
+  status: "pending" | "running" | "ok" | "error" | "skipped";
+  source?: string | null;
+  chunks?: number;
+  deleted_before?: number;
+  error?: string | null;
+  ok?: boolean;
+}
+
+export interface KnowledgeIngestJob {
+  job_id: string;
+  user_id: string;
+  status: KnowledgeIngestJobStatus;
+  in_progress: boolean;
+  created_at: string;
+  updated_at: string;
+  total: number;
+  done: number;
+  succeeded: number;
+  failed: number;
+  chunks_total: number;
+  deleted_total: number;
+  percent: number;
+  current_filename?: string | null;
+  message: string;
+  items: KnowledgeIngestJobItem[];
+}
+
+export interface KnowledgeIngestJobStatusPayload {
+  job: KnowledgeIngestJob | null;
+  in_progress: boolean;
+}
+
+/** 与后端 APPEND_CHUNK_MAX_FILES 对齐 */
+export const KNOWLEDGE_INGEST_UPLOAD_CHUNK = 30;
+
+export async function createKnowledgeIngestJob(): Promise<KnowledgeIngestJob> {
+  const res = await fetch(`${AGENT_BASE}/knowledge/ingest-jobs`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(res);
+}
+
+export async function appendKnowledgeIngestJobFiles(
+  jobId: string,
+  files: File[],
+): Promise<KnowledgeIngestJob> {
+  const form = new FormData();
+  for (const file of files) {
+    form.append("files", file, file.name);
+  }
+  const headers: Record<string, string> = {};
+  const authHeaders = getAuthHeaders();
+  if (authHeaders.Authorization) headers.Authorization = authHeaders.Authorization;
+  const res = await fetch(
+    `${AGENT_BASE}/knowledge/ingest-jobs/${encodeURIComponent(jobId)}/files`,
+    {
+      method: "POST",
+      headers,
+      body: form,
+    },
+  );
+  return parseJsonResponse(res);
+}
+
+export async function commitKnowledgeIngestJob(jobId: string): Promise<KnowledgeIngestJob> {
+  const res = await fetch(
+    `${AGENT_BASE}/knowledge/ingest-jobs/${encodeURIComponent(jobId)}/commit`,
+    {
+      method: "POST",
+      headers: getAuthHeaders(),
+    },
+  );
+  return parseJsonResponse(res);
+}
+
+export async function getKnowledgeIngestJobActive(): Promise<KnowledgeIngestJobStatusPayload> {
+  const res = await fetch(`${AGENT_BASE}/knowledge/ingest-jobs/active`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(res);
+}
+
+/**
+ * 无数量上限：客户端分片上传入队，服务端后台逐文件入库。
+ * 返回 commit 后的任务快照（随后需轮询 active 直到完成）。
+ */
+export async function enqueueKnowledgeIngestFiles(files: File[]): Promise<KnowledgeIngestJob> {
+  if (files.length === 0) {
+    throw new Error("未选择任何文件");
+  }
+  const created = await createKnowledgeIngestJob();
+  const chunkSize = KNOWLEDGE_INGEST_UPLOAD_CHUNK;
+  for (let i = 0; i < files.length; i += chunkSize) {
+    const slice = files.slice(i, i + chunkSize);
+    await appendKnowledgeIngestJobFiles(created.job_id, slice);
+  }
+  return commitKnowledgeIngestJob(created.job_id);
+}
+
 export async function replaceKnowledgeFile(
   source: string,
   file: File,
@@ -761,6 +866,34 @@ export async function deleteKnowledgeBySource(
     method: "DELETE",
     headers: getAuthHeaders(),
     body: JSON.stringify({ source }),
+  });
+  return parseJsonResponse(res);
+}
+
+/** 清空文档知识 collection（须二次确认；换 Embedding 后重建） */
+export async function dropKnowledgeCollection(): Promise<{
+  dropped: boolean;
+  collection: string;
+  existed: boolean;
+}> {
+  const res = await fetch(`${AGENT_BASE}/knowledge/drop-collection`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ confirm: true }),
+  });
+  return parseJsonResponse(res);
+}
+
+/** 清空实体术语 collection（须二次确认；换 Embedding 后重建） */
+export async function dropEntityCollection(): Promise<{
+  dropped: boolean;
+  collection: string;
+  existed: boolean;
+}> {
+  const res = await fetch(`${AGENT_BASE}/entities/drop-collection`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ confirm: true }),
   });
   return parseJsonResponse(res);
 }

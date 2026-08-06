@@ -40,16 +40,16 @@ bash scripts/up.sh
 ```bash
 QDRANT_URL=http://127.0.0.1:16333
 QDRANT_COLLECTION=platform_knowledge
-QDRANT_VECTOR_SIZE=1024          # 必须与 Embedding 维度一致
+QDRANT_VECTOR_SIZE=1024          # 必须与 Embedding 维度一致（qwen3-vl-embedding 可选 2560/2048/1536/1024/…）
 EMBEDDING_PROVIDER=dashscope
-EMBEDDING_MODEL=qwen3.7-text-embedding
+EMBEDDING_MODEL=qwen3-vl-embedding
 DASHSCOPE_API_KEY=...
 VECTOR_CHUNK_SIZE=800
 VECTOR_CHUNK_OVERLAP=120
 RAG_TOP_K=4
 ```
 
-改维度或改 Embedding 模型后：**须删库重建**（见 §删 → drop collection），旧向量不可混用。
+改维度或改 Embedding 模型后：**须删库重建**（见 §删 → drop collection），旧向量不可混用。`qwen3-vl-embedding` 走 DashScope **多模态原生 API**（非 OpenAI compatible-mode）。
 
 ---
 
@@ -214,7 +214,7 @@ Agent 侧：
 TRANSCRIBE_RAG_ENABLED=true
 TRANSCRIBE_DICTIONARY_ENABLED=true
 TRANSCRIBE_RAG_TOP_K=2
-TRANSCRIBE_CORRECT_MODEL=qwen3.5-flash-2026-02-23
+TRANSCRIBE_CORRECT_MODEL=qwen3-8b
 TRANSCRIBE_CORRECT_TIMEOUT_SECONDS=6
 TRANSCRIBE_CORRECT_MIN_SCORE=0.42
 TRANSCRIBE_CORRECT_SNIPPET_CHARS=160
@@ -374,25 +374,27 @@ platform-agent-service/
 
 ### HTTP 运营 API（P1-5，需登录）
 
-桌面「设置 → 知识库」调用；**不**暴露 `drop_collection`。
+桌面「设置 → 知识与术语」调用；清空 collection 须登录 + `{ confirm: true }`（文档/实体分集合）。
 
-| 方法   | 路径                             | 说明                                                                       |
-| ------ | -------------------------------- | -------------------------------------------------------------------------- |
-| GET    | `/api/agent/knowledge/stats`     | 点数 / 连通性                                                              |
-| GET    | `/api/agent/knowledge/documents` | 按 source 聚合文档列表（`page`/`page_size`/`source_contains`）             |
-| GET    | `/api/agent/knowledge/points`    | 浏览片段（`limit`、`source_contains`）                                     |
-| POST   | `/api/agent/knowledge/search`    | 语义试检索 `{ query, limit? }`                                             |
-| POST   | `/api/agent/knowledge/ingest`    | multipart 上传到文档目录（默认仓根 `prj-docs`）后入库；同名先删旧 `source` |
-| POST   | `/api/agent/knowledge/replace`   | multipart：`file` + `source`，保留原 source 键更新                         |
-| POST   | `/api/agent/knowledge/export`    | `{ source }` → 导出正文供本地下载（优先磁盘，否则拼接片段）                |
-| DELETE | `/api/agent/knowledge/by-source` | `{ source }` 精确删除                                                      |
+| 方法   | 路径                                   | 说明                                                                             |
+| ------ | -------------------------------------- | -------------------------------------------------------------------------------- |
+| GET    | `/api/agent/knowledge/stats`           | 点数 / 连通性                                                                    |
+| GET    | `/api/agent/knowledge/documents`       | 按 source 聚合文档列表（`page`/`page_size`/`source_contains`）                   |
+| GET    | `/api/agent/knowledge/points`          | 浏览片段（`limit`、`source_contains`）                                           |
+| POST   | `/api/agent/knowledge/search`          | 语义试检索 `{ query, limit? }`                                                   |
+| POST   | `/api/agent/knowledge/ingest`          | multipart 上传到文档目录（默认仓根 `prj-docs`）后入库；同名先删旧 `source`       |
+| POST   | `/api/agent/knowledge/replace`         | multipart：`file` + `source`，保留原 source 键更新                               |
+| POST   | `/api/agent/knowledge/export`          | `{ source }` → 导出正文供本地下载（优先磁盘，否则拼接片段）                      |
+| DELETE | `/api/agent/knowledge/by-source`       | `{ source }` 精确删除                                                            |
+| POST   | `/api/agent/knowledge/drop-collection` | `{ confirm: true }` 清空文档知识 collection（换 Embedding 后重建；磁盘文件保留） |
 
 实体同步可观测：
 
-| 方法 | 路径                            | 说明                               |
-| ---- | ------------------------------- | ---------------------------------- |
-| POST | `/api/agent/entity-sync`        | 触发同步（达梦只读 SELECT）        |
-| GET  | `/api/agent/entity-sync/status` | 进程内最近一次结果 + `in_progress` |
+| 方法 | 路径                                  | 说明                                        |
+| ---- | ------------------------------------- | ------------------------------------------- |
+| POST | `/api/agent/entity-sync`              | 触发同步（达梦只读 SELECT）                 |
+| GET  | `/api/agent/entity-sync/status`       | 进程内最近一次结果 + `in_progress`          |
+| POST | `/api/agent/entities/drop-collection` | `{ confirm: true }` 清空实体术语 collection |
 
 实现：`app/api/knowledge.py`、`app/api/entity_sync.py`、`app/sync/entity_sync_status.py`。
 
@@ -404,7 +406,7 @@ platform-agent-service/
 2. **文档更新流水线**：改架构/验收文档后跑 `--replace-file` 或「先 `--delete-source` 再 `--dir`」
 3. **全量重建**：`--drop-collection --yes` → `--dir ../docs/architecture` → `--dir ../../prj-docs`
 4. **排错**：Dashboard 看 points；CLI `--list` 核对 `source`；检索无结果时检查 Embedding Key 与维度
-5. **安全**：生产勿把 `--drop-collection` 挂到无人值守任务；运营 HTTP **不**暴露删库（仅 stats/list/search/ingest/delete-by-source）
+5. **安全**：生产环境清库须经登录态 + `confirm=true`；运营 HTTP 提供 `drop-collection`（文档/实体分集合），勿挂无人值守任务；换 Embedding 模型或维度后**必须**先清对应 collection 再全量重建。
 
 ---
 

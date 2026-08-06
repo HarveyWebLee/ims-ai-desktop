@@ -50,9 +50,8 @@ async def test_entity_search_returns_items():
             "source": "dm:device:CHWP-01",
             "text": "设备编码：CHWP-01；设备名称：冷冻水泵1号",
             "payload": {
-                "device_code": "CHWP-01",
-                "device_name": "冷冻水泵1号",
-                "table": "p_device",
+                "deviceCode": "CHWP-01",
+                "deviceName": "冷冻水泵1号",
             },
         }
     ]
@@ -76,3 +75,39 @@ async def test_entity_search_returns_items():
         limit=5,
         entity_types=["device"],
     )
+
+
+@pytest.mark.asyncio
+async def test_entity_drop_requires_confirm():
+    with patch(
+        "app.api.entities.get_current_user_id",
+        new_callable=AsyncMock,
+        return_value="u1",
+    ):
+        body = entities_api.EntityDropBody(confirm=False)
+        resp = await entities_api.entity_drop_collection(body, authorization="Bearer x")
+    assert resp["code"] == 40073
+
+
+@pytest.mark.asyncio
+async def test_entity_drop_collection_ok():
+    store = MagicMock()
+    store.collection = "platform_entities"
+    store.drop_collection.return_value = True
+
+    with (
+        patch(
+            "app.api.entities.get_current_user_id",
+            new_callable=AsyncMock,
+            return_value="u1",
+        ),
+        patch("app.api.entities._entity_store", return_value=store),
+        patch("app.infrastructure.vector.client.is_qdrant_configured", return_value=True),
+        patch("app.sync.entity_sync_service.is_entity_sync_running", return_value=False),
+    ):
+        body = entities_api.EntityDropBody(confirm=True)
+        resp = await entities_api.entity_drop_collection(body, authorization="Bearer x")
+
+    assert resp["code"] == 0
+    assert resp["data"]["dropped"] is True
+    store.drop_collection.assert_called_once()

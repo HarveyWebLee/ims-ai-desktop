@@ -63,6 +63,13 @@ CREATE TABLE IF NOT EXISTS agent_thread_bpmn (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- chat 绑定的工具子集指纹（resume 跨进程复用同一父图）
+CREATE TABLE IF NOT EXISTS agent_thread_tool_subset (
+    thread_id TEXT PRIMARY KEY REFERENCES agent_sessions(thread_id) ON DELETE CASCADE,
+    tool_names JSONB NOT NULL DEFAULT '[]',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- 声纹档案（元数据；向量在 Qdrant collection agent_voiceprints）
 CREATE TABLE IF NOT EXISTS agent_voiceprint_profiles (
     id TEXT PRIMARY KEY,

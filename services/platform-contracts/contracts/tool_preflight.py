@@ -300,11 +300,10 @@ _EXPORT_TIME_ONLY_FIELDS: list[dict[str, Any]] = [
 
 def _preflight_download_resource(args: dict[str, Any]) -> PreflightResult:
     """
-    导出 resource 会话级消歧（先于时间 HITL）。
+    导出 resource 门控（先于时间 HITL）。
 
-    - 本句/上下文能唯一确定 → 写入 resource
-    - 歧义且用户尚未确认 → ask_params 列举候选（可顺带补时间）
-    - 无会话上下文时保留调用方已给的合法 resource（单测 / Plan）
+    - 调用方（大模型 / Plan LLM / HITL 确认）已提供合法 resource → 原样放行
+    - 空或非法 → ask_params 选业务类型（可用会话上下文仅生成候选列表，不静默写入）
     """
     data = dict(args)
     existing = str(data.get("resource") or "").strip()
@@ -313,34 +312,15 @@ def _preflight_download_resource(args: dict[str, Any]) -> PreflightResult:
     if data.get(EXPORT_RESOURCE_CONFIRMED_KEY) and existing in supported:
         return PreflightResult(args=data, interrupt=None)
 
+    # 信任模型 / 上游已填的合法 resource，不再用正则或焦点覆盖
+    if existing in supported:
+        return PreflightResult(args=data, interrupt=None)
+
     from contracts.context import current_recent_user_messages, current_user_utterance
 
     utterance = (current_user_utterance.get() or "").strip()
     recent = list(current_recent_user_messages.get() or ())
     decision = resolve_export_resource(utterance, recent_messages=recent)
-
-    if decision.resource:
-        data["resource"] = decision.resource
-        return PreflightResult(args=data, interrupt=None)
-
-    # 用户句无业务域信号，但 checkpoint 有告警焦点（如「查告警」后仅说「导出」）
-    if decision.reason == "no_context":
-        try:
-            from contracts.context import current_alarm_focus
-
-            alarm_focus = current_alarm_focus.get()
-            if (
-                alarm_focus is not None
-                and str(getattr(alarm_focus, "source_tool", "") or "").strip()
-            ):
-                data["resource"] = "alarm_report"
-                return PreflightResult(args=data, interrupt=None)
-        except Exception:  # noqa: BLE001
-            pass
-
-    if not utterance and not recent and existing in supported:
-        return PreflightResult(args=data, interrupt=None)
-
     candidates = list(decision.candidates) or list(SUPPORTED_EXPORT_RESOURCES)
     cleared = {**data, "resource": ""}
     fields = [export_resource_select_field(candidates), *_EXPORT_TIME_ONLY_FIELDS]
@@ -362,10 +342,11 @@ def _preflight_alarm_time_tool(
     message: str,
     fields: list[dict[str, Any]] | None = None,
 ) -> PreflightResult:
-    """query_alarms / download_file / batch_*（无 alarm_ids）时间 preflight。"""
-    from contracts.time_range import enrich_alarm_time_args
+    """query_alarms / download_file / batch_*（无 alarm_ids）时间 preflight。
 
-    data = enrich_alarm_time_args(args)
+    仅校验调用方已提供的时间能否解析；不再从用户原话正则回填。
+    """
+    data = dict(args)
     start = str(data.get("start_time") or "")
     end = str(data.get("end_time") or "")
     _, _, needs_hitl = resolve_or_prepare_alarm_times(start, end)
@@ -714,9 +695,9 @@ def _preflight_send_device_cmd(args: dict[str, Any]) -> PreflightResult:
     缺设备/变量/播报正文时直接 ask_params，避免先调平台再失败；
     硬失败（如无 play）不在此拦截，交给工具返回 non_retryable。
 
-    设备槽位已由 ``enrich_tool_args_from_conversation`` 按会话上下文预填；
-    此处再用本轮原话作为 user_text 辅助动作/写入值推断。
-    多台列表焦点：ask_params 的 device_picker 预填上次筛选（如在线）。
+    设备/动作等槽位以工具入参为准（由大模型填写）；缺参走 ask_params。
+    本轮原话仅作 user_text 辅助动作/写入值推断。
+    多台列表焦点：ask_params 的 device_picker 可带上次筛选（如在线）。
     """
     from contracts.context import current_device_focus, current_user_utterance
     from contracts.device_command_resolver import resolve_device_command
@@ -780,10 +761,10 @@ def preflight_tool(tool_name: str, args: dict[str, Any] | None) -> PreflightResu
 
     分支总览（给小白）:
         开关关 → 原样放行
-        先按会话上下文补空槽（全工具，不覆盖已填值）
         有 catalog preflight → 走时间/one_of，再酌情对照平台必填
         get_alarm_detail → schema + 平台
         其它 → 仅 schema.required；都没有则直接放行
+        （不在此用正则改写空槽；补参由大模型 / HITL 完成）
     """
     if not settings.agent_preflight_enabled:
         return PreflightResult(args=dict(args or {}), interrupt=None)
@@ -792,10 +773,7 @@ def preflight_tool(tool_name: str, args: dict[str, Any] | None) -> PreflightResu
     # 字符串参数统一 strip，避免「  空白 」骗过非空检查
     data = {k: (v.strip() if isinstance(v, str) else v) for k, v in dict(args or {}).items()}
 
-    # ── 全工具：会话上下文补空槽（设备/时间等）；已填值不覆盖 ──
-    from contracts.conversation_context import enrich_tool_args_from_conversation
-
-    data = enrich_tool_args_from_conversation(name, data)
+    # 空槽补参交给大模型（及 HITL）；不再用正则/会话弱推断改写执行参数
 
     # ── 导出：先按会话上下文裁决 resource，歧义则 HITL 选择（全会话上下文，非导出专用通道）──
     if name == "download_file":

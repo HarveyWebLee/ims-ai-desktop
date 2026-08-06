@@ -5,10 +5,6 @@
 
 /** Agent 可选大模型 ID（与 model-catalog 同步） */
 export type AgentModelId =
-  | "qwen3.5-flash-2026-02-23"
-  | "qwen-long"
-  | "qwen-mt-flash"
-  | "qwen-math-turbo"
   | "qwen3.5-35b-a3b"
   | "qwen3-8b"
   | "qwen3-32b"
@@ -23,7 +19,33 @@ export type AgentModelId =
   | "qwen3-vl-32b-thinking"
   | "qwen3-vl-235b-a22b-thinking"
   | "qwen-vl-plus"
-  | "qwen-vl-ocr-latest";
+  | "qwen-vl-ocr-latest"
+  | "qwen3.7-flash-2026-07-15"
+  | "qwen-plus-0112"
+  | "qwen-plus"
+  | "qwen-turbo"
+  | "qwen3-next-80b-a3b-thinking"
+  | "qwen3.5-27b"
+  | "tongyi-xiaomi-analysis-flash"
+  | "qwen3-vl-flash"
+  | "qwen3-14b"
+  | "qwen3-max-2025-09-23"
+  | "qwen-plus-2025-12-01"
+  | "qwen-plus-character"
+  | "qwen-flash-character"
+  | "qwen3-30b-a3b-instruct-2507"
+  | "qwen-flash"
+  | "qwen-flash-2025-07-28"
+  | "qwen3-235b-a22b-instruct-2507"
+  | "qwen3.5-plus-2026-04-20"
+  | "qwen-plus-1220"
+  | "qwen3.5-122b-a10b"
+  | "qwen3-max"
+  | "qwen3.5-plus-2026-02-15"
+  | "qwen3-235b-a22b-thinking-2507"
+  | "qwen3.7-max-2026-06-08"
+  | "qwen3.7-max-preview"
+  | "qwen3.6-max-preview";
 
 /** 模型提供方 */
 export type AgentModelProvider = "deepseek" | "dashscope";

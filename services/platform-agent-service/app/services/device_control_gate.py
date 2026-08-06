@@ -49,7 +49,6 @@ def prepare_device_control_hitl_gate(
     """
     from contracts.context import current_device_focus
     from contracts.device_command_resolver import resolve_device_command
-    from contracts.device_context import infer_device_token_from_conversation
     from contracts.device_focus import apply_device_focus_to_interrupt
 
     message = (ctx.message or "").strip()
@@ -57,15 +56,19 @@ def prepare_device_control_hitl_gate(
     if action is None:
         return None
 
-    # 多轮：从本轮 + 近期用户句 + 工具结果焦点回填已明确的设备
-    device_token = infer_device_token_from_conversation(
-        message,
-        ctx.recent_user_messages,
-    )
+    # 设备槽交给大模型 / HITL；门控仅在工具结果已有唯一焦点时带入，不用正则猜用户句
+    device_name = ""
+    device_code = ""
+    focus = current_device_focus.get()
+    if focus is not None and getattr(focus, "is_unique", False):
+        device_code = str(getattr(focus, "device_code", "") or "").strip()
+        device_name = str(getattr(focus, "device_name", "") or "").strip()
+
     resolution = resolve_device_command(
         action=action,
         user_text=message,
-        device_name=device_token or "",
+        device_code=device_code,
+        device_name=device_name if not device_code else "",
     )
     if resolution.is_complete():
         return None
@@ -74,7 +77,6 @@ def prepare_device_control_hitl_gate(
     if not interrupt or interrupt.get("type") != "ask_params":
         return None
 
-    focus = current_device_focus.get()
     interrupt = (
         apply_device_focus_to_interrupt(
             interrupt if isinstance(interrupt, dict) else None,

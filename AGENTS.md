@@ -3,6 +3,7 @@
 本目录为 **综合信息平台 AI 智能化桌面端** 的统一维护根（Electron + Agent + MCP）。
 
 > **架构基准（编码唯一依据）**：[`docs/architecture/00-overview.md`](docs/architecture/00-overview.md)  
+> **对话端到端时序**：[`docs/architecture/07-conversation-flow.md`](docs/architecture/07-conversation-flow.md)  
 > 产品说明：[`README.md`](README.md)  
 > 手工验收（M1）：[`docs/desktop-m1-acceptance.md`](docs/desktop-m1-acceptance.md)
 

@@ -224,6 +224,7 @@ async def stream_resume_core(
             run_id=run_id,
             user_id=user_id,
             user_message=resume_user_msg,
+            model_id=model_id,
             plan_steps=plan_for_wrap,
             plan_graph=plan_graph_for_wrap,
             plan_flow_document=plan_flow_doc_for_wrap,

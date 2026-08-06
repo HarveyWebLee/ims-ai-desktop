@@ -88,8 +88,8 @@ class Settings(BaseSettings):
     # Phase D1：多步 Plan 优先用 LLM 显式生成（失败回退规则 build_task_plan）
     agent_llm_plan_enabled: bool = True
 
-    # D1 Plan 参数：默认仅用规则 infer_plan_params，避免 qwen structured 阻塞 plan_confirm SSE
-    agent_llm_plan_params_enabled: bool = False
+    # D1 Plan 参数：默认启用 LLM 抽参；规则 infer 仅提供空槽骨架（失败则工具 HITL）
+    agent_llm_plan_params_enabled: bool = True
 
     # D1 Plan / 参数 structured output 单次调用超时（秒）；仅启用 LLM 抽参/规划时生效
     agent_llm_plan_timeout_seconds: float = 30.0
@@ -206,10 +206,10 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://127.0.0.1:16333"
     qdrant_api_key: str = ""
     qdrant_collection: str = "platform_knowledge"
-    # 与 embedding 模型维度一致（DashScope qwen3.7-text-embedding 默认 1024）
-    qdrant_vector_size: int = 1024
-    # OpenAI 兼容 Embedding（默认走 DashScope compatible-mode）
-    embedding_model: str = "qwen3.7-text-embedding"
+    # 与 embedding 模型维度一致（qwen3-vl-embedding 支持 2560/2048/1536/1024/…）
+    qdrant_vector_size: int = 1536
+    # Embedding：文本模型走 compatible-mode；qwen3-vl-embedding 走多模态原生 API
+    embedding_model: str = "qwen3-vl-embedding"
     embedding_provider: str = "dashscope"
     # 文本切块：字符数 / 重叠，入库脚本与 VectorStore 共用
     vector_chunk_size: int = 800

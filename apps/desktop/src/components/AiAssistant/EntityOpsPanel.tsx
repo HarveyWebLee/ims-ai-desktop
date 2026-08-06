@@ -9,13 +9,19 @@ import {
   Descriptions,
   Empty,
   Input,
+  Popconfirm,
   Select,
   Space,
   Table,
   Tag,
   Typography,
 } from "antd";
-import { CloudSyncOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import {
+  ClearOutlined,
+  CloudSyncOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import { useIntl } from "react-intl";
 import { message } from "@/antd/feedback";
 import * as AgentController from "@/services/AgentController";
@@ -57,6 +63,7 @@ export default function EntityOpsPanel() {
   const [stats, setStats] = useState<EntityStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [dropping, setDropping] = useState(false);
   const [lastSync, setLastSync] = useState<StoredSync | null>(() => readStoredSync());
   const [statusLoading, setStatusLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -215,7 +222,48 @@ export default function EntityOpsPanel() {
     }
   };
 
+  const handleDropCollection = async () => {
+    if (syncing || dropping) return;
+    setDropping(true);
+    const hide = message.loading(
+      intl.formatMessage({ id: "aiAssistant.entityOps.dropCollectionRunning" }),
+      0,
+    );
+    try {
+      const result = await AgentController.dropEntityCollection();
+      hide();
+      if (result.dropped) {
+        message.success(
+          intl.formatMessage(
+            { id: "aiAssistant.entityOps.dropCollectionOk" },
+            { collection: result.collection },
+          ),
+        );
+      } else {
+        message.info(
+          intl.formatMessage(
+            { id: "aiAssistant.entityOps.dropCollectionSkipped" },
+            { collection: result.collection },
+          ),
+        );
+      }
+      setSearchHits(null);
+      await loadStats();
+    } catch (err) {
+      hide();
+      message.error(
+        intl.formatMessage(
+          { id: "aiAssistant.entityOps.dropCollectionFailed" },
+          { reason: err instanceof Error ? err.message : String(err) },
+        ),
+      );
+    } finally {
+      setDropping(false);
+    }
+  };
+
   const tables = lastSync?.result.tables ?? [];
+  const opsLocked = syncing || dropping || Boolean(stats?.in_progress);
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -227,6 +275,7 @@ export default function EntityOpsPanel() {
           <Button
             icon={<ReloadOutlined />}
             loading={statsLoading || statusLoading}
+            disabled={opsLocked}
             onClick={() => {
               void loadStats();
               void applyServerStatus();
@@ -238,10 +287,28 @@ export default function EntityOpsPanel() {
             type="primary"
             icon={<CloudSyncOutlined />}
             loading={syncing}
+            disabled={opsLocked || stats?.enabled === false}
             onClick={() => void handleSync()}
           >
             {intl.formatMessage({ id: "aiAssistant.entitySync.button" })}
           </Button>
+          <Popconfirm
+            title={intl.formatMessage({ id: "aiAssistant.entityOps.dropCollectionConfirm" })}
+            okText={intl.formatMessage({ id: "aiAssistant.entityOps.dropCollectionOkBtn" })}
+            cancelText={intl.formatMessage({ id: "aiAssistant.entityOps.dropCollectionCancel" })}
+            okButtonProps={{ danger: true }}
+            disabled={opsLocked || stats?.enabled === false}
+            onConfirm={() => void handleDropCollection()}
+          >
+            <Button
+              danger
+              icon={<ClearOutlined />}
+              loading={dropping}
+              disabled={opsLocked || stats?.enabled === false}
+            >
+              {intl.formatMessage({ id: "aiAssistant.entityOps.dropCollection" })}
+            </Button>
+          </Popconfirm>
         </Space>
       </Card>
 

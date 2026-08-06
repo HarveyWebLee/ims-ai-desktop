@@ -143,7 +143,7 @@ class VectorStoreService:
 
         return ids
 
-    def ingest_file(
+    def _prepare_file_chunks(
         self,
         path: Path | str,
         *,
@@ -151,14 +151,14 @@ class VectorStoreService:
         chunk_overlap: int | None = None,
         encoding: str = "utf-8",
         extra_metadata: dict[str, Any] | None = None,
-    ) -> int:
-        """
-        读取单个文件（多格式抽取）→ 切块 → 入库。
-
-        支持 md/docx/pptx/pdf/xlsx/html/csv 及常见文本后缀；详见 ``extractors``。
-        返回写入的 chunk 数量。
-        """
-        from app.infrastructure.vector.extractors import ExtractError, extract_text
+    ) -> tuple[list[str], list[dict[str, Any]], str]:
+        """抽取并切块；返回 (chunks, metadatas, source)。抽取失败不改库。"""
+        from app.infrastructure.vector.extractors import (
+            IMAGE_SUFFIXES,
+            STRUCTURED_SUFFIXES,
+            ExtractError,
+            extract_text,
+        )
 
         file_path = Path(path)
         if not file_path.is_file():
@@ -176,14 +176,16 @@ class VectorStoreService:
             if chunk_overlap is not None
             else settings.vector_chunk_overlap,
         )
-        if not chunks:
-            return 0
-
         source = str(file_path.resolve())
+        if not chunks:
+            return [], [], source
+
+        # extra_metadata 可覆盖 source（如 replace 保留原路径键）
+        if extra_metadata and extra_metadata.get("source"):
+            source = str(extra_metadata["source"])
+
         rel_parts = file_path.parts
         suffix = file_path.suffix.lower()
-        from app.infrastructure.vector.extractors import IMAGE_SUFFIXES, STRUCTURED_SUFFIXES
-
         if suffix in IMAGE_SUFFIXES:
             media_kind = "image"
         elif suffix in {".xlsx", ".xls", ".csv", ".tsv"}:
@@ -204,8 +206,75 @@ class VectorStoreService:
             }
             for _ in chunks
         ]
+        return chunks, metadatas, source
+
+    def ingest_file(
+        self,
+        path: Path | str,
+        *,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+        encoding: str = "utf-8",
+        extra_metadata: dict[str, Any] | None = None,
+    ) -> int:
+        """
+        读取单个文件（多格式抽取）→ 切块 → 入库。
+
+        支持 md/docx/pptx/pdf/xlsx/html/csv 及常见文本后缀；详见 ``extractors``。
+        返回写入的 chunk 数量。同 source 内容变更时请用 ``ingest_file_replacing``，
+        以免残留旧片段。
+        """
+        chunks, metadatas, source = self._prepare_file_chunks(
+            path,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            encoding=encoding,
+            extra_metadata=extra_metadata,
+        )
+        if not chunks:
+            return 0
         self.upsert_texts(chunks, metadatas=metadatas, source=source)
         return len(chunks)
+
+    def ingest_file_replacing(
+        self,
+        path: Path | str,
+        *,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+        encoding: str = "utf-8",
+        extra_metadata: dict[str, Any] | None = None,
+    ) -> tuple[int, int]:
+        """
+        可靠替换入库：先抽取/upsert（wait=True），再删除同 source 下未覆盖的旧点。
+
+        抽取失败时不改向量库，避免「先删后写失败」导致知识空洞。
+        返回 ``(写入片段数, 删除的陈旧片段数)``。
+        """
+        chunks, metadatas, source = self._prepare_file_chunks(
+            path,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            encoding=encoding,
+            extra_metadata=extra_metadata,
+        )
+        if not chunks:
+            # 空正文仍清理旧点，与「同名替换为空」语义一致
+            deleted = self.delete_by_source(source)
+            return 0, deleted
+
+        new_ids = set(self.upsert_texts(chunks, metadatas=metadatas, source=source))
+        stale_ids: list[str] = []
+        offset: Any = None
+        while True:
+            batch, offset = self.scroll_points(limit=256, offset=offset, source_equals=source)
+            for hit in batch:
+                if hit.id not in new_ids:
+                    stale_ids.append(hit.id)
+            if offset is None:
+                break
+        deleted = self.delete_by_ids(stale_ids) if stale_ids else 0
+        return len(chunks), deleted
 
     def ingest_directory(
         self,

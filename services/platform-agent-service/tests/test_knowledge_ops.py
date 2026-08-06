@@ -104,6 +104,42 @@ async def test_knowledge_delete_by_source():
 
 
 @pytest.mark.asyncio
+async def test_knowledge_drop_requires_confirm():
+    with patch(
+        "app.api.knowledge.get_current_user_id",
+        new_callable=AsyncMock,
+        return_value="u1",
+    ):
+        body = knowledge_api.KnowledgeDropBody(confirm=False)
+        resp = await knowledge_api.knowledge_drop_collection(body, authorization="Bearer x")
+    assert resp["code"] == 40065
+
+
+@pytest.mark.asyncio
+async def test_knowledge_drop_collection_ok():
+    store = MagicMock()
+    store.collection = "platform_knowledge"
+    store.drop_collection.return_value = True
+
+    with (
+        patch(
+            "app.api.knowledge.get_current_user_id",
+            new_callable=AsyncMock,
+            return_value="u1",
+        ),
+        patch("app.api.knowledge._store", return_value=store),
+        patch("app.infrastructure.vector.client.is_qdrant_configured", return_value=True),
+    ):
+        body = knowledge_api.KnowledgeDropBody(confirm=True)
+        resp = await knowledge_api.knowledge_drop_collection(body, authorization="Bearer x")
+
+    assert resp["code"] == 0
+    assert resp["data"]["dropped"] is True
+    assert resp["data"]["collection"] == "platform_knowledge"
+    store.drop_collection.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_entity_sync_status_empty_then_remembered():
     with patch(
         "app.api.entity_sync.get_current_user_id",
@@ -195,8 +231,7 @@ async def test_knowledge_replace_keeps_source(tmp_path, monkeypatch):
     )
 
     store = MagicMock()
-    store.delete_by_source.return_value = 2
-    store.ingest_file.return_value = 3
+    store.ingest_file_replacing.return_value = (3, 2)
     upload = MagicMock()
     upload.filename = "new.md"
     upload.read = AsyncMock(return_value=b"# updated\n")
@@ -218,10 +253,155 @@ async def test_knowledge_replace_keeps_source(tmp_path, monkeypatch):
     assert resp["code"] == 0
     assert resp["data"]["source"] == str(existing)
     assert resp["data"]["migrated"] is False
+    assert resp["data"]["chunks"] == 3
+    assert resp["data"]["deleted_before"] == 2
     assert existing.read_text(encoding="utf-8") == "# updated\n"
-    store.delete_by_source.assert_called_once_with(str(existing))
-    meta = store.ingest_file.call_args.kwargs["extra_metadata"]
+    meta = store.ingest_file_replacing.call_args.kwargs["extra_metadata"]
     assert meta["source"] == str(existing)
+
+
+@pytest.mark.asyncio
+async def test_knowledge_ingest_uses_replacing(tmp_path, monkeypatch):
+    docs = tmp_path / "prj-docs"
+    docs.mkdir()
+    monkeypatch.setattr("app.api.knowledge.settings.knowledge_docs_dir", str(docs))
+    monkeypatch.setattr("app.api.knowledge.settings.knowledge_image_max_bytes", 1024)
+
+    store = MagicMock()
+    store.ingest_file_replacing.return_value = (4, 1)
+    upload = MagicMock()
+    upload.filename = "guide.md"
+    upload.read = AsyncMock(return_value=b"# guide\n")
+
+    with (
+        patch(
+            "app.api.knowledge.get_current_user_id",
+            new_callable=AsyncMock,
+            return_value="u1",
+        ),
+        patch("app.api.knowledge._store", return_value=store),
+    ):
+        resp = await knowledge_api.knowledge_ingest(upload, authorization="Bearer x")
+
+    assert resp["code"] == 0
+    assert resp["data"]["chunks"] == 4
+    assert resp["data"]["deleted_before"] == 1
+    assert (docs / "guide.md").is_file()
+    store.ingest_file_replacing.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_knowledge_ingest_job_queue_flow(tmp_path, monkeypatch):
+    docs = tmp_path / "prj-docs"
+    docs.mkdir()
+    data_dir = tmp_path / "agent-data"
+    data_dir.mkdir()
+    monkeypatch.setattr("app.api.knowledge.settings.knowledge_docs_dir", str(docs))
+    monkeypatch.setattr("app.api.knowledge.settings.knowledge_image_max_bytes", 1024)
+    monkeypatch.setattr("app.services.knowledge_ingest_job.settings.agent_data_dir", str(data_dir))
+
+    from app.services.knowledge_ingest_job import get_ingest_job_manager
+
+    mgr = get_ingest_job_manager()
+    mgr.clear_for_tests()
+
+    store = MagicMock()
+    store.ingest_file_replacing.return_value = (2, 0)
+
+    good = MagicMock()
+    good.filename = "a.md"
+    good.read = AsyncMock(return_value=b"# a\n")
+    dup = MagicMock()
+    dup.filename = "a.md"
+    dup.read = AsyncMock(return_value=b"# dup\n")
+
+    with (
+        patch(
+            "app.api.knowledge.get_current_user_id",
+            new_callable=AsyncMock,
+            return_value="u1",
+        ),
+        patch("app.api.knowledge._store", return_value=store),
+    ):
+        created = await knowledge_api.knowledge_ingest_job_create(authorization="Bearer x")
+        assert created["code"] == 0
+        job_id = created["data"]["job_id"]
+
+        appended = await knowledge_api.knowledge_ingest_job_append(
+            job_id,
+            [good, dup],
+            authorization="Bearer x",
+        )
+        assert appended["code"] == 0
+        assert appended["data"]["total"] == 2
+
+        committed = await knowledge_api.knowledge_ingest_job_commit(
+            job_id,
+            authorization="Bearer x",
+        )
+        assert committed["code"] == 0
+        assert committed["data"]["status"] == "running"
+
+        # 等待后台任务完成
+        task = mgr._tasks.get("u1")
+        if task is not None:
+            await task
+
+        status = await knowledge_api.knowledge_ingest_job_status(authorization="Bearer x")
+        assert status["code"] == 0
+        job = status["data"]["job"]
+        assert job["status"] == "completed"
+        assert job["succeeded"] == 1
+        assert job["failed"] == 1
+        assert job["chunks_total"] == 2
+        assert status["data"]["in_progress"] is False
+
+
+@pytest.mark.asyncio
+async def test_knowledge_ingest_job_append_chunk_limit():
+    from app.services.knowledge_ingest_job import APPEND_CHUNK_MAX_FILES, get_ingest_job_manager
+
+    mgr = get_ingest_job_manager()
+    mgr.clear_for_tests()
+
+    with patch(
+        "app.api.knowledge.get_current_user_id",
+        new_callable=AsyncMock,
+        return_value="u1",
+    ):
+        created = await knowledge_api.knowledge_ingest_job_create(authorization="Bearer x")
+        job_id = created["data"]["job_id"]
+        files = [MagicMock(filename=f"f{i}.md") for i in range(APPEND_CHUNK_MAX_FILES + 1)]
+        resp = await knowledge_api.knowledge_ingest_job_append(
+            job_id,
+            files,
+            authorization="Bearer x",
+        )
+    assert resp["code"] == 40066
+
+
+@pytest.mark.asyncio
+async def test_knowledge_delete_blocked_while_job_running():
+    from app.services.knowledge_ingest_job import get_ingest_job_manager
+
+    mgr = get_ingest_job_manager()
+    mgr.clear_for_tests()
+    job = mgr.create_job("u1")
+    # 直接切到 running 模拟锁定
+    job.status = "running"
+    mgr._persist(job)
+
+    with patch(
+        "app.api.knowledge.get_current_user_id",
+        new_callable=AsyncMock,
+        return_value="u1",
+    ):
+        resp = await knowledge_api.knowledge_delete(
+            knowledge_api.KnowledgeDeleteBody(source="/tmp/a.md"),
+            authorization="Bearer x",
+        )
+    assert resp["code"] == 40961
+    mgr.clear_for_tests()
 
 
 def test_knowledge_docs_dir_defaults_to_prj_docs(monkeypatch):

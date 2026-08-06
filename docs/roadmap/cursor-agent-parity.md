@@ -100,21 +100,25 @@
 
 ### 3.1 总览矩阵
 
-| 能力域        | Cursor                          | 本仓现状                                         | 差距等级   | 说明                         |
-| ------------- | ------------------------------- | ------------------------------------------------ | ---------- | ---------------------------- |
-| 编排内核      | 闭源 Harness + tool loop        | LangGraph 父图 + `create_agent`                  | 低         | 路径正确，需打磨可靠性       |
-| 工具面        | 内置 IDE tools + MCP            | **仅** Platform MCP + RAG 工具                   | 低（设计） | 业务侧应保持单一 MCP         |
-| Instructions  | Rules 分层 + 智能应用           | System/节点 prompt + RAG；产品内无「用户 Rules」 | 中         | 缺可运营的场景 playbook      |
-| Skills        | 按需加载多步骤工作流            | 开发侧有 skills；**运行时无对等物**              | 高         | 长流程易塞进大 prompt        |
-| 模式系统      | Agent/Ask/Plan/Debug            | AI-first 默认恒 `react`；完整门控需关开关        | 高         | 缺用户可见的能力边界模式     |
-| Context 管理  | 索引 + 按需读 + Skills 渐进披露 | 工具全量绑定 + RAG 注入                          | 高         | 工具一多易炸 context         |
-| HITL / 审批   | Run Mode + Hooks + 确认         | interrupt 表单；高风险依赖 catalog/preflight     | 中         | 可产品化「运行模式」         |
-| Subagents     | Explore/Shell 等隔离            | 基本单线程 `create_agent`                        | 中高       | 重检索/多步可拆子任务        |
-| Checkpoint UX | 对话时间线可回滚文件            | checkpointer 可 resume；UX 偏弱                  | 中         | 用户难感知「卡在哪、能否续」 |
-| 可观测性      | Trace/工具卡片较成熟            | SSE `trace` / tool 事件；卡片与运营不足          | 中         | roadmap 已列结构化卡片       |
-| 并行 Agent    | Cloud / 多 Agent Window         | 单会话为主                                       | 低（M1）   | 可后置                       |
-| Hooks 运行时  | 生命周期脚本可拦可改            | 开发 hooks ≠ 产品运行时钩子                      | 中         | 审计/拦截可标准化            |
-| 模型路由      | Auto / 按任务复杂度路由         | 配置选定模型                                     | 低～中     | 可后置                       |
+> **说明**：下表为 **2026-08-05** 对照代码后的现状；已落地项不再标「高差距」。未勾满的体验缺口见 §7 脚注。
+
+| 能力域        | Cursor                          | 本仓现状                                                             | 差距等级   | 说明                                    |
+| ------------- | ------------------------------- | -------------------------------------------------------------------- | ---------- | --------------------------------------- |
+| 编排内核      | 闭源 Harness + tool loop        | LangGraph 父图 + `create_agent`                                      | 低         | 路径正确，需打磨可靠性                  |
+| 工具面        | 内置 IDE tools + MCP            | **仅** Platform MCP + RAG 工具                                       | 低（设计） | 业务侧应保持单一 MCP                    |
+| Instructions  | Rules 分层 + 智能应用           | System/节点 prompt + RAG + **运行时 Playbook**                       | 低～中     | Playbook 已落地；缺用户可编辑 Rules     |
+| Skills        | 按需加载多步骤工作流            | 运行时 Playbook（alarm-dispose / batch-export 等）按意图注入         | 低～中     | 关键词匹配；成功率需联调观测            |
+| 模式系统      | Agent/Ask/Plan/Debug            | 会话 `run_mode`：readonly / confirm / autonomous + `plan_first` 开关 | 低～中     | 非 Cursor 同名四模式；语义对齐权限边界  |
+| Context 管理  | 索引 + 按需读 + Skills 渐进披露 | **domains 子集 / safe_default（非写）**；写工具仅领域命中；RAG 注入  | 中         | 已非「唯一全量」；关键词漏检仍可能偏窄  |
+| HITL / 审批   | Run Mode + Hooks + 确认         | interrupt 表单 + run_mode + preflight；对称路径已硬化                | 低         | confirm 写操作依赖 handler 显式 confirm |
+| Subagents     | Explore/Shell 等隔离            | 知识检索 Subagent（`retrieve_knowledge` 摘要回主）                   | 中         | 仅工具路径；被动 RAG 仍注入主对话       |
+| Checkpoint UX | 对话时间线可回滚文件            | checkpointer resume + HITL 终态/可续跑文案                           | 低～中     | 无 IDE 级文件回滚                       |
+| 可观测性      | Trace/工具卡片较成熟            | SSE tool 事件 + 结构化结果卡 + Audit/Hooks                           | 低～中     | Hooks after 审计默认关                  |
+| 并行 Agent    | Cloud / 多 Agent Window         | 多会话切片：切走不 abort + notification                              | 低（M1）   | 无关窗续跑 / job queue                  |
+| Hooks 运行时  | 生命周期脚本可拦可改            | 工具前后 Hooks（deny_list + audit）                                  | 中         | 非全生命周期 beforeSubmit 等            |
+| 模型路由      | Auto / 按任务复杂度路由         | Auto + 关键词启发式 light/default                                    | 低～中     | 已上线；非复杂度模型                    |
+| client_action | Browser 工具闭环                | 宿主桥执行 + 回执 **仅 audit**（不回灌图）                           | 中         | 半闭环；无宿主仍 skip 降级              |
+| BPMN UI       | —                               | **未纳入**；前端 stub                                                | —          | 单独立项                                |
 
 差距等级：**高** = 对「像 Cursor 一样可靠智能」影响大；**中** = 体验与稳健性；**低** = 可后置或已基本对齐。
 
@@ -126,30 +130,30 @@ Cursor:
        ↑ Hooks 贯穿
   Context: 索引 + 按需 Skills + 工具 schema 渐进
 
-本仓:
-  父图(classify→…) + create_agent(全量 MCP tools) + RAG
-       ↑ HITL 仅 interrupt
-  Context: 默认全量工具 + 每轮 RAG；AI-first 旁路 plan/device 门控
+本仓（2026-08 后）:
+  父图(classify→…) + create_agent(domains 子集 | safe_default) + RAG + Playbook
+       ↑ HITL 仅 interrupt；run_mode / plan_first 门控
+  Context: 写工具按领域进入；闲聊默认非写子集；thread 子集可 Postgres 持久化
 ```
 
-**设计债摘要**：
+**仍存设计债（非「未做」）**：
 
-1. **AI-first 默认**提升「像通用 Agent」的灵活度，但弱化了 Plan/缺槽门控的可预期性（Cursor 用显式 Plan/Ask 模式补齐）。
-2. **工具全量注入**与 Cursor「相关才详用」相反，扩展工具后可靠性会下降。
-3. **场景 playbook（Skills 等价）未产品化**，复杂处置流程依赖模型临场发挥。
-4. **模式对用户不可见**，无法表达「只查询 / 需确认才写 / 自由执行」。
+1. **AI-first 默认**仍弱化 Plan 可预期性；已用 `plan_first` 开关补齐「先确认再执行」，但计划步骤 **几乎不可编辑**（相对 Cursor Plan→Build）。
+2. **领域推断靠关键词**：漏检时 safe_default 偏保守（无写工具），需用户更明确表述或扩 triggers。
+3. **client_action 半闭环**：执行回执不进图，Agent 无法根据页面跳转结果再决策。
+4. **BPMN 编排 UI** 明确非目标；后端若残留 API 勿误判为已有画布。
 
 ### 3.3 实现层差异（工程）
 
-| 主题        | Cursor 侧（公开行为） | 本仓实现                                  | 优化方向                        |
-| ----------- | --------------------- | ----------------------------------------- | ------------------------------- |
-| 工具发现    | MCP schema 按需       | 启动 `get_tools()` 全量绑定               | 意图/catalog 子集注入           |
-| 确认门控    | Run Mode allowlist    | preflight + `hitl_required`               | 统一「会话运行模式」            |
-| 计划        | Plan Mode + Build     | `plan` SSE + 步骤条；AI-first 下门控旁路  | 可选恢复显式 Plan 或 UI 开关    |
-| 失败恢复    | Checkpoint / 重试     | resume/reject/abort 契约已有              | 加强 UI 状态机与残留清理验收    |
-| 文档优先    | MCP docs / Skills     | 开发强制 docs-langchain                   | 运行时知识分片 + 工具说明书压缩 |
-| 审计        | Hooks / 日志          | AuditLog 等桌面能力                       | 工具前后钩子标准化写入          |
-| Client 执行 | Browser 工具闭环      | `client_action` 单向；无 tool-result 回调 | 有宿主时补执行回执（后置）      |
+| 主题        | Cursor 侧（公开行为） | 本仓实现                                                | 后续可选项                      |
+| ----------- | --------------------- | ------------------------------------------------------- | ------------------------------- |
+| 工具发现    | MCP schema 按需       | `select_tool_subset`：domain / safe_default；指纹持久化 | 两段式「先选后详」schema        |
+| 确认门控    | Run Mode allowlist    | `run_mode` + preflight + `ask_user_confirm`             | Agent 层统一强制 confirm 写工具 |
+| 计划        | Plan Mode + Build     | `plan_first` → `plan_confirm`；预览只读                 | 可编辑步骤 + Build              |
+| 失败恢复    | Checkpoint / 重试     | resume/reject/abort + 残留态清理                        | 持续按 M1 验收回归              |
+| 文档优先    | MCP docs / Skills     | 开发强制 docs-langchain；运行时 Playbook                | Playbook 语义检索               |
+| 审计        | Hooks / 日志          | 运行时 tool Hooks + AuditLog                            | 默认打开 after 审计             |
+| Client 执行 | Browser 工具闭环      | 宿主桥 + `client_action_result` 审计                    | 可选图内回执（需立项）          |
 
 ### 3.4 本仓已对齐、必须守住的红线
 
@@ -244,36 +248,37 @@ flowchart TD
 ### P0 Done
 
 - [x] 用户可切换只读 / 确认 / 自主，且后端强制生效（P0-1）
-- [x] 默认绑定工具为子集或分级；全量工具不再是唯一策略（P0-2）
+- [x] 默认绑定工具为子集或分级；全量工具不再是唯一策略（P0-2：domain 命中子集；未命中 **safe_default=非写**；thread 子集 Postgres 持久化供 resume）
 - [x] reject / abort / 新消息后无 HITL、Plan、loading 残留（P0-3）
 - [x] interrupt 态在 UI 可解释、可续跑（P0-4；P0-5 含 MCP 不可达话术）
 
 ### P1 Done
 
-- [x] 至少 2 个高频场景有可版本化 playbook，且任务成功率可测提升（P1-1：`alarm-dispose` / `batch-export`；成功率需联调观测）
-- [x] 用户可选「先计划后执行」（P1-2：桌面 `planFirst` → 请求 `plan_first`，覆盖 AI-first 走 `plan_confirm`）
-- [x] 轻量 Subagent：长检索摘要回主对话（P1-3：`retrieve_knowledge` → knowledge research subagent）
-- [x] 至少 3 类高频工具有结构化卡片（P1-4：告警表 / 设备列表 / 导出结果）
-- [x] 知识/playbook 更新可不发版或轻发版生效（P1-1 外部 `AGENT_PLAYBOOK_DIR`；P1-5：设置页知识库运营 + entity-sync/status）
+- [x] 至少 2 个高频场景有可版本化 playbook（P1-1：`alarm-dispose` / `batch-export`；**成功率需联调观测，仓内无自动评测**）
+- [x] 用户可选「先计划后执行」（P1-2：`plan_first` → `plan_confirm`；**步骤预览只读，非 Cursor 可编辑 Plan→Build**）
+- [x] 轻量 Subagent：长检索摘要回主对话（P1-3：仅 `retrieve_knowledge` 工具路径；被动 RAG 仍注入主对话）
+- [x] 至少 3 类高频工具有结构化卡片（P1-4：告警表 / 设备列表 / 导出；消息内卡片，**非独立 Workspace 侧栏**）
+- [x] 知识/playbook 更新可不发版或轻发版生效（P1-5；entity-sync **状态为进程内存**，重启清空）
 
 ### P2 Done（按立项裁剪）
 
-- [x] 工具调用审计完整可查（P2-1：Hooks deny/after → audit；既有 SSE tool_start/end 保留）
-- [x] 有宿主时关键 client_action 可验证执行（P2-2：宿主桥 + 回执 audit；无宿主仍跳过）
-- [x] （可选）按意图模型路由上线（P2-3：Auto + 仅 enabled catalog；无额度模型已禁用）
-- [x] 多会话并行：切走不 abort 后台 SSE；按 thread 缓存消息/HITL；完成后 notification（P2-4 最小切片；无通用 job queue）
+- [x] 工具调用审计完整可查（P2-1：Hooks deny/after → audit；**after 默认关**；SSE tool_start/end 保留）
+- [x] 有宿主时关键 client_action 可验证执行（P2-2：宿主桥 + 回执 **仅 audit，不回灌图**；无宿主仍跳过）
+- [x] （可选）按意图模型路由上线（P2-3：Auto + 关键词启发式）
+- [x] 多会话并行最小切片（P2-4：切走不 abort + thread 缓存 + notification；**无关窗续跑 / 无 job queue**）
+- [ ] BPMN 编排 UI（P2-5：**未纳入**，前端 stub）
 
 ---
 
 ## 8. 风险与约束
 
-| 风险                                | 缓解                                              |
-| ----------------------------------- | ------------------------------------------------- |
-| 为「像 Cursor」引入第二套 HITL/编排 | 坚持 interrupt + 父图主链；Plan/模式只是门控与 UX |
-| 工具子集误伤能力                    | catalog 标签 + 回退「相关领域全开」+ 评测集       |
-| Playbook 变成第二 prompt 垃圾场     | 短索引 + 按需全文；与 Rules/Skills 同样的渐进披露 |
-| AI-first 与显式 Plan 冲突           | 用**用户/会话开关**共存，而非再加图外状态机       |
-| 范围膨胀到 BPMN/Cloud               | 保持本文非目标；另立项                            |
+| 风险                                | 缓解                                                                               |
+| ----------------------------------- | ---------------------------------------------------------------------------------- |
+| 为「像 Cursor」引入第二套 HITL/编排 | 坚持 interrupt + 父图主链；Plan/模式只是门控与 UX                                  |
+| 工具子集误伤能力                    | catalog 标签 + **safe_default（非写）** 代替无脑全量；关键词漏检时用户需更明确意图 |
+| Playbook 变成第二 prompt 垃圾场     | 短索引 + 按需全文；与 Rules/Skills 同样的渐进披露                                  |
+| AI-first 与显式 Plan 冲突           | 用**用户/会话开关**共存，而非再加图外状态机                                        |
+| 范围膨胀到 BPMN/Cloud               | 保持本文非目标；另立项                                                             |
 
 ---
 
@@ -303,16 +308,17 @@ flowchart TD
 
 ## 修订记录
 
-| 日期       | 说明                                                                     |
-| ---------- | ------------------------------------------------------------------------ |
-| 2026-07-31 | 初稿：Cursor 摘要、与本仓差异矩阵、P0–P2 优化计划                        |
-| 2026-08-03 | P0-1 / P0-2 落地：会话 run_mode + catalog domains 工具子集注入           |
-| 2026-08-03 | P0-3/4/5：abort Stop、HITL 终态/可续跑、mcp_unavailable                  |
-| 2026-08-03 | P1-1：运行时 Playbook（alarm-dispose / batch-export）注入                |
-| 2026-08-03 | P1-2：显式 Plan（plan_first 覆盖 AI-first → plan_confirm）               |
-| 2026-08-04 | P1-3：知识检索 Subagent（retrieve_knowledge 摘要回主 agent）             |
-| 2026-08-04 | P1-4：结构化结果卡（告警表 / 设备列表 / 导出）                           |
-| 2026-08-04 | P1-5：RAG 运营（知识 HTTP CRUD + entity-sync/status + 设置页）           |
-| 2026-08-04 | P2-1：运行时 Hooks（deny_list + audit；Pipeline/ReAct 对称）             |
-| 2026-08-04 | P2-2：client_action 宿主桥 + 执行回执 audit                              |
-| 2026-08-04 | P2-3：模型 Auto 路由；实测删除无额度 qwen3.7-plus / qwen-plus-2025-07-28 |
+| 日期       | 说明                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| 2026-07-31 | 初稿：Cursor 摘要、与本仓差异矩阵、P0–P2 优化计划                                                |
+| 2026-08-03 | P0-1 / P0-2 落地：会话 run_mode + catalog domains 工具子集注入                                   |
+| 2026-08-03 | P0-3/4/5：abort Stop、HITL 终态/可续跑、mcp_unavailable                                          |
+| 2026-08-03 | P1-1：运行时 Playbook（alarm-dispose / batch-export）注入                                        |
+| 2026-08-03 | P1-2：显式 Plan（plan_first 覆盖 AI-first → plan_confirm）                                       |
+| 2026-08-04 | P1-3：知识检索 Subagent（retrieve_knowledge 摘要回主 agent）                                     |
+| 2026-08-04 | P1-4：结构化结果卡（告警表 / 设备列表 / 导出）                                                   |
+| 2026-08-04 | P1-5：RAG 运营（知识 HTTP CRUD + entity-sync/status + 设置页）                                   |
+| 2026-08-04 | P2-1：运行时 Hooks（deny_list + audit；Pipeline/ReAct 对称）                                     |
+| 2026-08-04 | P2-2：client_action 宿主桥 + 执行回执 audit                                                      |
+| 2026-08-04 | P2-3：模型 Auto 路由；实测删除无额度 qwen3.7-plus / qwen-plus-2025-07-28                         |
+| 2026-08-05 | P0-2 加固：未命中改 safe_default（非写）；thread 子集 Postgres 持久化；§3 矩阵与 §7 脚注对齐代码 |

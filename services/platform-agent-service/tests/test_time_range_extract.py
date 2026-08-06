@@ -55,38 +55,38 @@ class TestExtractAlarmTimeRangeFromMessage:
         assert "08:00" in start
         assert "08:10" in end
 
-    def test_infer_plan_params_yesterday_hour_range(self):
+    def test_infer_plan_params_no_utterance_time(self):
         steps = [
             {"id": "1", "label": "查询", "tool": "query_alarms", "status": "pending"},
             {"id": "2", "label": "导出", "tool": "download_file", "status": "pending"},
         ]
         msg = "查询昨天8点到8点10分的未处理告警并导出"
         params = infer_plan_params(msg, steps)
-        assert "08:00" in params["query_alarms"]["start_time"]
-        assert "08:10" in params["query_alarms"]["end_time"]
-        assert params["download_file"]["start_time"] == params["query_alarms"]["start_time"]
-        assert params["download_file"]["end_time"] == params["query_alarms"]["end_time"]
+        assert params["query_alarms"]["start_time"] == ""
+        assert params["query_alarms"]["end_time"] == ""
+        assert params["download_file"]["start_time"] == ""
+        assert params["download_file"]["resource"] == ""
 
     def test_extract_time_phrase_compat(self):
         assert extract_time_phrase("查近三天告警") == "近三天"
 
 
 class TestInferPlanParamsAbsoluteTime:
-    def test_query_export_with_absolute_range(self):
+    def test_query_export_no_regex_absolute_range(self):
         steps = [
             {"id": "1", "label": "查询", "tool": "query_alarms", "status": "pending"},
             {"id": "2", "label": "导出", "tool": "download_file", "status": "pending"},
         ]
         msg = 'startTime: "2026-07-02 11:00:00" endTime: "2026-07-02 11:17:00" 查询告警并导出'
         params = infer_plan_params(msg, steps)
-        assert params["query_alarms"]["start_time"] == "2026-07-02 11:00:00"
-        assert params["query_alarms"]["end_time"] == "2026-07-02 11:17:00"
-        assert params["download_file"]["start_time"] == "2026-07-02 11:00:00"
-        assert params["download_file"]["end_time"] == "2026-07-02 11:17:00"
+        assert params["query_alarms"]["start_time"] == ""
+        assert params["download_file"]["start_time"] == ""
+        assert params["download_file"]["resource"] == ""
 
 
-class TestPreflightEnrichFromUserMessage:
-    def test_preflight_fills_empty_args_from_session_message(self):
+class TestPreflightNoUtteranceTimeEnrich:
+    def test_preflight_empty_time_asks_hitl_even_if_session_has_time(self):
+        """preflight 不再从会话原话回填时间；空参应走 HITL。"""
         from app.services.session_store import session_store
         from contracts.context import current_thread_id
 
@@ -104,14 +104,21 @@ class TestPreflightEnrichFromUserMessage:
         finally:
             current_thread_id.reset(token)
 
-        assert result.interrupt is None
-        assert result.args["start_time"] == "2026-07-02 11:00:00"
-        assert result.args["end_time"] == "2026-07-02 11:17:00"
+        assert result.interrupt is not None
+        assert result.interrupt.get("type") == "ask_params"
+        assert not str(result.args.get("start_time") or "").strip()
 
-    def test_enrich_alarm_time_args_explicit_message(self):
+    def test_enrich_alarm_time_args_is_passthrough(self):
         enriched = enrich_alarm_time_args(
             {"start_time": "", "end_time": ""},
             user_message='startTime: "2026-07-02 11:00:00" endTime: "2026-07-02 11:17:00"',
         )
-        assert enriched["start_time"] == "2026-07-02 11:00:00"
-        assert enriched["end_time"] == "2026-07-02 11:17:00"
+        assert enriched == {"start_time": "", "end_time": ""}
+
+    def test_preflight_keeps_llm_provided_time(self):
+        result = preflight_tool(
+            "query_alarms",
+            {"start_time": "近三天", "end_time": ""},
+        )
+        assert result.interrupt is None
+        assert result.args["start_time"] == "近三天"

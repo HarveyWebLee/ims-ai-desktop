@@ -91,6 +91,7 @@ class TestToolSubset:
             available_names=available,
         )
         assert result.fallback_full is False
+        assert result.strategy == "domain"
         assert "alarm" in result.domains
         assert "query_alarms" in result.tool_names
         assert "batch_confirm_alarms" in result.tool_names
@@ -98,17 +99,46 @@ class TestToolSubset:
         assert "navigate_to" in result.tool_names
         assert "send_device_cmd" not in result.tool_names
 
-    def test_fallback_full_when_no_domain(self):
+    def test_safe_default_when_no_domain(self):
+        """无领域命中时用 safe_default（非写），不再回退全量。"""
         from app.services.tool_subset import select_tool_subset
 
-        available = frozenset({"query_alarms", "query_devices", "retrieve_knowledge"})
+        available = frozenset(
+            {
+                "query_alarms",
+                "query_devices",
+                "batch_confirm_alarms",
+                "send_device_cmd",
+                "retrieve_knowledge",
+            }
+        )
         result = select_tool_subset(
             run_mode="confirm",
             message="你好",
             available_names=available,
         )
-        assert result.fallback_full is True
-        assert result.tool_names == available
+        assert result.fallback_full is False
+        assert result.strategy == "safe_default"
+        assert "query_alarms" in result.tool_names
+        assert "query_devices" in result.tool_names
+        assert "retrieve_knowledge" in result.tool_names
+        assert "batch_confirm_alarms" not in result.tool_names
+        assert "send_device_cmd" not in result.tool_names
+
+    def test_domain_keyword_without_matched_tools_uses_safe_default(self):
+        from app.services.tool_subset import select_tool_subset
+
+        # 命中 alarm 关键词，但 available 中无 alarm 工具
+        available = frozenset({"query_devices", "send_device_cmd", "retrieve_knowledge"})
+        result = select_tool_subset(
+            run_mode="confirm",
+            message="查一下告警",
+            available_names=available,
+        )
+        assert result.strategy == "safe_default"
+        assert "alarm" in result.domains
+        assert "send_device_cmd" not in result.tool_names
+        assert "query_devices" in result.tool_names
 
     def test_remember_thread_subset(self):
         from app.services.tool_subset import (

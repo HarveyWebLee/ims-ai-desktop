@@ -7,6 +7,7 @@ LangGraph Checkpoint 辅助工具
 - 判断图是否仍停在 HITL interrupt 等待 resume
 - 从 checkpoint 补发 interrupt SSE（流标志滞后时）
 - 新消息前静默拒绝 stale interrupt / 修复未闭合的 tool_calls
+- SSE error 时写入助手错误文案（历史可恢复）
 - 排查用消息摘要、消息条数、恢复上次工具参数
 
 在 Agent 流程中的位置
@@ -326,6 +327,124 @@ async def checkpoint_messages_summary(
     if pending_interrupt:
         summary.append({"checkpoint_pending_interrupt": True})
     return summary
+
+
+async def persist_run_error_message(
+    thread_id: str,
+    model_id: str,
+    error_payload: dict[str, Any] | None,
+    *,
+    mid: str | None = None,
+) -> bool:
+    """
+    将本轮 SSE error 写入 checkpoint 助手消息，供历史会话可恢复。
+
+    官方路径：父图 ``aupdate_state`` + ``add_messages`` 追加 ``AIMessage``
+    （与 ``repair_dangling_tool_calls`` 同源）。不引入图外消息表。
+
+    返回:
+        True 表示已写入或已存在等价文案；False 表示跳过/失败。
+    """
+    tid = (thread_id or "").strip()
+    mid_id = (model_id or "").strip()
+    if not tid or not mid_id:
+        return False
+
+    from app.services.llm_error_mapper import format_error_assistant_content
+    from contracts.agent_debug import agent_debug
+
+    content = format_error_assistant_content(
+        error_payload if isinstance(error_payload, dict) else None
+    )
+    if not content.strip():
+        return False
+
+    try:
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        from app.graph.agent_factory import get_parent_graph
+
+        agent = get_parent_graph(mid_id)
+        config = thread_runnable_config(tid)
+        snap = await agent.aget_state(config)
+    except Exception:
+        logger.debug(
+            "persist_run_error_message aget_state 失败: thread=%s",
+            tid,
+            exc_info=True,
+        )
+        return False
+
+    values = getattr(snap, "values", None) or {} if snap is not None else {}
+    messages = values.get("messages") if isinstance(values, dict) else None
+    if not isinstance(messages, list):
+        messages = []
+
+    # 同 turn 已有等价错误文案则幂等跳过（避免 chat/resume 重复 error 双写）
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            break
+        if isinstance(msg, AIMessage):
+            existing = str(getattr(msg, "content", "") or "")
+            if content in existing or (
+                existing.lstrip().startswith("⚠️")
+                and str((error_payload or {}).get("message") or "") in existing
+            ):
+                agent_debug(
+                    "checkpoint.persist_run_error_skip_dup",
+                    thread_id=tid,
+                    mid=(mid or "").strip() or None,
+                )
+                return True
+            break
+
+    ai_kwargs: dict[str, Any] = {}
+    turn_mid = (mid or "").strip()
+    if turn_mid:
+        ai_kwargs["additional_kwargs"] = {"mid": turn_mid}
+
+    to_append: list[Any] = []
+    if not messages:
+        # 图未落盘用户句时（极早失败），从 session_store 补一条，避免历史只有错误助手卡
+        try:
+            from app.services.session_store import get_user_messages
+
+            recent = get_user_messages(tid, limit=1)
+            if recent:
+                human_kwargs: dict[str, Any] = {}
+                if turn_mid:
+                    human_kwargs["id"] = turn_mid
+                    human_kwargs["additional_kwargs"] = {"mid": turn_mid}
+                to_append.append(HumanMessage(content=str(recent[-1]), **human_kwargs))
+        except Exception:
+            logger.debug(
+                "persist_run_error_message 读取 session_store 失败: thread=%s",
+                tid,
+                exc_info=True,
+            )
+
+    to_append.append(AIMessage(content=content, **ai_kwargs))
+
+    try:
+        await agent.aupdate_state(
+            config,
+            {"messages": to_append},
+        )
+        agent_debug(
+            "checkpoint.persist_run_error",
+            thread_id=tid,
+            mid=turn_mid or None,
+            content_preview=content[:120],
+            appended=len(to_append),
+        )
+        return True
+    except Exception:
+        logger.warning(
+            "persist_run_error_message aupdate_state 失败: thread=%s",
+            tid,
+            exc_info=True,
+        )
+        return False
 
 
 async def repair_dangling_tool_calls(thread_id: str, model_id: str) -> int:

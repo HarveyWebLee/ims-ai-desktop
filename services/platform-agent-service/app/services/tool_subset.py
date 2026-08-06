@@ -4,16 +4,25 @@
 规则
 ----
 - readonly：仅绑定非写工具
-- confirm / autonomous：关键词推断 domains；命中则 core∪matched；未命中回退该模式下全部允许工具
-- retrieve_knowledge 与 nav 低风险工具恒保留（core_always）
-- 每 thread 记住上次 chat 的 tool_names，供 resume 复用同一父图
+- confirm / autonomous：关键词推断 domains
+  - 命中：core ∪ matched（写工具仅在命中领域内出现）
+  - 未命中：safe_default = core ∪ 非写工具（**不再**回退全量）
+- retrieve_knowledge 与 nav 低风险工具恒保留（core）
+- 每 thread 记住上次 chat 的 tool_names（内存 + Postgres），供 resume 复用同一父图
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Literal
 
+from app.infrastructure.persistence.tool_subset_repository import (
+    clear_thread_tool_subset,
+    configure_tool_subset_persistence,
+    get_remembered_thread_tool_subset,
+    remember_thread_tool_subset,
+)
 from contracts.context import normalize_run_mode
 from contracts.tool_catalog_loader import (
     get_tools_by_domains,
@@ -22,9 +31,6 @@ from contracts.tool_catalog_loader import (
 )
 
 logger = logging.getLogger(__name__)
-
-# thread_id → 上次 chat 绑定的工具名集合（resume 必须复用）
-_thread_tool_names: dict[str, frozenset[str]] = {}
 
 _DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
     "alarm": (
@@ -58,6 +64,8 @@ _DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
 # 本地 RAG 工具名（非 catalog）
 RETRIEVE_KNOWLEDGE = "retrieve_knowledge"
 
+ToolSubsetStrategy = Literal["domain", "safe_default", "emergency_full"]
+
 
 @dataclass(frozen=True)
 class ToolSubsetResult:
@@ -67,33 +75,12 @@ class ToolSubsetResult:
     domains: frozenset[str]
     fallback_full: bool
     fingerprint: str
+    strategy: ToolSubsetStrategy = "domain"
 
 
 def tool_subset_fingerprint(tool_names: frozenset[str]) -> str:
     """稳定指纹，用作 create_agent / 父图缓存键。"""
     return ",".join(sorted(tool_names))
-
-
-def remember_thread_tool_subset(thread_id: str, tool_names: frozenset[str]) -> None:
-    """记录本 thread 最近一次 chat 的工具子集。"""
-    tid = (thread_id or "").strip()
-    if tid:
-        _thread_tool_names[tid] = frozenset(tool_names)
-
-
-def get_remembered_thread_tool_subset(thread_id: str) -> frozenset[str] | None:
-    """读取 resume 应复用的工具子集；无记录返回 None。"""
-    tid = (thread_id or "").strip()
-    if not tid:
-        return None
-    return _thread_tool_names.get(tid)
-
-
-def clear_thread_tool_subset(thread_id: str) -> None:
-    """会话删除时清理。"""
-    tid = (thread_id or "").strip()
-    if tid:
-        _thread_tool_names.pop(tid, None)
 
 
 def infer_domains_from_text(*texts: str) -> frozenset[str]:
@@ -132,6 +119,16 @@ def _filter_by_run_mode(names: frozenset[str], run_mode: str) -> frozenset[str]:
     return frozenset(n for n in names if n == RETRIEVE_KNOWLEDGE or not is_write_tool(n))
 
 
+def _safe_default_subset(allowed: frozenset[str], core: frozenset[str]) -> frozenset[str]:
+    """
+    无领域命中时的默认子集：core ∪ 非写工具。
+
+    写工具必须等 domains 命中后再进入绑定集，避免闲聊/泛化意图绑定全量写能力。
+    """
+    reads = frozenset(n for n in allowed if n == RETRIEVE_KNOWLEDGE or not is_write_tool(n))
+    return (core | reads) & allowed
+
+
 def select_tool_subset(
     *,
     run_mode: str,
@@ -155,28 +152,33 @@ def select_tool_subset(
     domains = infer_domains_from_text(message, *recent[-4:])
     core = frozenset({RETRIEVE_KNOWLEDGE}) | (_nav_core_tools() & allowed)
 
+    strategy: ToolSubsetStrategy
     fallback_full = False
     if domains:
         matched = get_tools_by_domains(*domains) & allowed
-        selected = (core | matched) & allowed
-        # 领域命中但过滤后过少（仅 core）时仍算命中，不强行 full
-        if not matched and mode != "readonly":
-            fallback_full = True
-            selected = allowed
+        if matched:
+            selected = (core | matched) & allowed
+            strategy = "domain"
+        else:
+            # 关键词命中但 catalog 无对应工具：仍不回退全量
+            selected = _safe_default_subset(allowed, core)
+            strategy = "safe_default"
     else:
-        fallback_full = True
-        selected = allowed
+        selected = _safe_default_subset(allowed, core)
+        strategy = "safe_default"
 
-    # 防御：空集时回退允许集
+    # 防御：空集时回退允许集（仅此路径标记 fallback_full）
     if not selected:
         fallback_full = True
+        strategy = "emergency_full"
         selected = allowed if allowed else frozenset({RETRIEVE_KNOWLEDGE})
 
     fp = tool_subset_fingerprint(selected)
     logger.info(
-        "tool_subset: mode=%s domains=%s fallback=%s tools=%s",
+        "tool_subset: mode=%s domains=%s strategy=%s fallback=%s tools=%s",
         mode,
         sorted(domains),
+        strategy,
         fallback_full,
         sorted(selected),
     )
@@ -185,6 +187,7 @@ def select_tool_subset(
         domains=domains,
         fallback_full=fallback_full,
         fingerprint=fp,
+        strategy=strategy,
     )
 
 
@@ -194,3 +197,18 @@ def deny_readonly_write_summary(tool_name: str) -> str:
         f"当前为只读模式，无法执行写操作工具「{tool_name}」。"
         "请将运行模式切换为「确认执行」或「自主」后再试。"
     )
+
+
+__all__ = [
+    "RETRIEVE_KNOWLEDGE",
+    "ToolSubsetResult",
+    "ToolSubsetStrategy",
+    "clear_thread_tool_subset",
+    "configure_tool_subset_persistence",
+    "deny_readonly_write_summary",
+    "get_remembered_thread_tool_subset",
+    "infer_domains_from_text",
+    "remember_thread_tool_subset",
+    "select_tool_subset",
+    "tool_subset_fingerprint",
+]

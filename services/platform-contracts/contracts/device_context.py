@@ -33,12 +33,29 @@ _CONTROL_DEVICE_RE = re.compile(
     r"(?:\s*(?:播放|播报|广播|开门|关门|下发|发指令|控制|写变量|指令))"
 )
 
+# 「查一号泵的报警 / 查询某某告警」：先抽出设备名，再剥掉告警后缀
+_QUERY_DEVICE_OF_ALARM_RE = re.compile(
+    rf"(?:查询|查看|查一下|查下|获取)\s*"
+    rf"(?:设备|门禁)?\s*"
+    rf"({_DEVICE_TOKEN_CAPTURE})"
+    r"\s*的?\s*(?:报警|告警)(?:数据|记录|列表)?"
+)
+
 # 查询/查看类：须带查询动词，避免「给设备下发」误抽
 _QUERY_DEVICE_RE = re.compile(
     rf"(?:查询|查看|查一下|查下|获取)\s*"
     rf"(?:设备|门禁)?\s*"
     rf"({_DEVICE_TOKEN_CAPTURE})"
     r"(?:\s*(?:的)?(?:设备|门禁|详情|状态|信息|变量))?"
+)
+
+# 相对时间整段（近一月 / 近三天 / 今天…），不可作设备名
+_RELATIVE_TIME_TOKEN_RE = re.compile(
+    r"^(?:"
+    r"(?:近|最近|过去)\s*(?:\d+|[零一二两三四五六七八九十半]+)?"
+    r"\s*(?:个)?\s*(?:月|天|周|日|小时|分钟|分|秒)?"
+    r"|今天|昨天|前天|本周|这周|本月|这个月|今年|本年"
+    r")$"
 )
 
 # 名称后括号内编码：502多联机主机（502_DLJ） / 东大门(ANDUN_DEVICE_BH_001)
@@ -102,6 +119,7 @@ def message_has_device_pronoun(message: str) -> bool:
 
 def _clean_token(raw: str | None) -> str | None:
     token = (raw or "").strip().strip("「」『』\"'“”[]【】")
+    token = token.rstrip("的").strip()
     if not token or token in _STOP_TOKENS:
         return None
     if _DEVICE_PRONOUN_RE.fullmatch(token):
@@ -111,6 +129,17 @@ def _clean_token(raw: str | None) -> str | None:
     # 拒绝「目前在线的设备列表」这类查询范围描述，避免当成设备名
     if re.search(r"列表|目前|在线的|离线的|全部设备|所有设备|设备列表", token):
         return None
+    # 拒绝告警查询范围、相对时间短语（「近一月的报警数据」「近三天」）
+    if re.search(r"报警|告警", token):
+        return None
+    if re.search(r"(?:数据|记录)$", token):
+        return None
+    if _RELATIVE_TIME_TOKEN_RE.fullmatch(token):
+        return None
+    if re.match(r"(?:近|最近|过去)", token) and re.search(
+        r"月|天|周|日|小时|分钟|分|秒|今天|昨天", token
+    ):
+        return None
     return token
 
 
@@ -118,7 +147,7 @@ def extract_device_token_from_text(message: str) -> str | None:
     """
     从单句文本弱解析设备名或编码。
 
-    优先级：显式槽位 → 括号编码 → 给/向/对 控制句 → 查询句。
+    优先级：显式槽位 → 括号编码 → 给/向/对 控制句 → 某设备告警句 → 查询句。
     优先返回括号内编码（更利于 resolve_device_code）。
     """
     text = (message or "").strip()
@@ -143,6 +172,13 @@ def extract_device_token_from_text(message: str) -> str | None:
     m = _CONTROL_DEVICE_RE.search(text)
     if m:
         return _clean_token(m.group(1))
+
+    # 先匹配「查 X 的报警」，避免通用查询正则把「近一月的报警数据」整段当设备名
+    m = _QUERY_DEVICE_OF_ALARM_RE.search(text)
+    if m:
+        cleaned = _clean_token(m.group(1))
+        if cleaned:
+            return cleaned
 
     m = _QUERY_DEVICE_RE.search(text)
     if m:

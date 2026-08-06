@@ -3,7 +3,7 @@
  */
 import type { PlanGraph, PlanStep, TraceEvent } from "@ims/shared-types";
 import type { FlowDocumentJSON } from "@/components/BpmnFlowgram";
-import type { AiMessage } from "../types";
+import type { AiMessage, AiMessageBlock } from "../types";
 
 /** 线程级 BPMN 快照（与 GET /threads/{id}/state 对齐） */
 export interface BpmnSnapshotLike {
@@ -57,6 +57,27 @@ function messageHasPlanConfirmInterrupt(msg: AiMessage): boolean {
 
 function messageHasPlanBlock(msg: AiMessage): boolean {
   return msg.blocks.some((b) => b.type === "plan");
+}
+
+function messageHasVisibleText(msg: AiMessage): boolean {
+  return msg.blocks.some((b) => b.type === "text" && b.content.trim().length > 0);
+}
+
+/**
+ * 从 trace error 事件还原助手气泡文案（兼容未写入 checkpoint 的旧会话）。
+ * 与后端 ``format_error_assistant_content`` / 实时 onError 对齐。
+ */
+export function extractErrorAssistantTextFromRun(run: TraceRunSnapshot): string | null {
+  const errorEvent = [...(run.events ?? [])].reverse().find((e) => e.kind === "error");
+  if (!errorEvent) return null;
+
+  const detail = errorEvent.detail as { message?: unknown; data?: { hint?: unknown } } | undefined;
+  const message = String(detail?.message ?? errorEvent.label ?? "").trim();
+  if (!message) return null;
+
+  const hint = String(detail?.data?.hint ?? "").trim();
+  const body = hint ? `${message}\n\n${hint}` : message;
+  return body.startsWith("⚠️") ? body : `⚠️ ${body}`;
 }
 
 /** 比较消息 plan 与 BPMN 快照步骤的重合度（id 权重高于 tool） */
@@ -153,10 +174,42 @@ export function applyBpmnSnapshotToMessages(
   return next;
 }
 
+function ensureErrorTextOnAssistant(msg: AiMessage, run: TraceRunSnapshot): AiMessage {
+  const errText = extractErrorAssistantTextFromRun(run);
+  if (!errText || messageHasVisibleText(msg)) return msg;
+  const textBlock: AiMessageBlock = { type: "text", content: errText };
+  return { ...msg, blocks: [...msg.blocks, textBlock] };
+}
+
+function buildAssistantFromErrorRun(
+  run: TraceRunSnapshot,
+  options: { mid: string | undefined; seed: string },
+): AiMessage | null {
+  const errText = extractErrorAssistantTextFromRun(run);
+  if (!errText) return null;
+
+  const plan = extractPlanFromRun(run);
+  return {
+    id: `trace-error-${run.run_id || options.seed}`,
+    role: "assistant",
+    mid: options.mid,
+    blocks: [{ type: "text", content: errText }],
+    createdAt: Date.now(),
+    streaming: false,
+    traceEvents: run.events ?? [],
+    runId: run.run_id ?? null,
+    traceGraph: run.graph ?? null,
+    planSteps: plan.planSteps,
+    planGraph: plan.planGraph ?? null,
+    planFlowDocument: plan.planFlowDocument ?? null,
+  };
+}
+
 /**
  * 按用户轮次将 trace runs 与助手消息对齐（每轮用户后的**第一张**助手卡对应一个 run）。
  * 与实时单卡一致：同 turn 不应因 ReAct 多 AIMessage 消耗多个 run。
  * 无前置 user 的孤立助手卡仍按剩余 run 顺序回填（兼容单测与残缺历史）。
+ * 若本轮仅有用户消息、checkpoint 无助手（旧版 LLM error 未落盘），则用 trace error 合成气泡。
  */
 export function enrichMessagesWithTraceRuns(
   messages: AiMessage[],
@@ -165,7 +218,7 @@ export function enrichMessagesWithTraceRuns(
   if (!runs.length) return messages;
 
   const chronologicalRuns = [...runs].reverse();
-  const next = messages.map((m) => ({ ...m }));
+  const next: AiMessage[] = messages.map((m) => ({ ...m, blocks: [...m.blocks] }));
   let runIdx = 0;
   const boundAssistants = new Set<number>();
 
@@ -190,30 +243,44 @@ export function enrichMessagesWithTraceRuns(
     if (Object.keys(patch).length) {
       next[msgIdx] = { ...next[msgIdx], ...patch };
     }
+    next[msgIdx] = ensureErrorTextOnAssistant(next[msgIdx], run);
   };
 
-  for (let i = 0; i < messages.length; i += 1) {
-    if (messages[i].role !== "user") continue;
-
-    let assistantIdx = -1;
-    for (let j = i + 1; j < messages.length; j += 1) {
-      if (messages[j].role === "user") break;
-      if (messages[j].role === "assistant") {
-        assistantIdx = j;
-        break;
-      }
-    }
-    if (assistantIdx < 0) continue;
+  for (let i = 0; i < next.length; i += 1) {
+    if (next[i].role !== "user") continue;
 
     const run = chronologicalRuns[runIdx];
     if (!run) break;
     runIdx += 1;
-    boundAssistants.add(assistantIdx);
-    applyRun(assistantIdx, run);
+
+    let assistantIdx = -1;
+    for (let j = i + 1; j < next.length; j += 1) {
+      if (next[j].role === "user") break;
+      if (next[j].role === "assistant") {
+        assistantIdx = j;
+        break;
+      }
+    }
+
+    if (assistantIdx >= 0) {
+      boundAssistants.add(assistantIdx);
+      applyRun(assistantIdx, run);
+      continue;
+    }
+
+    // checkpoint 无助手卡：用 trace error 合成（额度耗尽等旧数据）
+    const synthesized = buildAssistantFromErrorRun(run, {
+      mid: next[i].mid,
+      seed: String(i),
+    });
+    if (synthesized) {
+      next.splice(i + 1, 0, synthesized);
+      boundAssistants.add(i + 1);
+    }
   }
 
-  for (let i = 0; i < messages.length; i += 1) {
-    if (messages[i].role !== "assistant" || boundAssistants.has(i)) continue;
+  for (let i = 0; i < next.length; i += 1) {
+    if (next[i].role !== "assistant" || boundAssistants.has(i)) continue;
     const run = chronologicalRuns[runIdx];
     if (!run) break;
     runIdx += 1;

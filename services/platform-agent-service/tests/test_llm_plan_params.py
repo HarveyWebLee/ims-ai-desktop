@@ -62,13 +62,15 @@ class TestMergePlanParams:
         assert merged["query_alarms"]["start_time"] == "2026-07-02 11:00:00"
         assert merged["download_file"]["end_time"] == "2026-07-02 11:17:00"
 
-    def test_rule_relative_preserved_when_llm_empty(self):
+    def test_rule_skeleton_empty_when_llm_none(self):
+        """无 LLM 抽参时规则层只给空槽，不再从原话填近三天。"""
         steps = [
             {"id": "1", "tool": "query_alarms", "label": "查询"},
             {"id": "2", "tool": "download_file", "label": "导出"},
         ]
         merged = merge_plan_params("查近三天告警然后导出", steps, llm_params=None)
-        assert merged["query_alarms"]["start_time"] == "近三天"
+        assert merged["query_alarms"]["start_time"] == ""
+        assert merged["download_file"]["resource"] == ""
 
 
 class TestMergeToolParams:

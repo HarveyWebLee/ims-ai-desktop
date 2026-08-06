@@ -105,7 +105,7 @@ def apply_llm_correction(text: str, *, reference_hint: str = "") -> str | None:
             idx += 1
         reference = "\n\n".join(ref_parts) if ref_parts else "（无）"
 
-        model_id = (settings.transcribe_correct_model or "").strip() or "qwen3.5-flash-2026-02-23"
+        model_id = (settings.transcribe_correct_model or "").strip() or "qwen3-8b"
         model = resolve_chat_model(model_id, streaming=False).bind(
             max_tokens=int(settings.transcribe_correct_max_tokens),
             temperature=0,

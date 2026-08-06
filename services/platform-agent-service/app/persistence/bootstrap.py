@@ -27,6 +27,7 @@ from app.services.session_store import (
     configure_bpmn_persistence,
     configure_session_store,
 )
+from app.services.tool_subset import configure_tool_subset_persistence
 from app.services.trace_store import (
     InMemoryTraceStore,
     PostgresTraceStore,
@@ -87,6 +88,7 @@ async def init_persistence(postgres_dsn: str | None) -> dict[str, Any]:
         _session_store = InMemorySessionStore()
         configure_session_store(_session_store)
         configure_bpmn_persistence(None)
+        configure_tool_subset_persistence(None)
         configure_trace_store(InMemoryTraceStore())
         configure_audit_store(InMemoryAuditStore())
         configure_profile_store(InMemoryProfileStore())
@@ -120,6 +122,7 @@ async def init_persistence(postgres_dsn: str | None) -> dict[str, Any]:
     _session_store = PostgresSessionStore(_pool)
     configure_session_store(_session_store)
     configure_bpmn_persistence(_pool)
+    configure_tool_subset_persistence(_pool)
     configure_trace_store(PostgresTraceStore(_pool))
     configure_audit_store(PostgresAuditStore(_pool))
     configure_profile_store(PostgresProfileStore(_pool))
@@ -142,6 +145,7 @@ async def close_persistence() -> None:
     _session_store = None
     _using_postgres = False
     configure_bpmn_persistence(None)
+    configure_tool_subset_persistence(None)
     configure_session_store(InMemorySessionStore())
     configure_trace_store(InMemoryTraceStore())
     configure_audit_store(InMemoryAuditStore())

@@ -26,37 +26,21 @@ class TestPlanConfirmHelpers:
     def test_extract_time_phrase(self):
         assert extract_time_phrase("查近三天告警然后导出") == "近三天"
 
-    def test_infer_plan_params_sentry_handover_export(self):
+    def test_infer_plan_params_no_regex_fill(self):
+        """规则 infer 仅给空槽骨架，不从用户句抽 resource/时间/状态。"""
         steps = [
             {"id": "1", "label": "导出", "tool": "download_file", "status": "pending"},
         ]
-        params = infer_plan_params("导出近三天岗哨交接记录", steps)
-        assert params["download_file"]["resource"] == "sentry_handover"
-        assert params["download_file"]["start_time"] == "近三天"
-        assert "status" not in params["download_file"]
-
-    def test_infer_plan_params_duty_info_export(self):
-        steps = [
-            {"id": "1", "label": "导出", "tool": "download_file", "status": "pending"},
-        ]
-        params = infer_plan_params("导出近一周值班信息", steps)
-        assert params["download_file"]["resource"] == "duty_info"
-        assert params["download_file"]["start_time"] == "近一周"
-        assert "status" not in params["download_file"]
-
-    def test_infer_plan_params_duty_manage_export(self):
-        steps = [
-            {"id": "1", "label": "导出", "tool": "download_file", "status": "pending"},
-        ]
-        params = infer_plan_params("导出近三天值班管理", steps)
-        assert params["download_file"]["resource"] == "duty_manage"
-
-    def test_infer_plan_params_acs_record_export(self):
-        steps = [
-            {"id": "1", "label": "导出", "tool": "download_file", "status": "pending"},
-        ]
-        params = infer_plan_params("导出近七天出入信息", steps)
-        assert params["download_file"]["resource"] == "acs_record"
+        for msg in (
+            "导出近三天岗哨交接记录",
+            "导出近一周值班信息",
+            "导出近三天值班管理",
+            "导出近七天出入信息",
+        ):
+            params = infer_plan_params(msg, steps)
+            assert params["download_file"]["resource"] == ""
+            assert params["download_file"]["start_time"] == ""
+            assert "status" not in params["download_file"]
 
     def test_propagate_skips_non_alarm_export(self):
         """岗哨交接导出不应被 query_alarms 的 status 污染。"""
@@ -80,25 +64,25 @@ class TestPlanConfirmHelpers:
         assert "status" not in params_by_tool["download_file"]
         assert params_by_tool["download_file"]["start_time"] == "近三天"
 
-    def test_infer_plan_params_query_export(self):
+    def test_infer_plan_params_query_export_empty_skeleton(self):
         steps = [
             {"id": "1", "label": "查询", "tool": "query_alarms", "status": "pending"},
             {"id": "2", "label": "导出", "tool": "download_file", "status": "pending"},
         ]
         params = infer_plan_params("查近三天告警然后导出", steps)
-        assert params["query_alarms"]["start_time"] == "近三天"
-        assert params["download_file"]["resource"] == "alarm_report"
-        assert "status" not in params["query_alarms"]
+        assert params["query_alarms"] == {"start_time": "", "end_time": ""}
+        assert params["download_file"]["resource"] == ""
+        assert params["download_file"]["start_time"] == ""
 
-    def test_infer_plan_params_extracts_unprocessed_status(self):
+    def test_infer_plan_params_no_status_from_utterance(self):
         steps = [
             {"id": "1", "label": "查询", "tool": "query_alarms", "status": "pending"},
             {"id": "2", "label": "导出", "tool": "download_file", "status": "pending"},
         ]
         msg = "查询并导出近三月的未处理的告警数据"
         params = infer_plan_params(msg, steps)
-        assert params["query_alarms"]["status"] == "未处理"
-        assert params["download_file"]["status"] == "未处理"
+        assert "status" not in params["query_alarms"]
+        assert "status" not in params["download_file"]
 
     def test_infer_plan_params_device_name_from_conditional_message(self):
         """设备槽位不由规则 infer；条件图应走 Flow IR.args。"""

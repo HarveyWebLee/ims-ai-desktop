@@ -156,3 +156,11 @@ class EntityVectorStore:
             return 0
         info = self.client.get_collection(self.collection)
         return int(info.points_count or 0)
+
+    def drop_collection(self) -> bool:
+        """删除整个实体 collection；不存在返回 False。"""
+        if not self.client.collection_exists(self.collection):
+            return False
+        self.client.delete_collection(self.collection)
+        logger.warning("已删除实体 Qdrant collection=%s", self.collection)
+        return True

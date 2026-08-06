@@ -1,14 +1,16 @@
 """
 文档知识运营 API（P1-5）。
 
-面向设置页：统计 / 浏览 / 试检索 / 上传入库 / 按 source 删除 / 导出 / 按 source 更新。
-不暴露 drop_collection。同名文件再传会先删旧 source 再写入。
+面向设置页：统计 / 浏览 / 试检索 / 上传入库 / 按 source 删除 / 导出 / 按 source 更新 /
+清空 collection（须 confirm=true，换 Embedding 模型后重建用）。
+同名文件再传会先删旧 source 再写入。
 """
 
 from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +82,12 @@ class KnowledgeDeleteBody(BaseModel):
     source: str = Field(..., min_length=1, description="payload.source 精确匹配")
 
 
+class KnowledgeDropBody(BaseModel):
+    """清空文档知识 collection；须 confirm=true 作为二次确认。"""
+
+    confirm: bool = Field(default=False, description="必须为 true 才会执行删库")
+
+
 class KnowledgeExportBody(BaseModel):
     source: str = Field(..., min_length=1, description="payload.source 精确匹配")
 
@@ -103,6 +111,18 @@ def _store():
     from app.infrastructure.vector.store import VectorStoreService
 
     return VectorStoreService()
+
+
+def _busy_fail() -> dict[str, Any]:
+    return fail(40961, "文档入库任务进行中，请等待完成后再操作")
+
+
+async def _ensure_ingest_idle(user_id: str) -> dict[str, Any] | None:
+    from app.services.knowledge_ingest_job import get_ingest_job_manager
+
+    if get_ingest_job_manager().is_busy(user_id):
+        return _busy_fail()
+    return None
 
 
 def _export_filename(source: str, filename: str) -> str:
@@ -366,16 +386,47 @@ async def _save_upload(
     if len(content) > max_bytes:
         raise ValueError(f"文件过大（>{max_bytes} 字节）")
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(content)
+    # 先写临时文件再替换，避免半截写入被入库
+    tmp = target.with_name(f".{target.name}.uploading")
+    try:
+        tmp.write_bytes(content)
+        tmp.replace(target)
+    except Exception:
+        if tmp.is_file():
+            tmp.unlink(missing_ok=True)
+        raise
     return target
+
+
+def _ingest_saved_path(
+    store: Any,
+    path: Path,
+    *,
+    extra_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """磁盘已落盘后的可靠替换入库（先 upsert 再删陈旧点）。"""
+    chunks, deleted = store.ingest_file_replacing(path, extra_metadata=extra_metadata)
+    meta_source = None
+    if extra_metadata and extra_metadata.get("source"):
+        meta_source = str(extra_metadata["source"])
+    return {
+        "source": meta_source or str(path.resolve()),
+        "filename": (extra_metadata or {}).get("filename") or path.name,
+        "chunks": chunks,
+        "deleted_before": deleted,
+        "docs_dir": str(knowledge_docs_dir()),
+    }
 
 
 async def knowledge_ingest(
     file: UploadFile,
     authorization: str | None = None,
 ) -> dict[str, Any]:
-    """multipart 上传到文档目录（默认 prj-docs）并入库；同名先删旧 source 再写入。"""
-    await get_current_user_id(authorization)
+    """multipart 上传到文档目录（默认 prj-docs）并入库；同名先可靠替换旧片段。"""
+    user_id = await get_current_user_id(authorization)
+    busy = await _ensure_ingest_idle(user_id)
+    if busy is not None:
+        return busy
     try:
         path = await _save_upload(file)
     except ValueError as exc:
@@ -385,23 +436,106 @@ async def knowledge_ingest(
 
     try:
         store = _store()
-
-        def _run() -> dict[str, Any]:
-            source = str(path.resolve())
-            deleted = store.delete_by_source(source)
-            chunks = store.ingest_file(path)
-            return {
-                "source": source,
-                "filename": path.name,
-                "chunks": chunks,
-                "deleted_before": deleted,
-                "docs_dir": str(knowledge_docs_dir()),
-            }
-
-        data = await asyncio.to_thread(_run)
+        data = await asyncio.to_thread(_ingest_saved_path, store, path)
         return ok(data, message=f"已入库 {data['chunks']} 个片段")
     except Exception as exc:  # noqa: BLE001
         return fail(50065, f"入库失败: {exc}")
+
+
+async def knowledge_ingest_job_create(
+    authorization: str | None = None,
+) -> dict[str, Any]:
+    """创建批量入库任务（receiving）；同用户已有进行中任务则拒绝。"""
+    user_id = await get_current_user_id(authorization)
+    from app.services.knowledge_ingest_job import get_ingest_job_manager
+
+    mgr = get_ingest_job_manager()
+    try:
+        job = mgr.create_job(user_id)
+    except RuntimeError as exc:
+        return fail(40961, str(exc))
+    return ok(job.to_public_dict(), message="已创建入库任务")
+
+
+async def knowledge_ingest_job_append(
+    job_id: str,
+    files: Sequence[UploadFile],
+    authorization: str | None = None,
+) -> dict[str, Any]:
+    """向任务追加已落盘文件（分片上传，单次有上限，总任务不限）。"""
+    user_id = await get_current_user_id(authorization)
+    from app.services.knowledge_ingest_job import (
+        APPEND_CHUNK_MAX_FILES,
+        get_ingest_job_manager,
+    )
+
+    if not files:
+        return fail(40065, "未选择任何文件")
+    if len(files) > APPEND_CHUNK_MAX_FILES:
+        return fail(
+            40066,
+            f"单次请求最多追加 {APPEND_CHUNK_MAX_FILES} 个文件（当前 {len(files)}），"
+            "请由客户端分片上传",
+        )
+
+    mgr = get_ingest_job_manager()
+    saved: list[tuple[str, Path]] = []
+    save_errors: list[tuple[str, str]] = []
+    for upload in files:
+        safe_name = _safe_filename(upload.filename or "upload.bin")
+        try:
+            path = await _save_upload(upload)
+            saved.append((safe_name, path))
+        except ValueError as exc:
+            save_errors.append((safe_name, str(exc)))
+        except Exception as exc:  # noqa: BLE001
+            save_errors.append((safe_name, f"保存失败: {exc}"))
+
+    try:
+        job = mgr.append_saved_files(user_id, job_id, saved)
+        if save_errors:
+            job = mgr.append_save_errors(user_id, job_id, save_errors)
+    except LookupError as exc:
+        return fail(40461, str(exc))
+    except RuntimeError as exc:
+        return fail(40961, str(exc))
+    return ok(
+        job.to_public_dict(),
+        message=f"已追加 {len(saved)} 个文件"
+        + (f"，{len(save_errors)} 个保存失败" if save_errors else ""),
+    )
+
+
+async def knowledge_ingest_job_commit(
+    job_id: str,
+    authorization: str | None = None,
+) -> dict[str, Any]:
+    """提交任务，后台逐文件可靠入库。"""
+    user_id = await get_current_user_id(authorization)
+    from app.services.knowledge_ingest_job import get_ingest_job_manager
+
+    mgr = get_ingest_job_manager()
+    try:
+        job = mgr.commit(user_id, job_id)
+        mgr.start_background(user_id, job_id)
+    except LookupError as exc:
+        return fail(40461, str(exc))
+    except RuntimeError as exc:
+        return fail(40961, str(exc))
+    return ok(job.to_public_dict(), message="已开始后台入库")
+
+
+async def knowledge_ingest_job_status(
+    authorization: str | None = None,
+) -> dict[str, Any]:
+    """当前用户最近一次入库任务（含进行中与已完成，供跨页回显）。"""
+    user_id = await get_current_user_id(authorization)
+    from app.services.knowledge_ingest_job import get_ingest_job_manager
+
+    job = get_ingest_job_manager().get_job(user_id)
+    if job is None:
+        return ok({"job": None, "in_progress": False})
+    return ok({"job": job.to_public_dict(), "in_progress": job.in_progress})
 
 
 async def knowledge_replace(
@@ -415,7 +549,10 @@ async def knowledge_replace(
     - source 已在文档目录内：写回原路径并保持 source 键
     - 否则：迁入文档目录，删除旧 source，以新绝对路径入库（与 prj-docs 对齐）
     """
-    await get_current_user_id(authorization)
+    user_id = await get_current_user_id(authorization)
+    busy = await _ensure_ingest_idle(user_id)
+    if busy is not None:
+        return busy
     src = (source or "").strip()
     if not src:
         return fail(40063, "source 不能为空")
@@ -433,37 +570,26 @@ async def knowledge_replace(
         keep_name = Path(src).name or path.name
 
         def _run() -> dict[str, Any]:
-            deleted = store.delete_by_source(src)
             if keep_source:
-                chunks = store.ingest_file(
+                data = _ingest_saved_path(
+                    store,
                     path,
                     extra_metadata={
                         "source": src,
                         "filename": keep_name,
                     },
                 )
-                return {
-                    "source": src,
-                    "filename": keep_name,
-                    "chunks": chunks,
-                    "deleted_before": deleted,
-                    "migrated": False,
-                    "docs_dir": str(docs),
-                }
-            # 从 knowledge_uploads 等路径迁入 prj-docs
-            if src != str(path.resolve()):
-                # 若新路径已有旧片段也清掉，避免双份
-                deleted += store.delete_by_source(str(path.resolve()))
-            chunks = store.ingest_file(path)
-            return {
-                "source": str(path.resolve()),
-                "filename": path.name,
-                "chunks": chunks,
-                "deleted_before": deleted,
-                "migrated": True,
-                "migrated_from": src,
-                "docs_dir": str(docs),
-            }
+                data["migrated"] = False
+                return data
+            # 先按新路径可靠入库，再删旧 source，避免迁入失败时旧知识被清空
+            data = _ingest_saved_path(store, path)
+            deleted_old = 0
+            if src != data["source"]:
+                deleted_old = store.delete_by_source(src)
+            data["deleted_before"] = int(data.get("deleted_before") or 0) + int(deleted_old)
+            data["migrated"] = True
+            data["migrated_from"] = src
+            return data
 
         data = await asyncio.to_thread(_run)
         msg = f"已更新 {data['chunks']} 个片段"
@@ -496,7 +622,10 @@ async def knowledge_delete(
     body: KnowledgeDeleteBody,
     authorization: str | None = None,
 ) -> dict[str, Any]:
-    await get_current_user_id(authorization)
+    user_id = await get_current_user_id(authorization)
+    busy = await _ensure_ingest_idle(user_id)
+    if busy is not None:
+        return busy
     src = body.source.strip()
     if not src:
         return fail(40062, "source 不能为空")
@@ -508,3 +637,42 @@ async def knowledge_delete(
         return fail(40062, str(exc))
     except Exception as exc:  # noqa: BLE001
         return fail(50066, f"删除失败: {exc}")
+
+
+async def knowledge_drop_collection(
+    body: KnowledgeDropBody,
+    authorization: str | None = None,
+) -> dict[str, Any]:
+    """
+    删除整个文档知识 collection。
+
+    换 Embedding 模型/维度后须清库再入库；磁盘 prj-docs 文件保留，需重新上传或 CLI 入库。
+    """
+    user_id = await get_current_user_id(authorization)
+    if not body.confirm:
+        return fail(40065, "须 confirm=true 二次确认后才能清空文档知识库")
+    busy = await _ensure_ingest_idle(user_id)
+    if busy is not None:
+        return busy
+    try:
+        from app.infrastructure.vector.client import is_qdrant_configured
+
+        if not is_qdrant_configured():
+            return fail(40066, "未配置 QDRANT_URL，无法清库")
+        store = _store()
+        collection = store.collection
+        dropped = await asyncio.to_thread(store.drop_collection)
+        return ok(
+            {
+                "dropped": dropped,
+                "collection": collection,
+                "existed": dropped,
+            },
+            message=(
+                f"已清空文档知识库集合 {collection}"
+                if dropped
+                else f"集合 {collection} 不存在，无需删除"
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return fail(50069, f"清空文档知识库失败: {exc}")

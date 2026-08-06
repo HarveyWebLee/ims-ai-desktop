@@ -16,7 +16,8 @@ LLM 常把用户原话塞进 start_time。本模块负责翻译成机器能查�
   query_alarms / download_file / batch_*
     → resolve_alarm_time_range(...)
   意图短路 / preflight
-    → extract_alarm_time_range_from_message / enrich_alarm_time_args
+    → extract_alarm_time_range_from_message（Plan 规则层等只读抽取）
+    → enrich_alarm_time_args（历史兼容，已不再回填空槽）
   Prompt 组装
     → format_reference_hint()
 
@@ -546,44 +547,10 @@ def enrich_alarm_time_args(
     user_message: str | None = None,
 ) -> dict[str, Any]:
     """
-    当工具参数中时间缺失或无法解析时，从用户原话回填 start_time/end_time。
+    历史兼容：不再从用户原话回填时间空槽。
 
-    用于 Plan 预填遗漏、LLM 漏填参等场景，避免用户已明确时间仍弹出 HITL 选时。
+    调用方（大模型 / HITL）须自行提供可解析的 start_time/end_time；
+    本函数仅原样返回参数副本。``user_message`` 保留签名兼容。
     """
-    data = dict(args)
-    start = str(data.get("start_time") or "")
-    end = str(data.get("end_time") or "")
-    if resolve_alarm_time_range(start, end):
-        return data
-
-    msg = (user_message or "").strip()
-    if not msg:
-        from contracts.context import current_thread_id
-        from contracts.runtime_bind import lookup_prior_user_messages
-
-        thread_id = current_thread_id.get()
-        if thread_id:
-            prior = lookup_prior_user_messages(thread_id, limit=1)
-            msg = prior[-1].strip() if prior else ""
-
-    if not msg:
-        return data
-
-    ext_start, ext_end = extract_alarm_time_range_from_message(msg)
-    if ext_start and not start.strip():
-        data["start_time"] = ext_start
-    if ext_end and not end.strip():
-        data["end_time"] = ext_end
-
-    # 仍无法解析时，尝试整句语义解析
-    if not resolve_alarm_time_range(
-        str(data.get("start_time") or ""),
-        str(data.get("end_time") or ""),
-    ):
-        resolved = resolve_alarm_time_range(msg, "")
-        if resolved:
-            if not str(data.get("start_time") or "").strip():
-                data["start_time"] = resolved[0]
-            if not str(data.get("end_time") or "").strip():
-                data["end_time"] = resolved[1]
-    return data
+    _ = user_message
+    return dict(args)

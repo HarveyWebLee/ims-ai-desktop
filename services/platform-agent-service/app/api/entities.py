@@ -25,6 +25,12 @@ class EntitySearchBody(BaseModel):
     )
 
 
+class EntityDropBody(BaseModel):
+    """清空实体术语 collection；须 confirm=true 作为二次确认。"""
+
+    confirm: bool = Field(default=False, description="必须为 true 才会执行删库")
+
+
 def _entity_store():
     from app.infrastructure.vector.entity_store import EntityVectorStore
 
@@ -42,11 +48,13 @@ def _hit_to_dict(hit: dict[str, Any]) -> dict[str, Any]:
         "source": str(hit.get("source") or payload.get("source") or ""),
         "text": text,
         "text_preview": preview,
-        "device_code": payload.get("device_code"),
-        "device_name": payload.get("device_name"),
+        # 设备 payload 为 camelCase；兼容旧 snake_case
+        "device_code": payload.get("deviceCode") or payload.get("device_code"),
+        "device_name": payload.get("deviceName") or payload.get("device_name"),
         "var_name": payload.get("var_name") or payload.get("var_code"),
         "show_name": payload.get("show_name") or payload.get("display_name"),
-        "table": payload.get("table"),
+        "table": payload.get("table")
+        or ("p_device" if str(hit.get("entity_type") or "") == "device" else None),
     }
 
 
@@ -111,3 +119,42 @@ async def entity_search(
         return ok(data)
     except Exception as exc:  # noqa: BLE001
         return fail(50072, f"实体检索失败: {exc}")
+
+
+async def entity_drop_collection(
+    body: EntityDropBody,
+    authorization: str | None = None,
+) -> dict[str, Any]:
+    """
+    删除整个实体术语 collection。
+
+    换 Embedding 模型/维度后须清库再同步；达梦源数据不变，需重新触发实体同步。
+    """
+    await get_current_user_id(authorization)
+    if not body.confirm:
+        return fail(40073, "须 confirm=true 二次确认后才能清空实体术语库")
+    try:
+        from app.infrastructure.vector.client import is_qdrant_configured
+        from app.sync.entity_sync_service import is_entity_sync_running
+
+        if not is_qdrant_configured():
+            return fail(40074, "未配置 QDRANT_URL，无法清库")
+        if is_entity_sync_running():
+            return fail(40971, "实体同步进行中，请稍后再清库")
+        store = _entity_store()
+        collection = store.collection
+        dropped = await asyncio.to_thread(store.drop_collection)
+        return ok(
+            {
+                "dropped": dropped,
+                "collection": collection,
+                "existed": dropped,
+            },
+            message=(
+                f"已清空实体术语库集合 {collection}"
+                if dropped
+                else f"集合 {collection} 不存在，无需删除"
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return fail(50073, f"清空实体术语库失败: {exc}")
