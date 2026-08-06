@@ -42,6 +42,7 @@ from app.services.voice.voiceprint.store_qdrant import (
     InMemoryVectorIndex,
     configure_vector_index,
 )
+from app.sync.entity_sync_status import configure_entity_sync_persistence
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ async def init_persistence(postgres_dsn: str | None) -> dict[str, Any]:
         configure_session_store(_session_store)
         configure_bpmn_persistence(None)
         configure_tool_subset_persistence(None)
+        configure_entity_sync_persistence(None)
         configure_trace_store(InMemoryTraceStore())
         configure_audit_store(InMemoryAuditStore())
         configure_profile_store(InMemoryProfileStore())
@@ -123,6 +125,7 @@ async def init_persistence(postgres_dsn: str | None) -> dict[str, Any]:
     configure_session_store(_session_store)
     configure_bpmn_persistence(_pool)
     configure_tool_subset_persistence(_pool)
+    configure_entity_sync_persistence(_pool)
     configure_trace_store(PostgresTraceStore(_pool))
     configure_audit_store(PostgresAuditStore(_pool))
     configure_profile_store(PostgresProfileStore(_pool))
@@ -146,6 +149,7 @@ async def close_persistence() -> None:
     _using_postgres = False
     configure_bpmn_persistence(None)
     configure_tool_subset_persistence(None)
+    configure_entity_sync_persistence(None)
     configure_session_store(InMemorySessionStore())
     configure_trace_store(InMemoryTraceStore())
     configure_audit_store(InMemoryAuditStore())

@@ -3,15 +3,11 @@
 > 英文名：Daily Duty  
 > 模块 ID：`daily_duty`  
 > 所属业务域：阵地维护管理（`/config_management/positional_management`）  
-> 页面数：6  
-> 上级索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)  
-> 来源：前端 routes 权威菜单
+> 页面数：6
 
 ## 模块说明
 
-日常值班（`daily_duty`）。真实路由为 `parent/path`，**不含 groupId**；源码目录见详档「页面目录」。
-
-## 功能页面
+日常值班（`daily_duty`）。## 功能页面
 
 | 页面         | 路径                  | 路由                                                           | 详细文档                                                                                                                                                 |
 | ------------ | --------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -22,11 +18,9 @@
 | 阵地出入审批 | `entry_exit_approval` | `/config_management/positional_management/entry_exit_approval` | [config_management-positional_management-daily_duty-entry_exit_approval.md](./config_management-positional_management-daily_duty-entry_exit_approval.md) |
 | 交接班记录   | `week_handover`       | `/config_management/positional_management/week_handover`       | [config_management-positional_management-daily_duty-week_handover.md](./config_management-positional_management-daily_duty-week_handover.md)             |
 
-## 操作指引（通用）
+## 入口
 
-1. 登录后进入「配置管理平台」。
-2. 打开「阵地维护管理」→「日常值班」。
-3. 按页面按钮维护数据；无权限时在「角色授权 / 菜单管理」分配。
+登录 → 配置管理平台 → 打开「阵地维护管理」→「日常值班」。；无权限时在角色授权/菜单管理分配。
 
 ## 代码定位
 

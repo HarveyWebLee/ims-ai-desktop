@@ -3,15 +3,11 @@
 > 英文名：Basic Data  
 > 模块 ID：`basedata`  
 > 所属业务域：系统管理（`/config_management/system`）  
-> 页面数：8  
-> 上级索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)  
-> 来源：前端 routes 权威菜单
+> 页面数：8
 
 ## 模块说明
 
-基础数据（`basedata`）。真实路由为 `parent/path`，**不含 groupId**；源码目录见详档「页面目录」。
-
-## 功能页面
+基础数据（`basedata`）。## 功能页面
 
 | 页面     | 路径                   | 路由                                             | 详细文档                                                                                                                 |
 | -------- | ---------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
@@ -24,11 +20,9 @@
 | 人员统计 | `personnel_statistics` | `/config_management/system/personnel_statistics` | [config_management-system-basedata-personnel_statistics.md](./config_management-system-basedata-personnel_statistics.md) |
 | 区域管理 | `region_tree`          | `/config_management/system/region_tree`          | [config_management-system-basedata-region_tree.md](./config_management-system-basedata-region_tree.md)                   |
 
-## 操作指引（通用）
+## 入口
 
-1. 登录后进入「配置管理平台」。
-2. 打开「系统管理」→「基础数据」。
-3. 按页面按钮维护数据；无权限时在「角色授权 / 菜单管理」分配。
+登录 → 配置管理平台 → 打开「系统管理」→「基础数据」。；无权限时在角色授权/菜单管理分配。
 
 ## 代码定位
 

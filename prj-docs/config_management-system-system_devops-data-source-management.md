@@ -1,7 +1,5 @@
 # 数据迁移（data-source-management）知识库
 
-> 上级模块索引：[system_devops.md](./system_devops.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
-
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                                      |
@@ -27,188 +25,22 @@
 
 ---
 
-## 2. 页面与交互结构
-
-页面结构以该目录下 `index.tsx` / `constants.tsx` 实现为准，常见为配置管理类「查询列表 + 表单弹窗/抽屉」或「左树右表」布局。
-
-### 2.1 列表与查询
-
-- 支持条件查询与列表展示（若页面启用了表格组件）。
-- 树筛选、分页、导入导出等能力取决于本模块是否接入对应通用配置。
-
-### 2.2 表单与编辑
-
-- 新增/编辑通过表单提交，字段见「属性字段说明」。
-- 校验规则、联动逻辑以 `constants` 与表单配置为准。
-
----
-
 ## 3. 功能清单
 
-- 新建/新增
-- 编辑
-- 导出
-- 导入
-- 启用/停用
-- 分页查询
-
 ---
+
+- 分页查询
 
 ## 4. 与其他功能模块的关系
 
 ### 4.1 同目录兄弟模块
 
-| 关联模块                | 关系说明                                     |
-| ----------------------- | -------------------------------------------- |
-| 数据备份（data_backup） | 同级功能模块，可共同构成「系统运维」业务能力 |
+| 关联模块                | 关系说明 |
+| ----------------------- | -------- |
+| 数据备份（data_backup） | 同组     |
 
 ### 4.2 上游依赖 / 下游消费
 
-- **上游**：根据本页接口与字段引用，上游主要为：事件配置（`event_config`）、用户及参数管理（`user`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
-- **下游**：引用本模块数据的统计、告警、组态、流程或其他业务页（以全库引用为准）。
-
----
-
-## 5. 关键业务规则与注意事项
-
-1. 操作前确认当前用户具备对应菜单与按钮权限。
-2. 删除、导入、批量变更等操作可能影响下游运行态数据，执行前应确认范围。
-3. 若模块涉及驱动/采集类配置，变更后可能需要在数采或相关服务侧刷新配置后生效。
-4. 接口入参以 Swagger 与前端封装为准，注意必填项与枚举值。
-5. 国际化环境下，界面文案以 `src/locales` 配置为准。
-
----
-
-## 6. 总结
-
-本模块（`data-source-management`）位于 `src/pages/config_management/system/system_devops/data-source-management`，归属「系统运维」。它负责「数据源管理」相关业务的页面交互与数据读写。维护本模块时，请同步关注接口契约、字段语义及与兄弟模块的数据一致性。
-
----
-
-## 7. 接口清单
-
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
-
-### 7.1 分页查询事件流快照（支持条件查询和排序）
-
-| 项          | 内容                                     |
-| ----------- | ---------------------------------------- |
-| 接口路径    | `/api/appv2/event/flow-version/list`     |
-| 请求方法    | `POST`                                   |
-| 前端封装    | `data-source-controller.listDataSource`  |
-| baseURL     | `/api/devops2`                           |
-| Swagger Tag | appGatewayApi                            |
-| 作用说明    | 分页查询事件流快照（支持条件查询和排序） |
-
-**请求参数（Body）：**
-
-| 字段             | 类型            | 说明                                                             |
-| ---------------- | --------------- | ---------------------------------------------------------------- |
-| `page`           | `integer`       | 当前页，从 1 开始                                                |
-| `size`           | `integer`       | 每页条数                                                         |
-| `sorter`         | `array<object>` | 排序列表                                                         |
-| `sorter[].field` | `string`        | 排序字段                                                         |
-| `sorter[].order` | `string`        | 排序方式：ascend（升序）或 descend（降序）                       |
-| `selectFields`   | `array<string>` | 需要查询的字段列表 如果为 null 或空，则查询所有字段（SELECT \*） |
-| `flowVersion`    | `string`        | 流程版本（模糊查询）                                             |
-| `flowId`         | `integer`       | 流程ID（精确查询）                                               |
-| `flowCode`       | `string`        | 流程编码（模糊查询）                                             |
-| `flowName`       | `string`        | 流程名称（模糊查询）                                             |
-| `flowType`       | `string`        | 流程类型（精确查询）                                             |
-| `sourceCode`     | `string`        | 来源编码（精确查询）                                             |
-| `status`         | `string`        | 状态（精确查询）                                                 |
-
-**响应体：**
-
-| 字段                         | 类型            | 说明                   |
-| ---------------------------- | --------------- | ---------------------- |
-| `code`                       | `integer`       |                        |
-| `message`                    | `string`        |                        |
-| `data`                       | `object`        |                        |
-| `data.current`               | `integer`       |                        |
-| `data.pages`                 | `integer`       |                        |
-| `data.size`                  | `integer`       |                        |
-| `data.total`                 | `integer`       |                        |
-| `data.records`               | `array<object>` |                        |
-| `data.records[].id`          | `integer`       | 主键ID                 |
-| `data.records[].flowVersion` | `string`        | 流程版本               |
-| `data.records[].flowId`      | `integer`       | 流程ID                 |
-| `data.records[].flowCode`    | `string`        | 流程编码               |
-| `data.records[].flowName`    | `string`        | 流程名称               |
-| `data.records[].flowType`    | `string`        | 流程类型               |
-| `data.records[].flowJson`    | `string`        | 流程JSON配置           |
-| `data.records[].sourceCode`  | `string`        | 来源编码               |
-| `data.records[].status`      | `string`        | 状态，默认值：INIT     |
-| `data.records[].remark`      | `string`        | 备注                   |
-| `data.records[].createTime`  | `integer`       | 创建时间（毫秒时间戳） |
-| `data.records[].modifyTime`  | `integer`       | 修改时间（毫秒时间戳） |
-
----
-
-### 7.2 createDataSource
-
-| 项       | 内容                                      |
-| -------- | ----------------------------------------- |
-| 接口路径 | `/data-source`                            |
-| 请求方法 | `POST`                                    |
-| 前端封装 | `data-source-controller.createDataSource` |
-| baseURL  | `/api/devops2`                            |
-| 作用说明 | 见模块业务逻辑                            |
-
-_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
-
----
-
-### 7.3 updateDataSource
-
-| 项       | 内容                                      |
-| -------- | ----------------------------------------- |
-| 接口路径 | `/data-source`                            |
-| 请求方法 | `PUT`                                     |
-| 前端封装 | `data-source-controller.updateDataSource` |
-| baseURL  | `/api/devops2`                            |
-| 作用说明 | 见模块业务逻辑                            |
-
-_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
-
----
-
-### 7.4 deleteDataSource
-
-| 项       | 内容                                    |
-| -------- | --------------------------------------- |
-| 接口路径 | `未知`                                  |
-| 请求方法 | `未知`                                  |
-| 前端封装 | `DataSourceController.deleteDataSource` |
-| 作用说明 | 见模块业务逻辑                          |
-
-_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
-
----
-
-### 7.5 enableTsDataSource
-
-| 项       | 内容                                      |
-| -------- | ----------------------------------------- |
-| 接口路径 | `未知`                                    |
-| 请求方法 | `未知`                                    |
-| 前端封装 | `DataSourceController.enableTsDataSource` |
-| 作用说明 | 见模块业务逻辑                            |
-
-_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
-
----
-
-### 7.6 switchTsPort
-
-| 项       | 内容                                  |
-| -------- | ------------------------------------- |
-| 接口路径 | `/data-source/switchTs`               |
-| 请求方法 | `PUT`                                 |
-| 前端封装 | `data-source-controller.switchTsPort` |
-| baseURL  | `/api/devops2`                        |
-| 作用说明 | 见模块业务逻辑                        |
-
-_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+- **上游**：事件配置（`event_config`）、用户及参数管理（`user`）。
 
 ---

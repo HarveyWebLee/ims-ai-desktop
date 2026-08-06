@@ -1,0 +1,74 @@
+{
+  "cases": [
+    {
+      "id": "alarm-dispose-basic",
+      "message": "帮我处理未确认告警",
+      "expect_playbook": "alarm-dispose",
+      "expect_domains": ["alarm"],
+      "expect_tools_include": ["query_alarms", "batch_confirm_alarms", "retrieve_knowledge"],
+      "available_tools": [
+        "query_alarms",
+        "batch_confirm_alarms",
+        "query_devices",
+        "send_device_cmd",
+        "navigate_to",
+        "retrieve_knowledge"
+      ],
+      "expect_step_keywords": ["查询", "确认"]
+    },
+    {
+      "id": "batch-export-alarm",
+      "message": "导出今天的告警 excel",
+      "expect_playbook": "batch-export",
+      "expect_domains": ["export", "alarm"],
+      "expect_tools_include": ["download_file", "query_alarms", "retrieve_knowledge"],
+      "available_tools": [
+        "download_file",
+        "query_alarms",
+        "batch_confirm_alarms",
+        "navigate_to",
+        "retrieve_knowledge"
+      ],
+      "expect_step_keywords": ["download_file"]
+    },
+    {
+      "id": "howto-skip-export-playbook",
+      "message": "怎么导出告警报表？需要注意什么？",
+      "forbid_playbook": "batch-export"
+    },
+    {
+      "id": "condition-alarm-then-open-door",
+      "message": "若最近三天有告警则开门",
+      "expect_domains": ["alarm", "device"],
+      "expect_tools_include": ["query_alarms", "send_device_cmd", "retrieve_knowledge"],
+      "available_tools": [
+        "query_alarms",
+        "batch_confirm_alarms",
+        "query_devices",
+        "send_device_cmd",
+        "navigate_to",
+        "retrieve_knowledge"
+      ]
+    },
+    {
+      "id": "condition-colloquial-open",
+      "message": "有告警就把东门开了",
+      "expect_domains": ["alarm", "device"],
+      "expect_tools_include": ["query_alarms", "send_device_cmd"],
+      "available_tools": ["query_alarms", "send_device_cmd", "query_devices", "retrieve_knowledge"]
+    },
+    {
+      "id": "chitchat-safe-default",
+      "message": "你好",
+      "expect_domains": [],
+      "expect_tools_include": ["query_alarms", "retrieve_knowledge"],
+      "forbid_tools": ["batch_confirm_alarms", "send_device_cmd"],
+      "available_tools": [
+        "query_alarms",
+        "batch_confirm_alarms",
+        "send_device_cmd",
+        "retrieve_knowledge"
+      ]
+    }
+  ]
+}

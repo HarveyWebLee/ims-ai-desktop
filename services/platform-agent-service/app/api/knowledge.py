@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from app.api.response import fail, ok
 from app.config import settings
+from app.infrastructure.vector.source_keys import normalize_source
 from app.middleware.auth import get_current_user_id
 
 _SAFE_NAME_RE = re.compile(r"[^\w.\-()\u4e00-\u9fff]+", re.UNICODE)
@@ -101,6 +102,7 @@ def _hit_to_dict(hit: Any, *, preview_chars: int = 160) -> dict[str, Any]:
         "score": float(getattr(hit, "score", 0.0) or 0.0),
         "text_preview": preview,
         "source": str(payload.get("source") or ""),
+        "doc_id": str(payload.get("doc_id") or ""),
         "filename": str(payload.get("filename") or ""),
         "chunk_index": payload.get("chunk_index"),
         "media_kind": payload.get("media_kind"),
@@ -304,10 +306,13 @@ def _list_documents_page(
                 continue
             if source not in by_source:
                 filename = str(payload.get("filename") or "") or Path(source).name
+                doc_id = str(payload.get("doc_id") or "")
                 by_source[source] = {
                     "source": source,
+                    "doc_id": doc_id,
                     "filename": filename,
                     "chunk_count": 0,
+                    "file_exists": Path(source).is_file(),
                 }
                 order.append(source)
             by_source[source]["chunk_count"] = int(by_source[source]["chunk_count"]) + 1
@@ -407,10 +412,19 @@ def _ingest_saved_path(
     """磁盘已落盘后的可靠替换入库（先 upsert 再删陈旧点）。"""
     chunks, deleted = store.ingest_file_replacing(path, extra_metadata=extra_metadata)
     meta_source = None
+    doc_id = None
     if extra_metadata and extra_metadata.get("source"):
-        meta_source = str(extra_metadata["source"])
+        meta_source = normalize_source(extra_metadata["source"])
+    if extra_metadata and extra_metadata.get("doc_id"):
+        doc_id = str(extra_metadata["doc_id"])
+    source = meta_source or normalize_source(path)
+    if not doc_id:
+        from app.infrastructure.vector.source_keys import compute_doc_id
+
+        doc_id = compute_doc_id(source, docs_root=knowledge_docs_dir())
     return {
-        "source": meta_source or str(path.resolve()),
+        "source": source,
+        "doc_id": doc_id,
         "filename": (extra_metadata or {}).get("filename") or path.name,
         "chunks": chunks,
         "deleted_before": deleted,
@@ -437,7 +451,10 @@ async def knowledge_ingest(
     try:
         store = _store()
         data = await asyncio.to_thread(_ingest_saved_path, store, path)
-        return ok(data, message=f"已入库 {data['chunks']} 个片段")
+        return ok(
+            data,
+            message=f"已入库 {data['chunks']} 个片段（替换旧片段 {data.get('deleted_before', 0)}）",
+        )
     except Exception as exc:  # noqa: BLE001
         return fail(50065, f"入库失败: {exc}")
 
@@ -553,7 +570,7 @@ async def knowledge_replace(
     busy = await _ensure_ingest_idle(user_id)
     if busy is not None:
         return busy
-    src = (source or "").strip()
+    src = normalize_source(source) or (source or "").strip()
     if not src:
         return fail(40063, "source 不能为空")
     try:
@@ -592,7 +609,7 @@ async def knowledge_replace(
             return data
 
         data = await asyncio.to_thread(_run)
-        msg = f"已更新 {data['chunks']} 个片段"
+        msg = f"已更新 {data['chunks']} 个片段（替换旧片段 {data.get('deleted_before', 0)}）"
         if data.get("migrated"):
             msg += "（已迁入文档目录）"
         return ok(data, message=msg)
@@ -626,17 +643,34 @@ async def knowledge_delete(
     busy = await _ensure_ingest_idle(user_id)
     if busy is not None:
         return busy
-    src = body.source.strip()
+    src = normalize_source(body.source) or body.source.strip()
     if not src:
         return fail(40062, "source 不能为空")
     try:
         store = _store()
-        deleted = await asyncio.to_thread(store.delete_by_source, src)
+        deleted = await asyncio.to_thread(store.delete_by_source, body.source.strip())
         return ok({"source": src, "deleted": deleted}, message=f"已删除 {deleted} 个片段")
     except ValueError as exc:
         return fail(40062, str(exc))
     except Exception as exc:  # noqa: BLE001
         return fail(50066, f"删除失败: {exc}")
+
+
+async def knowledge_audit(
+    authorization: str | None = None,
+) -> dict[str, Any]:
+    """审计孤儿文档：库内有向量但磁盘 source 文件不存在。"""
+    await get_current_user_id(authorization)
+    try:
+        store = _store()
+
+        def _run() -> dict[str, Any]:
+            return store.audit_orphans(docs_root=knowledge_docs_dir())
+
+        data = await asyncio.to_thread(_run)
+        return ok(data)
+    except Exception as exc:  # noqa: BLE001
+        return fail(50070, f"知识库审计失败: {exc}")
 
 
 async def knowledge_drop_collection(

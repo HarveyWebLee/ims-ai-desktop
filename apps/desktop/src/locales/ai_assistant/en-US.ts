@@ -22,7 +22,8 @@ export default {
   },
   entitySync: {
     button: "Sync vectors",
-    tooltip: "Sync configured business tables (Dameng read-only) into the vector store",
+    tooltip:
+      "Sync configured business tables (Dameng read-only) into the vector store; watermarks/status persist in Agent Postgres (never written to Dameng)",
     running: "Syncing to vector store…",
     success: "Sync completed",
     skippedEmpty: "ENTITY_SYNC_TABLES is empty; no tables were converted",
@@ -46,6 +47,12 @@ export default {
     statusSkipped: "Skipped",
     statusRunning: "In progress",
     reloadStatus: "Refresh status",
+    persisted: "Persisted (Postgres)",
+    memoryOnly: "In-memory only (no Postgres)",
+    checkpoints: "Sync watermarks",
+    colStream: "Stream",
+    colWatermark: "Watermark",
+    colLastFull: "Last full sync",
   },
   knowledge: {
     intro:
@@ -73,7 +80,7 @@ export default {
     jobProgressTitle: "Ingest progress",
     jobLockedHint: "Ingest job running — upload / update / delete are locked until it finishes",
     jobCurrentFile: "Current file: {name}",
-    jobCounts: "OK {succeeded} · Failed {failed} · Chunks {chunks}",
+    jobCounts: "OK {succeeded} · Failed {failed} · Chunks {chunks} · Cleared {deleted}",
     jobStatus: {
       receiving: "Receiving uploads",
       running: "Ingesting",
@@ -88,6 +95,10 @@ export default {
     statusOk: "OK",
     statusBad: "Error",
     statusDisabled: "Not configured",
+    orphanWarning: "{count} orphan document(s) found (vectors exist but file is missing)",
+    orphanChunks: "{count} chunk(s)",
+    orphanMore: "and {count} more…",
+    orphanHint: "Delete by source in the list, or CLI: uv run kb --audit / --delete-source",
     searchTitle: "Trial search",
     searchPlaceholder: "Try a semantic query…",
     search: "Search",

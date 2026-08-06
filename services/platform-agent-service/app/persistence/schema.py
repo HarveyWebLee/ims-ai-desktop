@@ -97,6 +97,27 @@ CREATE TABLE IF NOT EXISTS agent_voiceprint_samples (
 
 CREATE INDEX IF NOT EXISTS idx_agent_voiceprint_samples_profile
     ON agent_voiceprint_samples (profile_id);
+
+-- 实体同步最近一次结果（单行；禁写入平台达梦）
+CREATE TABLE IF NOT EXISTS entity_sync_status (
+    id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    last_at TIMESTAMPTZ,
+    last_result JSONB,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 实体同步水位线 / 分表进度（仅 Agent Postgres）
+CREATE TABLE IF NOT EXISTS entity_sync_checkpoint (
+    stream_name TEXT PRIMARY KEY,
+    watermark_ts TIMESTAMPTZ,
+    watermark_id TEXT,
+    last_full_at TIMESTAMPTZ,
+    last_ok BOOLEAN,
+    last_rows_read INT NOT NULL DEFAULT 0,
+    last_upserted INT NOT NULL DEFAULT 0,
+    last_error TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 """
 
 # 旧图外 HITL 暂存表：零兼容后删除（IF EXISTS，可重复执行）

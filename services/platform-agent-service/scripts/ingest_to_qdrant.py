@@ -11,6 +11,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 _SERVICE_ROOT = Path(__file__).resolve().parent.parent
 if str(_SERVICE_ROOT) not in sys.path:
@@ -24,12 +25,16 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--collection", default=None, help="覆盖配置中的 collection 名称")
     parser.add_argument("--json", action="store_true", help="以 JSON 输出结果")
 
-    # 增
+    # 增（默认可靠替换）
     parser.add_argument(
-        "--file", type=Path, action="append", default=[], help="入库单个文件（可重复）"
+        "--file",
+        type=Path,
+        action="append",
+        default=[],
+        help="入库单个文件（可重复；默认可靠替换，避免幽灵 chunk）",
     )
     parser.add_argument(
-        "--dir", type=Path, action="append", default=[], help="递归入库目录（可重复）"
+        "--dir", type=Path, action="append", default=[], help="递归入库目录（可重复；默认可靠替换）"
     )
     parser.add_argument("--glob", default="**/*", help="目录扫描 glob，默认 **/*（任意层级）")
     parser.add_argument(
@@ -43,16 +48,21 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="目录入库时对未列后缀也尝试文本解码（仍跳过明确二进制）",
     )
+    parser.add_argument(
+        "--no-replace",
+        action="store_true",
+        help="仅追加 upsert，不删除陈旧片段（不推荐；内容变短会残留幽灵知识）",
+    )
     parser.add_argument("--chunk-size", type=int, default=None, help="切块大小（字符）")
     parser.add_argument("--chunk-overlap", type=int, default=None, help="切块重叠（字符）")
 
-    # 改
+    # 改（与 --file 默认行为等价，保留兼容）
     parser.add_argument(
         "--replace-file",
         type=Path,
         action="append",
         default=[],
-        help="更新：先按绝对路径删除旧 chunk，再重新入库（可重复）",
+        help="显式可靠替换入库（可重复；与默认 --file 相同）",
     )
 
     # 查
@@ -70,13 +80,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="source 子串过滤（list/search）",
     )
+    parser.add_argument(
+        "--audit",
+        action="store_true",
+        help="审计孤儿文档（库内有向量但磁盘文件不存在）",
+    )
 
     # 删
     parser.add_argument(
         "--delete-source",
         action="append",
         default=[],
-        help="按 payload.source 精确删除（可重复；建议传文件绝对路径）",
+        help="按 payload.source 删除（可重复；会尝试路径变体与 doc_id）",
     )
     parser.add_argument(
         "--delete-id",
@@ -113,9 +128,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     store = VectorStoreService(collection=args.collection)
-    summary: dict[str, object] = {
+    replace = not bool(args.no_replace)
+    summary: dict[str, Any] = {
         "collection": store.collection,
         "qdrant_url": settings.qdrant_url,
+        "replace": replace,
         "files": {},
         "dirs": {},
         "replaced": {},
@@ -125,6 +142,7 @@ def main(argv: list[str] | None = None) -> int:
         "count": None,
         "list": None,
         "search": None,
+        "audit": None,
     }
 
     did_work = False
@@ -150,16 +168,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[删除] ids={len(args.delete_id)} deleted={n}")
         did_work = True
 
-    # —— 增 ——
+    # —— 增（默认可靠替换）——
     for file_path in args.file:
         store.ensure_collection()
-        count = store.ingest_file(
-            file_path,
-            chunk_size=args.chunk_size,
-            chunk_overlap=args.chunk_overlap,
-        )
-        summary["files"][str(file_path)] = count  # type: ignore[index]
-        print(f"[入库] file={file_path} chunks={count}")
+        if replace:
+            chunks, deleted = store.ingest_file_replacing(
+                file_path,
+                chunk_size=args.chunk_size,
+                chunk_overlap=args.chunk_overlap,
+            )
+        else:
+            chunks = store.ingest_file(
+                file_path,
+                chunk_size=args.chunk_size,
+                chunk_overlap=args.chunk_overlap,
+                replace=False,
+            )
+            deleted = 0
+        summary["files"][str(file_path)] = {"chunks": chunks, "deleted": deleted}  # type: ignore[index]
+        print(f"[入库] file={file_path} chunks={chunks} deleted={deleted} replace={replace}")
         did_work = True
 
     for dir_path in args.dir:
@@ -174,22 +201,32 @@ def main(argv: list[str] | None = None) -> int:
             chunk_size=args.chunk_size,
             chunk_overlap=args.chunk_overlap,
             try_unknown=bool(args.try_unknown),
+            replace=replace,
         )
-        summary["dirs"][str(dir_path)] = result  # type: ignore[index]
-        total = sum(result.values())
-        print(f"[入库] dir={dir_path} files={len(result)} chunks={total}")
+        summary["dirs"][str(dir_path)] = {
+            "files": result.files,
+            "failed": result.failed,
+            "chunks": result.chunk_total,
+            "deleted": result.deleted_total,
+        }
+        print(
+            f"[入库] dir={dir_path} files={len(result.files)} chunks={result.chunk_total} "
+            f"deleted={result.deleted_total} failed={len(result.failed)} replace={replace}"
+        )
+        for item in result.failed:
+            print(f"  [失败] {item.get('path')}: {item.get('error')}", file=sys.stderr)
         did_work = True
 
     # —— 改 ——
     for file_path in args.replace_file:
         store.ensure_collection()
-        count = store.replace_file(
+        chunks, deleted = store.ingest_file_replacing(
             file_path,
             chunk_size=args.chunk_size,
             chunk_overlap=args.chunk_overlap,
         )
-        summary["replaced"][str(file_path)] = count  # type: ignore[index]
-        print(f"[替换] file={file_path} chunks={count}")
+        summary["replaced"][str(file_path)] = {"chunks": chunks, "deleted": deleted}  # type: ignore[index]
+        print(f"[替换] file={file_path} chunks={chunks} deleted={deleted}")
         did_work = True
 
     # —— 查 ——
@@ -197,6 +234,20 @@ def main(argv: list[str] | None = None) -> int:
         n = store.count()
         summary["count"] = n
         print(f"[计数] collection={store.collection} points={n}")
+        did_work = True
+
+    if args.audit:
+        audit = store.audit_orphans()
+        summary["audit"] = audit
+        print(
+            f"[审计] documents={audit['documents']} orphans={audit['orphan_count']} "
+            f"docs_root={audit.get('docs_root')}"
+        )
+        for item in audit.get("orphans") or []:
+            print(
+                f"  [孤儿] source={item.get('source')} doc_id={item.get('doc_id')} "
+                f"chunks={item.get('chunk_count')}"
+            )
         did_work = True
 
     if args.list:
@@ -209,6 +260,7 @@ def main(argv: list[str] | None = None) -> int:
             {
                 "id": h.id,
                 "source": h.payload.get("source"),
+                "doc_id": h.payload.get("doc_id"),
                 "chunk_index": h.payload.get("chunk_index"),
                 "text": h.text[:300],
             }
@@ -218,8 +270,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\n[列表] hits={len(hits)}")
             for i, hit in enumerate(hits, start=1):
                 src = hit.payload.get("source") or ""
+                doc_id = hit.payload.get("doc_id") or ""
                 preview = hit.text.replace("\n", " ")[:120]
-                print(f"  {i}. id={hit.id} source={src}")
+                print(f"  {i}. id={hit.id} source={src} doc_id={doc_id}")
                 print(f"     {preview}")
         did_work = True
 
@@ -235,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
                 "score": h.score,
                 "text": h.text[:500],
                 "source": h.payload.get("source"),
+                "doc_id": h.payload.get("doc_id"),
             }
             for h in hits
         ]

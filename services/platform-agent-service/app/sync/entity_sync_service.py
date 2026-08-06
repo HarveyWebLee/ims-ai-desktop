@@ -6,17 +6,64 @@ from __future__ import annotations
 
 import logging
 import threading
+from datetime import UTC, datetime
 from typing import Any
 
 from app.config import settings
 from app.infrastructure.db import dameng_readonly as dm
 from app.infrastructure.vector.entity_store import EntityVectorStore
 from app.sync.entity_mapper import map_row_to_entity
+from app.sync.entity_sync_status import table_to_stream_name, upsert_entity_sync_checkpoint
 from app.sync.table_config import parse_entity_sync_tables
 
 logger = logging.getLogger(__name__)
 
 _sync_lock = threading.Lock()
+
+# 行内常见更新时间 / 主键列（小写）；仅用于推进 Agent Postgres 水位线，不写达梦
+_WATERMARK_TS_KEYS = (
+    "update_time",
+    "updated_at",
+    "gmt_modified",
+    "modify_time",
+    "last_update_time",
+)
+_WATERMARK_ID_KEYS = ("id", "device_id", "deviceid", "pk_id")
+
+
+def _iso_now() -> str:
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _pick_row_value(row: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    lower_map = {str(k).lower(): v for k, v in row.items()}
+    for key in keys:
+        if key in lower_map and lower_map[key] is not None:
+            return lower_map[key]
+    return None
+
+
+def _advance_watermark_from_rows(
+    rows: list[dict[str, Any]],
+    *,
+    current_ts: str | None,
+    current_id: str | None,
+) -> tuple[str | None, str | None]:
+    """从本页行推进水位（取更大的时间戳 / id 字符串）。"""
+    best_ts = current_ts
+    best_id = current_id
+    for row in rows:
+        raw_ts = _pick_row_value(row, _WATERMARK_TS_KEYS)
+        if raw_ts is not None:
+            text = str(raw_ts).strip()
+            if text and (best_ts is None or text > best_ts):
+                best_ts = text
+        raw_id = _pick_row_value(row, _WATERMARK_ID_KEYS)
+        if raw_id is not None:
+            text = str(raw_id).strip()
+            if text and (best_id is None or text > best_id):
+                best_id = text
+    return best_ts, best_id
 
 
 def is_entity_sync_running() -> bool:
@@ -121,11 +168,14 @@ def _run_entity_sync_unlocked(*, tables_override: str | None = None) -> dict[str
     page_size = max(1, int(settings.entity_sync_max_rows_per_table))
 
     for table in targets:
+        stream = table_to_stream_name(table)
         try:
             rows_read = 0
             table_upserted = 0
             page_no = 0
             offset = 0
+            watermark_ts: str | None = None
+            watermark_id: str | None = None
 
             while True:
                 rows = dm.fetch_table_rows(table, limit=page_size, offset=offset)
@@ -141,6 +191,11 @@ def _run_entity_sync_unlocked(*, tables_override: str | None = None) -> dict[str
                 rows_read += len(rows)
                 table_upserted += count
                 total_upserted += count
+                watermark_ts, watermark_id = _advance_watermark_from_rows(
+                    rows,
+                    current_ts=watermark_ts,
+                    current_id=watermark_id,
+                )
                 offset += len(rows)
                 page_no += 1
 
@@ -158,6 +213,17 @@ def _run_entity_sync_unlocked(*, tables_override: str | None = None) -> dict[str
                     "pages": page_no,
                 }
             )
+            # 水位线只写 Agent Postgres；禁止在达梦落同步标记
+            upsert_entity_sync_checkpoint(
+                stream,
+                watermark_ts=watermark_ts or _iso_now(),
+                watermark_id=watermark_id,
+                last_full_at=_iso_now(),
+                last_ok=True,
+                last_rows_read=rows_read,
+                last_upserted=table_upserted,
+                last_error=None,
+            )
         except Exception as exc:  # noqa: BLE001
             logger.exception("同步表失败 table=%s", table)
             table_results.append(
@@ -169,6 +235,14 @@ def _run_entity_sync_unlocked(*, tables_override: str | None = None) -> dict[str
                     "error": str(exc),
                     "truncated": False,
                 }
+            )
+            upsert_entity_sync_checkpoint(
+                stream,
+                last_full_at=_iso_now(),
+                last_ok=False,
+                last_rows_read=0,
+                last_upserted=0,
+                last_error=str(exc),
             )
 
     ok_flag = all(bool(t["ok"]) for t in table_results) if table_results else not bool(missing)

@@ -24,6 +24,11 @@ from app.config import settings
 from app.infrastructure.vector.chunking import chunk_text
 from app.infrastructure.vector.client import get_qdrant_client
 from app.infrastructure.vector.embeddings import resolve_embeddings
+from app.infrastructure.vector.source_keys import (
+    compute_doc_id,
+    normalize_source,
+    source_lookup_candidates,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +43,44 @@ class SearchHit:
     payload: dict[str, Any]
 
 
-def _stable_point_id(collection: str, source: str, chunk_index: int, text: str) -> str:
+@dataclass(frozen=True)
+class DirectoryIngestResult:
+    """目录入库汇总：成功文件与失败列表。"""
+
+    files: dict[str, dict[str, Any]]
+    failed: list[dict[str, str]]
+
+    @property
+    def chunk_total(self) -> int:
+        return sum(int(v.get("chunks") or 0) for v in self.files.values())
+
+    @property
+    def deleted_total(self) -> int:
+        return sum(int(v.get("deleted") or 0) for v in self.files.values())
+
+
+def _stable_point_id(collection: str, doc_id: str, chunk_index: int, text: str) -> str:
     """
-    由内容生成稳定 UUID，便于重复入库时覆盖同一片段（幂等 upsert）。
+    由 doc_id + 内容生成稳定 UUID，便于重复入库时覆盖同一片段（幂等 upsert）。
     """
-    digest = hashlib.sha256(f"{collection}|{source}|{chunk_index}|{text}".encode()).hexdigest()
+    key = doc_id or "_"
+    digest = hashlib.sha256(f"{collection}|{key}|{chunk_index}|{text}".encode()).hexdigest()
     return str(uuid.UUID(digest[:32]))
+
+
+def _default_docs_root() -> Path | None:
+    """与 knowledge API 一致的文档根；解析失败返回 None。"""
+    raw = (settings.knowledge_docs_dir or "").strip()
+    if raw:
+        try:
+            return Path(raw).expanduser().resolve()
+        except OSError:
+            return None
+    try:
+        service_root = Path(settings.agent_service_root).resolve()
+        return (service_root.parent.parent / "prj-docs").resolve()
+    except OSError:
+        return None
 
 
 class VectorStoreService:
@@ -128,11 +165,15 @@ class VectorStoreService:
             for offset, (text, vector) in enumerate(zip(batch_texts, vectors, strict=True)):
                 index = start + offset
                 meta = dict(metadatas[index]) if metadatas else {}
-                src = str(meta.get("source") or source or "")
-                point_id = _stable_point_id(self.collection, src, index, text)
+                src = normalize_source(meta.get("source") or source or "")
+                doc_id = str(meta.get("doc_id") or "").strip() or compute_doc_id(
+                    src, docs_root=_default_docs_root()
+                )
+                point_id = _stable_point_id(self.collection, doc_id, index, text)
                 payload = {
                     **meta,
                     "source": src,
+                    "doc_id": doc_id,
                     "text": text,
                     "chunk_index": index,
                 }
@@ -176,13 +217,20 @@ class VectorStoreService:
             if chunk_overlap is not None
             else settings.vector_chunk_overlap,
         )
-        source = str(file_path.resolve())
+        # extra_metadata 可覆盖 source（如 replace 保留原路径键）
+        if extra_metadata and extra_metadata.get("source"):
+            source = normalize_source(extra_metadata["source"])
+        else:
+            source = normalize_source(file_path)
+
         if not chunks:
             return [], [], source
 
-        # extra_metadata 可覆盖 source（如 replace 保留原路径键）
-        if extra_metadata and extra_metadata.get("source"):
-            source = str(extra_metadata["source"])
+        docs_root = _default_docs_root()
+        if extra_metadata and str(extra_metadata.get("doc_id") or "").strip():
+            doc_id = str(extra_metadata["doc_id"]).strip()
+        else:
+            doc_id = compute_doc_id(source, docs_root=docs_root)
 
         rel_parts = file_path.parts
         suffix = file_path.suffix.lower()
@@ -195,17 +243,20 @@ class VectorStoreService:
         else:
             media_kind = "text"
 
-        metadatas = [
-            {
-                "source": source,
-                "filename": file_path.name,
-                "suffix": suffix,
-                "media_kind": media_kind,
-                "rel_path": "/".join(rel_parts[-4:]) if len(rel_parts) > 4 else file_path.name,
-                **(extra_metadata or {}),
-            }
-            for _ in chunks
-        ]
+        base_meta = {
+            "source": source,
+            "doc_id": doc_id,
+            "filename": file_path.name,
+            "suffix": suffix,
+            "media_kind": media_kind,
+            "rel_path": "/".join(rel_parts[-4:]) if len(rel_parts) > 4 else file_path.name,
+            **(extra_metadata or {}),
+        }
+        # 覆盖后再强制规范化，避免 extra_metadata 写回反斜杠
+        base_meta["source"] = source
+        base_meta["doc_id"] = doc_id
+
+        metadatas = [dict(base_meta) for _ in chunks]
         return chunks, metadatas, source
 
     def ingest_file(
@@ -216,14 +267,24 @@ class VectorStoreService:
         chunk_overlap: int | None = None,
         encoding: str = "utf-8",
         extra_metadata: dict[str, Any] | None = None,
+        replace: bool = True,
     ) -> int:
         """
         读取单个文件（多格式抽取）→ 切块 → 入库。
 
-        支持 md/docx/pptx/pdf/xlsx/html/csv 及常见文本后缀；详见 ``extractors``。
-        返回写入的 chunk 数量。同 source 内容变更时请用 ``ingest_file_replacing``，
-        以免残留旧片段。
+        默认 ``replace=True``：走可靠替换（先 upsert 再删同 doc_id/source 陈旧点），
+        避免内容变更后残留幽灵片段。仅当明确需要追加写时传 ``replace=False``。
         """
+        if replace:
+            chunks, _deleted = self.ingest_file_replacing(
+                path,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                encoding=encoding,
+                extra_metadata=extra_metadata,
+            )
+            return chunks
+
         chunks, metadatas, source = self._prepare_file_chunks(
             path,
             chunk_size=chunk_size,
@@ -246,7 +307,7 @@ class VectorStoreService:
         extra_metadata: dict[str, Any] | None = None,
     ) -> tuple[int, int]:
         """
-        可靠替换入库：先抽取/upsert（wait=True），再删除同 source 下未覆盖的旧点。
+        可靠替换入库：先抽取/upsert（wait=True），再删除同 doc_id（及 source 变体）下未覆盖的旧点。
 
         抽取失败时不改向量库，避免「先删后写失败」导致知识空洞。
         返回 ``(写入片段数, 删除的陈旧片段数)``。
@@ -258,23 +319,56 @@ class VectorStoreService:
             encoding=encoding,
             extra_metadata=extra_metadata,
         )
+        doc_id = ""
+        if metadatas:
+            doc_id = str(metadatas[0].get("doc_id") or "")
+        if not doc_id:
+            doc_id = compute_doc_id(source, docs_root=_default_docs_root())
+
         if not chunks:
             # 空正文仍清理旧点，与「同名替换为空」语义一致
-            deleted = self.delete_by_source(source)
+            deleted = self.delete_by_source(source, also_doc_id=True)
             return 0, deleted
 
         new_ids = set(self.upsert_texts(chunks, metadatas=metadatas, source=source))
-        stale_ids: list[str] = []
-        offset: Any = None
-        while True:
-            batch, offset = self.scroll_points(limit=256, offset=offset, source_equals=source)
-            for hit in batch:
-                if hit.id not in new_ids:
-                    stale_ids.append(hit.id)
-            if offset is None:
-                break
+        stale_ids = self._collect_stale_ids(new_ids, source=source, doc_id=doc_id)
         deleted = self.delete_by_ids(stale_ids) if stale_ids else 0
         return len(chunks), deleted
+
+    def _collect_stale_ids(
+        self,
+        new_ids: set[str],
+        *,
+        source: str,
+        doc_id: str,
+    ) -> list[str]:
+        """收集同文档下未被本次 upsert 覆盖的旧 point id。"""
+        stale: list[str] = []
+        seen: set[str] = set()
+
+        def _absorb(batch: list[SearchHit]) -> None:
+            for hit in batch:
+                if hit.id in new_ids or hit.id in seen:
+                    continue
+                seen.add(hit.id)
+                stale.append(hit.id)
+
+        if doc_id:
+            offset: Any = None
+            while True:
+                batch, offset = self.scroll_points(limit=256, offset=offset, doc_id_equals=doc_id)
+                _absorb(batch)
+                if offset is None:
+                    break
+
+        for cand in source_lookup_candidates(source):
+            offset = None
+            while True:
+                batch, offset = self.scroll_points(limit=256, offset=offset, source_equals=cand)
+                _absorb(batch)
+                if offset is None:
+                    break
+        return stale
 
     def ingest_directory(
         self,
@@ -285,16 +379,12 @@ class VectorStoreService:
         chunk_size: int | None = None,
         chunk_overlap: int | None = None,
         try_unknown: bool = False,
-    ) -> dict[str, int]:
+        replace: bool = True,
+    ) -> DirectoryIngestResult:
         """
         递归扫描任意层级目录并入库（默认 ``**/*``）。
 
-        参数：
-            suffixes: 限定后缀；默认见 ``extractors.DEFAULT_KNOWLEDGE_SUFFIXES``
-                （含 md/docx/pptx/pdf/xlsx 等）。
-            try_unknown: True 时对未列出的后缀也尝试文本解码（仍跳过明确二进制）。
-
-        返回 ``{相对路径: chunk数}``；抽取失败的文件记入日志并跳过。
+        默认按文件可靠替换；返回成功明细与失败列表（抽取失败不中断整目录）。
         """
         from app.infrastructure.vector.extractors import (
             DEFAULT_KNOWLEDGE_SUFFIXES,
@@ -319,7 +409,8 @@ class VectorStoreService:
             ".cursor",
             "venv",
         }
-        results: dict[str, int] = {}
+        files: dict[str, dict[str, Any]] = {}
+        failed: list[dict[str, str]] = []
         for file_path in sorted(directory.glob(glob)):
             if not file_path.is_file():
                 continue
@@ -332,22 +423,35 @@ class VectorStoreService:
                 continue
             if suffix not in allowed and not try_unknown:
                 continue
-            if suffix not in allowed and try_unknown and not suffix:
-                # 无后缀：仍尝试文本
-                pass
 
-            try:
-                count = self.ingest_file(
-                    file_path,
-                    chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap,
-                )
-            except (ExtractError, UnicodeDecodeError, OSError) as exc:
-                logger.warning("跳过文件 %s: %s", file_path, exc)
-                continue
             rel = str(file_path.relative_to(directory))
-            results[rel] = count
-        return results
+            try:
+                if replace:
+                    chunks, deleted = self.ingest_file_replacing(
+                        file_path,
+                        chunk_size=chunk_size,
+                        chunk_overlap=chunk_overlap,
+                    )
+                else:
+                    chunks = self.ingest_file(
+                        file_path,
+                        chunk_size=chunk_size,
+                        chunk_overlap=chunk_overlap,
+                        replace=False,
+                    )
+                    deleted = 0
+            except (ExtractError, UnicodeDecodeError, OSError, ValueError) as exc:
+                logger.warning("跳过文件 %s: %s", file_path, exc)
+                failed.append({"path": rel, "error": str(exc)})
+                continue
+            source = normalize_source(file_path)
+            files[rel] = {
+                "chunks": chunks,
+                "deleted": deleted,
+                "source": source,
+                "doc_id": compute_doc_id(source, docs_root=_default_docs_root()),
+            }
+        return DirectoryIngestResult(files=files, failed=failed)
 
     def similarity_search(
         self,
@@ -419,6 +523,7 @@ class VectorStoreService:
         offset: Any = None,
         source_equals: str | None = None,
         source_contains: str | None = None,
+        doc_id_equals: str | None = None,
         with_vectors: bool = False,
     ) -> tuple[list[SearchHit], Any]:
         """
@@ -431,14 +536,14 @@ class VectorStoreService:
         if not self.client.collection_exists(self.collection):
             return [], None
 
-        query_filter = None
+        must: list[Any] = []
+        if doc_id_equals:
+            must.append(FieldCondition(key="doc_id", match=MatchValue(value=doc_id_equals)))
         if source_equals:
-            query_filter = Filter(
-                must=[
-                    FieldCondition(key="source", match=MatchValue(value=source_equals)),
-                ]
-            )
-        elif source_contains:
+            must.append(FieldCondition(key="source", match=MatchValue(value=source_equals)))
+
+        query_filter = Filter(must=must) if must else None
+        if source_contains and not must:
             # MatchText 依赖 payload 全文索引；未建索引时回退为拉取后本地过滤
             try:
                 query_filter = Filter(
@@ -496,50 +601,83 @@ class VectorStoreService:
         )
         return len(cleaned)
 
-    def delete_by_source(self, source: str) -> int:
-        """
-        删除 payload.source 精确等于给定值的全部点。
+    def _delete_collected_ids(self, ids: list[str]) -> int:
+        if not ids:
+            return 0
+        batch_size = 256
+        for i in range(0, len(ids), batch_size):
+            self.delete_by_ids(ids[i : i + batch_size])
+        return len(ids)
 
-        用于「整文件替换」前清理旧 chunk，避免改文后残留孤儿片段。
-        返回实际删除的点数。
-        """
-        from typing import cast
-
-        from qdrant_client.models import ExtendedPointId, PointIdsList
-
-        src = (source or "").strip()
-        if not src:
-            raise ValueError("source 不能为空")
+    def delete_by_doc_id(self, doc_id: str) -> int:
+        """删除 payload.doc_id 精确等于给定值的全部点。"""
+        key = (doc_id or "").strip()
+        if not key:
+            raise ValueError("doc_id 不能为空")
         if not self.client.collection_exists(self.collection):
             return 0
 
         ids: list[str] = []
         offset: Any = None
         while True:
-            batch, offset = self.scroll_points(limit=256, offset=offset, source_equals=src)
+            batch, offset = self.scroll_points(limit=256, offset=offset, doc_id_equals=key)
             ids.extend(h.id for h in batch)
             if offset is None:
                 break
+        deleted = self._delete_collected_ids(ids)
+        if deleted:
+            logger.info(
+                "已按 doc_id 删除 collection=%s doc_id=%s count=%s",
+                self.collection,
+                key,
+                deleted,
+            )
+        return deleted
 
-        if not ids:
+    def delete_by_source(self, source: str, *, also_doc_id: bool = True) -> int:
+        """
+        删除与给定 source 相关的全部点。
+
+        会尝试 source 路径变体；默认同时按推导出的 ``doc_id`` 删除，避免规范化前后残留。
+        返回实际删除的点数（去重后）。
+        """
+        src = (source or "").strip()
+        if not src:
+            raise ValueError("source 不能为空")
+        if not self.client.collection_exists(self.collection):
             return 0
 
-        # 分批删除，避免单次过大
-        batch_size = 256
-        for i in range(0, len(ids), batch_size):
-            chunk = ids[i : i + batch_size]
-            self.client.delete(
-                collection_name=self.collection,
-                points_selector=PointIdsList(points=cast(list[ExtendedPointId], chunk)),
-                wait=True,
+        id_set: set[str] = set()
+        for cand in source_lookup_candidates(src):
+            offset: Any = None
+            while True:
+                batch, offset = self.scroll_points(limit=256, offset=offset, source_equals=cand)
+                id_set.update(h.id for h in batch)
+                if offset is None:
+                    break
+
+        if also_doc_id:
+            doc_id = compute_doc_id(src, docs_root=_default_docs_root())
+            if doc_id:
+                offset = None
+                while True:
+                    batch, offset = self.scroll_points(
+                        limit=256, offset=offset, doc_id_equals=doc_id
+                    )
+                    id_set.update(h.id for h in batch)
+                    if offset is None:
+                        break
+
+        ids = list(id_set)
+        deleted = self._delete_collected_ids(ids)
+        if deleted:
+            logger.info(
+                "已按 source 删除 collection=%s source=%s count=%s",
+                self.collection,
+                normalize_source(src) or src,
+                deleted,
             )
-        logger.info(
-            "已按 source 删除 collection=%s source=%s count=%s",
-            self.collection,
-            src,
-            len(ids),
-        )
-        return len(ids)
+        return deleted
 
     def replace_file(
         self,
@@ -551,20 +689,88 @@ class VectorStoreService:
         extra_metadata: dict[str, Any] | None = None,
     ) -> int:
         """
-        更新（整文件替换）：先按绝对路径 source 删除旧点，再重新切块入库。
-
-        返回新写入的 chunk 数。
+        更新（整文件可靠替换）：等价于 ``ingest_file_replacing``，返回新写入的 chunk 数。
         """
-        file_path = Path(path).resolve()
-        source = str(file_path)
-        self.delete_by_source(source)
-        return self.ingest_file(
-            file_path,
+        chunks, _deleted = self.ingest_file_replacing(
+            path,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             encoding=encoding,
             extra_metadata=extra_metadata,
         )
+        return chunks
+
+    def list_document_summaries(
+        self,
+        *,
+        max_points: int = 20_000,
+    ) -> list[dict[str, Any]]:
+        """
+        按 source 聚合文档摘要（含 doc_id、chunk_count、磁盘是否存在）。
+        """
+        by_source: dict[str, dict[str, Any]] = {}
+        order: list[str] = []
+        offset: Any = None
+        scanned = 0
+        while scanned < max_points:
+            batch_limit = min(256, max_points - scanned)
+            hits, offset = self.scroll_points(limit=batch_limit, offset=offset)
+            if not hits:
+                break
+            scanned += len(hits)
+            for hit in hits:
+                payload = dict(hit.payload or {})
+                source = str(payload.get("source") or "").strip()
+                if not source:
+                    continue
+                if source not in by_source:
+                    doc_id = str(payload.get("doc_id") or "").strip() or compute_doc_id(
+                        source, docs_root=_default_docs_root()
+                    )
+                    filename = str(payload.get("filename") or "") or Path(source).name
+                    file_exists = Path(source).is_file()
+                    by_source[source] = {
+                        "source": source,
+                        "doc_id": doc_id,
+                        "filename": filename,
+                        "chunk_count": 0,
+                        "file_exists": file_exists,
+                    }
+                    order.append(source)
+                by_source[source]["chunk_count"] = int(by_source[source]["chunk_count"]) + 1
+            if offset is None:
+                break
+        return [by_source[key] for key in order]
+
+    def audit_orphans(
+        self,
+        *,
+        docs_root: Path | str | None = None,
+        max_points: int = 20_000,
+    ) -> dict[str, Any]:
+        """
+        审计库内文档：磁盘文件缺失的视为孤儿。
+
+        返回 orphan 列表与计数；``docs_root`` 仅写入结果元数据（是否存在以 source 路径为准）。
+        """
+        root = None
+        if docs_root is not None:
+            try:
+                root = Path(docs_root).expanduser().resolve()
+            except OSError:
+                root = None
+        else:
+            root = _default_docs_root()
+
+        summaries = self.list_document_summaries(max_points=max_points)
+        orphans = [item for item in summaries if not item.get("file_exists")]
+        return {
+            "docs_root": str(root) if root else None,
+            "documents": len(summaries),
+            "orphan_count": len(orphans),
+            "orphans": orphans,
+            "scanned_documents": len(summaries),
+        }
 
     def drop_collection(self) -> bool:
         """删除整个 collection；不存在返回 False。"""

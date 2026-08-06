@@ -521,10 +521,18 @@ async def delete_knowledge_by_source(
     body: KnowledgeDeleteBody,
     authorization: str | None = Header(default=None),
 ):
-    """按 payload.source 精确删除。"""
+    """按 payload.source 删除（含路径变体与 doc_id）。"""
     from app.api import knowledge as knowledge_api
 
     return await knowledge_api.knowledge_delete(body, authorization)
+
+
+@app.get("/api/agent/knowledge/audit")
+async def get_knowledge_audit(authorization: str | None = Header(default=None)):
+    """审计孤儿文档（库内有向量但磁盘文件缺失）。"""
+    from app.api import knowledge as knowledge_api
+
+    return await knowledge_api.knowledge_audit(authorization)
 
 
 @app.post("/api/agent/knowledge/drop-collection")

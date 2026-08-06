@@ -20,6 +20,8 @@ dependencies = [
     "python-dotenv>=1.0.0",
     # Qdrant 向量库客户端（语义检索 / RAG 入库）
     "qdrant-client>=1.14.0",
+    # 达梦只读驱动（实体术语同步 → platform_entities）；优先于 JDBC 回退
+    "dmPython>=2.5.38",
     # Redis（语音纠错 Cache 等；docker-compose 宿主机 13386）
     "redis>=5.0.0",
     # 知识库多格式抽取：Word / PPT / PDF / Excel
@@ -46,7 +48,8 @@ dev = [
     "ruff>=0.9.0",
     "basedpyright>=1.28.0",
 ]
-# 达梦 JDBC 回退驱动（无 dmPython 时）；需同时配置 DM_JDBC_JAR
+# 达梦 JDBC 回退（主依赖已含 dmPython；本 extra 仅在无原生驱动时使用）
+# 用法：uv sync --extra entity-sync，并配置 DM_JDBC_JAR
 entity-sync = [
     "JayDeBeApi>=1.2.3",
     "JPype1>=1.5.0",

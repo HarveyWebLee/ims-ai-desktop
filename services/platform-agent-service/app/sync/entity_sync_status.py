@@ -1,39 +1,45 @@
-"""实体同步最近一次结果（进程内，供运营可观测）。"""
+"""实体同步最近一次结果与水位线（内存 + 可选 Agent Postgres；禁达梦写标记）。"""
 
 from __future__ import annotations
 
-import threading
-from datetime import UTC, datetime
 from typing import Any
 
-_lock = threading.Lock()
-_last_at: str | None = None
-_last_result: dict[str, Any] | None = None
-
-
-def remember_entity_sync_result(result: dict[str, Any]) -> None:
-    """记录最近一次同步返回（含 skipped / 失败）。"""
-    global _last_at, _last_result
-    with _lock:
-        _last_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-        _last_result = dict(result)
+from app.infrastructure.persistence.entity_sync_repository import (
+    clear_entity_sync_persistence,
+    configure_entity_sync_persistence,
+    get_entity_sync_snapshot,
+    list_entity_sync_checkpoints,
+    remember_entity_sync_result,
+    upsert_entity_sync_checkpoint,
+)
 
 
 def get_entity_sync_status() -> dict[str, Any]:
-    """返回最近一次结果；无记录时 result=null。"""
-    from app.sync.entity_sync_service import is_entity_sync_running
-
-    with _lock:
-        return {
-            "in_progress": is_entity_sync_running(),
-            "at": _last_at,
-            "result": dict(_last_result) if _last_result is not None else None,
-        }
+    """返回最近一次结果、水位线与是否进行中；无记录时 result=null。"""
+    return get_entity_sync_snapshot()
 
 
-def clear_entity_sync_status() -> None:
+def clear_entity_sync_status(*, clear_db: bool = False) -> None:
     """测试用。"""
-    global _last_at, _last_result
-    with _lock:
-        _last_at = None
-        _last_result = None
+    clear_entity_sync_persistence(clear_db=clear_db)
+
+
+def table_to_stream_name(table_name: str) -> str:
+    """表名 → checkpoint stream（与架构文档 device|variable 对齐）。"""
+    name = (table_name or "").strip().lower()
+    if name == "p_device":
+        return "device"
+    if name == "p_device_variable":
+        return "variable"
+    return name or "unknown"
+
+
+__all__ = [
+    "clear_entity_sync_status",
+    "configure_entity_sync_persistence",
+    "get_entity_sync_status",
+    "list_entity_sync_checkpoints",
+    "remember_entity_sync_result",
+    "table_to_stream_name",
+    "upsert_entity_sync_checkpoint",
+]

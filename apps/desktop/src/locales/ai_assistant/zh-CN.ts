@@ -22,7 +22,7 @@ export default {
   },
   entitySync: {
     button: "同步向量库",
-    tooltip: "将配置的业务表（达梦只读）同步到向量库",
+    tooltip: "将配置的业务表（达梦只读）同步到向量库；水位线与成败写入 Agent Postgres（不写达梦）",
     running: "正在同步到向量库…",
     success: "同步完成",
     skippedEmpty: "未配置同步表（ENTITY_SYNC_TABLES 为空），未执行转换",
@@ -46,6 +46,12 @@ export default {
     statusSkipped: "已跳过",
     statusRunning: "进行中",
     reloadStatus: "刷新状态",
+    persisted: "已持久化（Postgres）",
+    memoryOnly: "仅进程内（未配置 Postgres）",
+    checkpoints: "同步水位线",
+    colStream: "流/表",
+    colWatermark: "水位时间",
+    colLastFull: "上次全量",
   },
   knowledge: {
     intro:
@@ -73,7 +79,7 @@ export default {
     jobProgressTitle: "入库进度",
     jobLockedHint: "入库任务进行中，完成前不可上传/更新/删除文档",
     jobCurrentFile: "当前文件：{name}",
-    jobCounts: "成功 {succeeded} · 失败 {failed} · 片段 {chunks}",
+    jobCounts: "成功 {succeeded} · 失败 {failed} · 片段 {chunks} · 清理旧片段 {deleted}",
     jobStatus: {
       receiving: "接收上传中",
       running: "入库中",
@@ -88,6 +94,10 @@ export default {
     statusOk: "正常",
     statusBad: "异常",
     statusDisabled: "未配置",
+    orphanWarning: "发现 {count} 个孤儿文档（库内有向量但磁盘文件不存在）",
+    orphanChunks: "{count} 个片段",
+    orphanMore: "另有 {count} 个…",
+    orphanHint: "可在文档列表中按来源删除，或用 CLI：uv run kb --audit / --delete-source",
     searchTitle: "试检索",
     searchPlaceholder: "输入问题试一下语义检索…",
     search: "检索",

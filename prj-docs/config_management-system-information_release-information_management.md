@@ -1,7 +1,5 @@
 # 信息管理（information_management）知识库
 
-> 上级模块索引：[information_release.md](./information_release.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
-
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                                            |

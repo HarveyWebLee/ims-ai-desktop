@@ -1,7 +1,5 @@
 # 业务应用日志（business_application_log）知识库
 
-> 上级模块索引：[log.md](./log.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
-
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                              |
@@ -27,244 +25,23 @@
 
 ---
 
-## 2. 页面与交互结构
-
-页面结构以该目录下 `index.tsx` / `constants.tsx` 实现为准，常见为配置管理类「查询列表 + 表单弹窗/抽屉」或「左树右表」布局。
-
-### 2.1 列表与查询
-
-- 支持条件查询与列表展示（若页面启用了表格组件）。
-- 树筛选、分页、导入导出等能力取决于本模块是否接入对应通用配置。
-
-### 2.2 表单与编辑
-
-- 新增/编辑通过表单提交，字段见「属性字段说明」。
-- 校验规则、联动逻辑以 `constants` 与表单配置为准。
-
----
-
-## 3. 功能清单
-
-- 导出
-- 导入
-
----
-
 ## 4. 与其他功能模块的关系
 
 ### 4.1 同目录兄弟模块
 
-| 关联模块                            | 关系说明                                     |
-| ----------------------------------- | -------------------------------------------- |
-| 设备操作（equipment_operation）     | 同级功能模块，可共同构成「日志管理」业务能力 |
-| log审计（log_audit）                | 同级功能模块，可共同构成「日志管理」业务能力 |
-| log策略配置（log_policy_config）    | 同级功能模块，可共同构成「日志管理」业务能力 |
-| 网络安全log（network_security_log） | 同级功能模块，可共同构成「日志管理」业务能力 |
-| 系统门禁（system_access）           | 同级功能模块，可共同构成「日志管理」业务能力 |
-| 系统操作（system_operation）        | 同级功能模块，可共同构成「日志管理」业务能力 |
-| 系统运行log（system_runtime_log）   | 同级功能模块，可共同构成「日志管理」业务能力 |
-| 用户行为log（user_behavior_log）    | 同级功能模块，可共同构成「日志管理」业务能力 |
+| 关联模块                            | 关系说明 |
+| ----------------------------------- | -------- |
+| 设备操作（equipment_operation）     | 同组     |
+| log审计（log_audit）                | 同组     |
+| log策略配置（log_policy_config）    | 同组     |
+| 网络安全log（network_security_log） | 同组     |
+| 系统门禁（system_access）           | 同组     |
+| 系统操作（system_operation）        | 同组     |
+| 系统运行log（system_runtime_log）   | 同组     |
+| 用户行为log（user_behavior_log）    | 同组     |
 
 ### 4.2 上游依赖 / 下游消费
 
-- **上游**：根据本页接口与字段引用，上游主要为：用户及参数管理（`user`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
-- **下游**：引用本模块数据的统计、告警、组态、流程或其他业务页（以全库引用为准）。
-
----
-
-## 5. 关键业务规则与注意事项
-
-1. 操作前确认当前用户具备对应菜单与按钮权限。
-2. 删除、导入、批量变更等操作可能影响下游运行态数据，执行前应确认范围。
-3. 若模块涉及驱动/采集类配置，变更后可能需要在数采或相关服务侧刷新配置后生效。
-4. 接口入参以 Swagger 与前端封装为准，注意必填项与枚举值。
-5. 国际化环境下，界面文案以 `src/locales` 配置为准。
-
----
-
-## 6. 总结
-
-本模块（`business_application_log`）位于 `src/pages/config_management/system/log/business_application_log`，归属「日志管理」。它负责「业务应用日志」相关业务的页面交互与数据读写。维护本模块时，请同步关注接口契约、字段语义及与兄弟模块的数据一致性。
-
----
-
-## 7. 接口清单
-
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
-
-### 7.1 业务运行日志分页查询
-
-| 项          | 内容                                               |
-| ----------- | -------------------------------------------------- |
-| 接口路径    | `/api/appv2/sysMonitor/bizRunLog/getBizRunLogPage` |
-| 请求方法    | `POST`                                             |
-| 前端封装    | `LogsController.getBizRunLogPage`                  |
-| baseURL     | `/api/appv2`                                       |
-| Swagger Tag | appGatewayApi                                      |
-| 作用说明    | 业务运行日志分页查询                               |
-
-**请求参数（Body）：**
-
-| 字段                 | 类型            | 说明                         |
-| -------------------- | --------------- | ---------------------------- |
-| `startTs`            | `integer`       |                              |
-| `endTs`              | `integer`       |                              |
-| `page`               | `integer`       |                              |
-| `size`               | `integer`       |                              |
-| `bizModule`          | `string`        |                              |
-| `logType`            | `string`        |                              |
-| `logStatus`          | `string`        |                              |
-| `auditStatus`        | `string`        |                              |
-| `logCode`            | `string`        |                              |
-| `traceId`            | `string`        |                              |
-| `sortFields`         | `array<object>` | 排序字段列表，默认按 ts DESC |
-| `sortFields[].field` | `string`        | 数据库列名（下划线格式）     |
-| `sortFields[].asc`   | `boolean`       | true = ASC, false = DESC     |
-
-**响应体：**
-
-| 字段                         | 类型            | 说明 |
-| ---------------------------- | --------------- | ---- |
-| `code`                       | `integer`       |      |
-| `message`                    | `string`        |      |
-| `data`                       | `object`        |      |
-| `data.total`                 | `integer`       |      |
-| `data.page`                  | `integer`       |      |
-| `data.size`                  | `integer`       |      |
-| `data.records`               | `array<object>` |      |
-| `data.records[].id`          | `string`        |      |
-| `data.records[].logCode`     | `string`        |      |
-| `data.records[].bizModule`   | `string`        |      |
-| `data.records[].logType`     | `string`        |      |
-| `data.records[].duration`    | `integer`       |      |
-| `data.records[].logContent`  | `string`        |      |
-| `data.records[].logStatus`   | `string`        |      |
-| `data.records[].auditStatus` | `string`        |      |
-| `data.records[].traceId`     | `string`        |      |
-| `data.records[].ts`          | `integer`       |      |
-| `data.records[].mt`          | `integer`       |      |
-
----
-
-### 7.2 业务运行日志详情
-
-| 项          | 内容                                                 |
-| ----------- | ---------------------------------------------------- |
-| 接口路径    | `/api/appv2/sysMonitor/bizRunLog/getBizRunLogDetail` |
-| 请求方法    | `GET`                                                |
-| 前端封装    | `LogsController.getBizRunLogDetail`                  |
-| baseURL     | `/api/appv2`                                         |
-| Swagger Tag | appGatewayApi                                        |
-| 作用说明    | 业务运行日志详情                                     |
-
-**Query/Path 参数：**
-
-| 参数名 | 位置  | 必填 | 类型     | 说明        |
-| ------ | ----- | ---- | -------- | ----------- |
-| `id`   | query | 否   | `string` | 全局唯一 ID |
-
-**请求参数（Body）：**
-
-_无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 未展开）。_
-
-**响应体：**
-
-| 字段               | 类型      | 说明 |
-| ------------------ | --------- | ---- |
-| `code`             | `integer` |      |
-| `message`          | `string`  |      |
-| `data`             | `object`  |      |
-| `data.id`          | `string`  |      |
-| `data.logCode`     | `string`  |      |
-| `data.bizModule`   | `string`  |      |
-| `data.logType`     | `string`  |      |
-| `data.duration`    | `integer` |      |
-| `data.logContent`  | `string`  |      |
-| `data.logStatus`   | `string`  |      |
-| `data.auditStatus` | `string`  |      |
-| `data.traceId`     | `string`  |      |
-| `data.ts`          | `integer` |      |
-| `data.mt`          | `integer` |      |
-
----
-
-### 7.3 批量删除业务运行日志
-
-| 项          | 内容                                              |
-| ----------- | ------------------------------------------------- |
-| 接口路径    | `/api/appv2/sysMonitor/bizRunLog/deleteBizRunLog` |
-| 请求方法    | `DELETE`                                          |
-| 前端封装    | `LogsController.deleteBizRunLog`                  |
-| baseURL     | `/api/appv2`                                      |
-| Swagger Tag | appGatewayApi                                     |
-| 作用说明    | 批量删除业务运行日志                              |
-
-**Query/Path 参数：**
-
-| 参数名     | 位置  | 必填 | 类型     | 说明 |
-| ---------- | ----- | ---- | -------- | ---- |
-| `id`       | query | 否   | `string` |      |
-| `username` | query | 否   | `string` |      |
-| `realname` | query | 否   | `string` |      |
-| `roleName` | query | 否   | `string` |      |
-
-**请求参数（Body）：**
-
-| 字段  | 类型            | 说明 |
-| ----- | --------------- | ---- |
-| `ids` | `array<string>` |      |
-
-**响应体：**
-
-| 字段      | 类型      | 说明 |
-| --------- | --------- | ---- |
-| `code`    | `integer` |      |
-| `message` | `string`  |      |
-| `data`    | `object`  |      |
-
----
-
-### 7.4 系统运行日志审计
-
-| 项          | 内容                                    |
-| ----------- | --------------------------------------- |
-| 接口路径    | `/api/appv2/sysMonitor/runLog/auditLog` |
-| 请求方法    | `POST`                                  |
-| 前端封装    | `LogsController.auditLog`               |
-| baseURL     | `/api/appv2`                            |
-| Swagger Tag | appGatewayApi                           |
-| 作用说明    | 系统运行日志审计                        |
-
-**Query/Path 参数：**
-
-| 参数名     | 位置  | 必填 | 类型     | 说明 |
-| ---------- | ----- | ---- | -------- | ---- |
-| `id`       | query | 否   | `string` |      |
-| `username` | query | 否   | `string` |      |
-| `realname` | query | 否   | `string` |      |
-| `roleName` | query | 否   | `string` |      |
-
-**请求参数（Body）：**
-
-| 字段            | 类型     | 说明                            |
-| --------------- | -------- | ------------------------------- |
-| `id`            | `string` | 系统运行日志分表主键 id（必填） |
-| `logStatus`     | `string` | 待更新的日志状态（必填）        |
-| `auditSerialNo` | `string` | 审计流水号，未填则自动生成      |
-| `recordType`    | `string` | 审计记录类型                    |
-| `auditStatus`   | `string` | 审计状态，未填则默认 PENDING    |
-| `auditContent`  | `string` | 审计内容（必填）                |
-
-**响应体：**
-
-| 字段                 | 类型      | 说明                        |
-| -------------------- | --------- | --------------------------- |
-| `code`               | `integer` |                             |
-| `message`            | `string`  |                             |
-| `data`               | `object`  |                             |
-| `data.logId`         | `string`  | 被更新的系统运行日志主键 id |
-| `data.logStatus`     | `string`  | 更新后的日志状态            |
-| `data.auditId`       | `string`  | 新插入的审计日志主键 id     |
-| `data.auditSerialNo` | `string`  | 新插入的审计日志流水号      |
+- **上游**：用户及参数管理（`user`）。
 
 ---

@@ -40,16 +40,16 @@ bash scripts/up.sh
 ```bash
 QDRANT_URL=http://127.0.0.1:16333
 QDRANT_COLLECTION=platform_knowledge
-QDRANT_VECTOR_SIZE=1024          # 必须与 Embedding 维度一致（qwen3-vl-embedding 可选 2560/2048/1536/1024/…）
+QDRANT_VECTOR_SIZE=1024          # 须与 Embedding 维度一致；qwen3.7-text-embedding 默认 1024
 EMBEDDING_PROVIDER=dashscope
-EMBEDDING_MODEL=qwen3-vl-embedding
+EMBEDDING_MODEL=qwen3.7-text-embedding
 DASHSCOPE_API_KEY=...
 VECTOR_CHUNK_SIZE=800
 VECTOR_CHUNK_OVERLAP=120
 RAG_TOP_K=4
 ```
 
-改维度或改 Embedding 模型后：**须删库重建**（见 §删 → drop collection），旧向量不可混用。`qwen3-vl-embedding` 走 DashScope **多模态原生 API**（非 OpenAI compatible-mode）。
+改维度或改 Embedding 模型后：**须删库重建**（见 §删 → drop collection），旧向量不可混用。文本模型走 DashScope **OpenAI compatible-mode**；仅 `qwen3-vl-embedding` 走多模态原生 API。
 
 ---
 
@@ -65,16 +65,17 @@ RAG_TOP_K=4
 
 | 字段                          | 说明                                                                                                                 |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `id`                          | 稳定 UUID：`sha256(collection\|source\|chunk_index\|text)` 前 32 hex → UUID。**同内容重复入库会覆盖**（幂等 upsert） |
+| `id`                          | 稳定 UUID：`sha256(collection\|doc_id\|chunk_index\|text)` 前 32 hex → UUID。**同内容重复入库会覆盖**（幂等 upsert） |
 | `vector`                      | Embedding 向量                                                                                                       |
 | `payload.text`                | 原文片段                                                                                                             |
-| `payload.source`              | 来源键（文件入库时为**绝对路径**）                                                                                   |
+| `payload.source`              | 规范化绝对路径（POSIX 分隔符 `/`）                                                                                   |
+| `payload.doc_id`              | 稳定文档键：在 `KNOWLEDGE_DOCS_DIR`/`prj-docs` 下为相对路径，否则 `abs:`+哈希                                        |
 | `payload.chunk_index`         | 切块序号                                                                                                             |
 | `payload.media_kind`          | `document` / `table` / `image` / `text`                                                                              |
 | `payload.filename` / `suffix` | 文件名与后缀                                                                                                         |
 | `payload.title`               | 可选标题                                                                                                             |
 
-**重要**：`source` 是删除/替换的主键之一。文件入库务必用同一绝对路径，否则会出现「删不掉旧数据」。
+**重要**：删除/替换优先认 `doc_id`，并兼容 `source` 路径变体。文件入库务必落在同一文档根，否则会出现「删不掉旧数据」。
 
 ---
 
@@ -168,10 +169,12 @@ store.ingest_directory(Path("D:/知识库"), suffixes={".docx", ".pptx", ".md"})
 
 ### 4.5 行为说明
 
-- 相同 `(source, chunk_index, text)` → **同一 id**，再次入库为覆盖写
-- 文件内容变更 → 用 `--replace-file` / `replace_file`，避免孤儿 chunk
-- 抽取失败的文件：**记日志并跳过**，不中断整目录入库
+- **默认可靠替换**：`--file` / `--dir` / `ingest_file` / HTTP 上传均先 upsert 再删同 `doc_id`（及 source 变体）下未覆盖的旧点，避免幽灵知识
+- 仅追加写（不推荐）：CLI `--no-replace` 或 `ingest_file(..., replace=False)`
+- 相同 `(doc_id, chunk_index, text)` → **同一 id**，再次入库为覆盖写
+- 抽取失败的文件：**记入失败列表并跳过**，不中断整目录入库；CLI 会打印失败路径
 - `upsert_texts` 按 `VECTOR_UPSERT_BATCH_SIZE`（默认 64）分批 embedding + upsert，避免单次 HTTP JSON 超过 Qdrant 32MB 限制
+- 审计孤儿：`uv run kb --audit` 或 `GET /api/agent/knowledge/audit`（库内有向量但磁盘文件不存在）
 
 ---
 
@@ -327,24 +330,26 @@ store.ensure_collection()
 
 ## 8. CLI 参数速查
 
-| 参数                               | 类别  | 说明                                       |
-| ---------------------------------- | ----- | ------------------------------------------ |
-| `--file`                           | 增    | 入库文件（可重复；md/docx/pptx/pdf/xlsx…） |
-| `--dir` / `--glob`                 | 增    | 递归任意层级（默认 `**/*`）                |
-| `--ext`                            | 增    | 限定后缀，如 `--ext .docx`                 |
-| `--try-unknown`                    | 增    | 未知后缀尝试文本解码                       |
-| `--replace-file`                   | 改    | 删旧 + 再入库                              |
-| `--search` / `--limit`             | 查    | 语义检索                                   |
-| `--count`                          | 查    | 点数                                       |
-| `--list`                           | 查    | 浏览                                       |
-| `--source`                         | 查/删 | source 精确匹配                            |
-| `--source-contains`                | 查    | source 子串                                |
-| `--delete-source`                  | 删    | 按来源删                                   |
-| `--delete-id`                      | 删    | 按 id 删                                   |
-| `--drop-collection --yes`          | 删    | 删库                                       |
-| `--collection`                     | 通用  | 覆盖集合名                                 |
-| `--chunk-size` / `--chunk-overlap` | 增/改 | 切块                                       |
-| `--json`                           | 通用  | JSON 汇总输出                              |
+| 参数                               | 类别  | 说明                                 |
+| ---------------------------------- | ----- | ------------------------------------ |
+| `--file`                           | 增    | 入库文件（默认可靠替换）             |
+| `--dir` / `--glob`                 | 增    | 递归任意层级（默认可靠替换）         |
+| `--no-replace`                     | 增    | 仅追加 upsert（不推荐）              |
+| `--ext`                            | 增    | 限定后缀，如 `--ext .docx`           |
+| `--try-unknown`                    | 增    | 未知后缀尝试文本解码                 |
+| `--replace-file`                   | 改    | 显式可靠替换（与默认 `--file` 等价） |
+| `--search` / `--limit`             | 查    | 语义检索                             |
+| `--count`                          | 查    | 点数                                 |
+| `--list`                           | 查    | 浏览                                 |
+| `--audit`                          | 查    | 孤儿文档审计                         |
+| `--source`                         | 查/删 | source 精确匹配                      |
+| `--source-contains`                | 查    | source 子串                          |
+| `--delete-source`                  | 删    | 按来源删（含变体与 doc_id）          |
+| `--delete-id`                      | 删    | 按 id 删                             |
+| `--drop-collection --yes`          | 删    | 删库                                 |
+| `--collection`                     | 通用  | 覆盖集合名                           |
+| `--chunk-size` / `--chunk-overlap` | 增/改 | 切块                                 |
+| `--json`                           | 通用  | JSON 汇总输出                        |
 
 ---
 
@@ -358,19 +363,20 @@ platform-agent-service/
     chunking.py     # 切块
     extractors.py   # ★ 多格式抽文本（docx/pptx/pdf/xlsx/csv/图片…）
     vision.py       # ★ 图片 → DashScope VL → 文本
-    store.py        # ★ CRUD
+    source_keys.py  # source / doc_id 规范化
+    store.py        # ★ CRUD（默认可靠替换、孤儿审计）
   app/rag/
     store.py        # 再导出 VectorStoreService
     context.py      # 对话侧 retrieve_knowledge_blocks / format_rag_section
   scripts/ingest_to_qdrant.py   # CLI
 ```
 
-| API | 方法                                                                   |
-| --- | ---------------------------------------------------------------------- |
-| 增  | `ensure_collection`、`upsert_texts`、`ingest_file`、`ingest_directory` |
-| 查  | `similarity_search`、`scroll_points`、`count`、`format_context`        |
-| 改  | `replace_file`（推荐）；同内容 `upsert_*` 幂等覆盖                     |
-| 删  | `delete_by_ids`、`delete_by_source`、`drop_collection`                 |
+| API | 方法                                                                                   |
+| --- | -------------------------------------------------------------------------------------- |
+| 增  | `ensure_collection`、`upsert_texts`、`ingest_file`（默认 replace）、`ingest_directory` |
+| 查  | `similarity_search`、`scroll_points`、`count`、`format_context`、`audit_orphans`       |
+| 改  | `ingest_file_replacing` / `replace_file`；同内容 `upsert_*` 幂等覆盖                   |
+| 删  | `delete_by_ids`、`delete_by_source`、`delete_by_doc_id`、`drop_collection`             |
 
 ### HTTP 运营 API（P1-5，需登录）
 
@@ -379,33 +385,35 @@ platform-agent-service/
 | 方法   | 路径                                   | 说明                                                                             |
 | ------ | -------------------------------------- | -------------------------------------------------------------------------------- |
 | GET    | `/api/agent/knowledge/stats`           | 点数 / 连通性                                                                    |
-| GET    | `/api/agent/knowledge/documents`       | 按 source 聚合文档列表（`page`/`page_size`/`source_contains`）                   |
+| GET    | `/api/agent/knowledge/audit`           | 孤儿文档审计（库内有向量、磁盘 source 缺失）                                     |
+| GET    | `/api/agent/knowledge/documents`       | 按 source 聚合（含 `doc_id` / `file_exists`）                                    |
 | GET    | `/api/agent/knowledge/points`          | 浏览片段（`limit`、`source_contains`）                                           |
 | POST   | `/api/agent/knowledge/search`          | 语义试检索 `{ query, limit? }`                                                   |
-| POST   | `/api/agent/knowledge/ingest`          | multipart 上传到文档目录（默认仓根 `prj-docs`）后入库；同名先删旧 `source`       |
+| POST   | `/api/agent/knowledge/ingest`          | multipart 上传后**可靠替换**入库（返回 chunks / deleted_before / doc_id）        |
 | POST   | `/api/agent/knowledge/replace`         | multipart：`file` + `source`，保留原 source 键更新                               |
 | POST   | `/api/agent/knowledge/export`          | `{ source }` → 导出正文供本地下载（优先磁盘，否则拼接片段）                      |
-| DELETE | `/api/agent/knowledge/by-source`       | `{ source }` 精确删除                                                            |
+| DELETE | `/api/agent/knowledge/by-source`       | `{ source }` 删除（路径变体 + `doc_id`）                                         |
 | POST   | `/api/agent/knowledge/drop-collection` | `{ confirm: true }` 清空文档知识 collection（换 Embedding 后重建；磁盘文件保留） |
 
 实体同步可观测：
 
-| 方法 | 路径                                  | 说明                                        |
-| ---- | ------------------------------------- | ------------------------------------------- |
-| POST | `/api/agent/entity-sync`              | 触发同步（达梦只读 SELECT）                 |
-| GET  | `/api/agent/entity-sync/status`       | 进程内最近一次结果 + `in_progress`          |
-| POST | `/api/agent/entities/drop-collection` | `{ confirm: true }` 清空实体术语 collection |
+| 方法 | 路径                                  | 说明                                                                          |
+| ---- | ------------------------------------- | ----------------------------------------------------------------------------- |
+| POST | `/api/agent/entity-sync`              | 触发同步（达梦只读 SELECT）                                                   |
+| GET  | `/api/agent/entity-sync/status`       | 最近一次结果 + `in_progress` + `persisted` + `checkpoints`（Postgres 可恢复） |
+| POST | `/api/agent/entities/drop-collection` | `{ confirm: true }` 清空实体术语 collection                                   |
 
-实现：`app/api/knowledge.py`、`app/api/entity_sync.py`、`app/sync/entity_sync_status.py`。
+实现：`app/api/knowledge.py`、`app/api/entity_sync.py`、`app/sync/entity_sync_status.py`、`app/infrastructure/persistence/entity_sync_repository.py`。  
+水位线/成败只写 **Agent Postgres**（`entity_sync_status` / `entity_sync_checkpoint`），**禁止**在平台达梦写同步标记。
 
 ---
 
 ## 10. 运维建议
 
 1. **入库前**：`bash scripts/up.sh` + `curl`/`GET /health` 看 `qdrant.ok`
-2. **文档更新流水线**：改架构/验收文档后跑 `--replace-file` 或「先 `--delete-source` 再 `--dir`」
+2. **文档更新流水线**：改文档后直接 `--file` / `--dir`（默认可靠替换）或设置页上传；定期 `--audit` 查孤儿
 3. **全量重建**：`--drop-collection --yes` → `--dir ../docs/architecture` → `--dir ../../prj-docs`
-4. **排错**：Dashboard 看 points；CLI `--list` 核对 `source`；检索无结果时检查 Embedding Key 与维度
+4. **排错**：Dashboard 看 points；CLI `--list` / `--audit` 核对 `source`/`doc_id`；检索无结果时检查 Embedding Key 与维度
 5. **安全**：生产环境清库须经登录态 + `confirm=true`；运营 HTTP 提供 `drop-collection`（文档/实体分集合），勿挂无人值守任务；换 Embedding 模型或维度后**必须**先清对应 collection 再全量重建。
 
 ---

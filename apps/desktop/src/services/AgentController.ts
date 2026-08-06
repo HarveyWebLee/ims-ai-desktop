@@ -552,11 +552,26 @@ export async function triggerEntitySync(options?: { tables?: string }): Promise<
   return parseJsonResponse(res);
 }
 
-/** 实体同步服务端可观测状态（进程内最近一次） */
+/** 实体同步服务端可观测状态（Postgres 可持久化；无 DSN 时仅进程内） */
+export interface EntitySyncCheckpoint {
+  stream_name: string;
+  watermark_ts?: string | null;
+  watermark_id?: string | null;
+  last_full_at?: string | null;
+  last_ok?: boolean | null;
+  last_rows_read?: number;
+  last_upserted?: number;
+  last_error?: string | null;
+  updated_at?: string | null;
+}
+
 export interface EntitySyncStatus {
   in_progress: boolean;
   at: string | null;
   result: EntitySyncResult | null;
+  /** 是否已写入 Agent Postgres（重启可恢复） */
+  persisted?: boolean;
+  checkpoints?: EntitySyncCheckpoint[];
 }
 
 export async function getEntitySyncStatus(): Promise<EntitySyncStatus> {
@@ -625,6 +640,7 @@ export interface KnowledgeStats {
   message?: string;
   probe?: Record<string, unknown>;
   upload_dir?: string;
+  docs_dir?: string;
 }
 
 export interface KnowledgePointItem {
@@ -632,6 +648,7 @@ export interface KnowledgePointItem {
   score: number;
   text_preview: string;
   source: string;
+  doc_id?: string;
   filename: string;
   chunk_index?: number | null;
   media_kind?: string | null;
@@ -639,8 +656,10 @@ export interface KnowledgePointItem {
 
 export interface KnowledgeDocumentItem {
   source: string;
+  doc_id?: string;
   filename: string;
   chunk_count: number;
+  file_exists?: boolean;
 }
 
 export interface KnowledgeDocumentsPage {
@@ -653,8 +672,31 @@ export interface KnowledgeDocumentsPage {
   collection: string;
 }
 
+export interface KnowledgeOrphanItem {
+  source: string;
+  doc_id?: string;
+  filename?: string;
+  chunk_count: number;
+  file_exists?: boolean;
+}
+
+export interface KnowledgeAudit {
+  docs_root: string | null;
+  documents: number;
+  orphan_count: number;
+  orphans: KnowledgeOrphanItem[];
+  scanned_documents?: number;
+}
+
 export async function getKnowledgeStats(): Promise<KnowledgeStats> {
   const res = await fetch(`${AGENT_BASE}/knowledge/stats`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(res);
+}
+
+export async function getKnowledgeAudit(): Promise<KnowledgeAudit> {
+  const res = await fetch(`${AGENT_BASE}/knowledge/audit`, {
     headers: getAuthHeaders(),
   });
   return parseJsonResponse(res);
@@ -709,9 +751,13 @@ export async function searchKnowledge(params: {
   return parseJsonResponse(res);
 }
 
-export async function ingestKnowledgeFile(
-  file: File,
-): Promise<{ source: string; filename: string; chunks: number; deleted_before: number }> {
+export async function ingestKnowledgeFile(file: File): Promise<{
+  source: string;
+  doc_id?: string;
+  filename: string;
+  chunks: number;
+  deleted_before: number;
+}> {
   const form = new FormData();
   form.append("file", file, file.name);
   const headers: Record<string, string> = {};

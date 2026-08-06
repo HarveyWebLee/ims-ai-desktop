@@ -176,9 +176,9 @@ store.upsert_texts(
 # 单文件
 store.ingest_file(Path("docs/qdrant-deployment.md"))
 
-# 目录
-stats = store.ingest_directory(Path("../../prj-docs"))
-print(stats)  # {相对路径: chunk数}
+# 目录（默认可靠替换；返回 files / failed）
+result = store.ingest_directory(Path("../../prj-docs"))
+print(result.chunk_total, len(result.failed))
 ```
 
 ### 3.3 用 Dashboard / HTTP API 手工写入（调试）

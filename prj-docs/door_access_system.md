@@ -3,15 +3,11 @@
 > 英文名：Door Access System  
 > 模块 ID：`door_access_system`  
 > 所属业务域：系统管理（`/config_management/system`）  
-> 页面数：8  
-> 上级索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)  
-> 来源：前端 routes 权威菜单
+> 页面数：8
 
 ## 模块说明
 
-门禁系统（`door_access_system`）。真实路由为 `parent/path`，**不含 groupId**；源码目录见详档「页面目录」。
-
-## 功能页面
+门禁系统（`door_access_system`）。## 功能页面
 
 | 页面         | 路径                             | 路由                                                       | 详细文档                                                                                                                                                         |
 | ------------ | -------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -24,11 +20,9 @@
 | 出入库管理   | `inner_storage`                  | `/config_management/system/inner_storage`                  | [config_management-system-door_access_system-inner_storage.md](./config_management-system-door_access_system-inner_storage.md)                                   |
 | 安全检查     | `safety_check`                   | `/config_management/system/safety_check`                   | [config_management-system-door_access_system-safety_check.md](./config_management-system-door_access_system-safety_check.md)                                     |
 
-## 操作指引（通用）
+## 入口
 
-1. 登录后进入「配置管理平台」。
-2. 打开「系统管理」→「门禁系统」。
-3. 按页面按钮维护数据；无权限时在「角色授权 / 菜单管理」分配。
+登录 → 配置管理平台 → 打开「系统管理」→「门禁系统」。；无权限时在角色授权/菜单管理分配。
 
 ## 代码定位
 

@@ -3,15 +3,11 @@
 > 英文名：Dictionary Table  
 > 模块 ID：`dic_table`  
 > 所属业务域：系统管理（`/config_management/system`）  
-> 页面数：11  
-> 上级索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)  
-> 来源：前端 routes 权威菜单
+> 页面数：11
 
 ## 模块说明
 
-字典表（`dic_table`）。真实路由为 `parent/path`，**不含 groupId**；源码目录见详档「页面目录」。
-
-## 功能页面
+字典表（`dic_table`）。## 功能页面
 
 | 页面         | 路径                 | 路由                                           | 详细文档                                                                                                               |
 | ------------ | -------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -27,11 +23,9 @@
 | 技能         | `skill`              | `/config_management/system/skill`              | [config_management-system-dic_table-skill.md](./config_management-system-dic_table-skill.md)                           |
 | 风向         | `wind_direction`     | `/config_management/system/wind_direction`     | [config_management-system-dic_table-wind_direction.md](./config_management-system-dic_table-wind_direction.md)         |
 
-## 操作指引（通用）
+## 入口
 
-1. 登录后进入「配置管理平台」。
-2. 打开「系统管理」→「字典表」。
-3. 按页面按钮维护数据；无权限时在「角色授权 / 菜单管理」分配。
+登录 → 配置管理平台 → 打开「系统管理」→「字典表」。；无权限时在角色授权/菜单管理分配。
 
 ## 代码定位
 

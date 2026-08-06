@@ -34,6 +34,7 @@ import { message } from "@/antd/feedback";
 import MarkdownContent from "@/components/MarkdownContent";
 import * as AgentController from "@/services/AgentController";
 import type {
+  KnowledgeAudit,
   KnowledgeDocumentItem,
   KnowledgeIngestJob,
   KnowledgePointItem,
@@ -167,6 +168,7 @@ function KnowledgeMdPreview({
 export default function KnowledgeOpsPanel() {
   const intl = useIntl();
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
+  const [audit, setAudit] = useState<KnowledgeAudit | null>(null);
   const [docs, setDocs] = useState<KnowledgeDocRow[]>([]);
   const [docTotal, setDocTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -190,8 +192,12 @@ export default function KnowledgeOpsPanel() {
 
   const loadStats = useCallback(async () => {
     try {
-      const s = await AgentController.getKnowledgeStats();
+      const [s, a] = await Promise.all([
+        AgentController.getKnowledgeStats(),
+        AgentController.getKnowledgeAudit().catch(() => null),
+      ]);
       setStats(s);
+      setAudit(a);
     } catch (err) {
       message.error(
         intl.formatMessage(
@@ -792,6 +798,7 @@ export default function KnowledgeOpsPanel() {
                     succeeded: ingestJob.succeeded,
                     failed: ingestJob.failed,
                     chunks: ingestJob.chunks_total,
+                    deleted: ingestJob.deleted_total,
                   },
                 )}
               </Text>
@@ -832,6 +839,48 @@ export default function KnowledgeOpsPanel() {
           </Descriptions>
           {stats.message ? (
             <Alert style={{ marginTop: 8 }} type="info" showIcon title={stats.message} />
+          ) : null}
+          {audit && audit.orphan_count > 0 ? (
+            <Alert
+              style={{ marginTop: 8 }}
+              type="warning"
+              showIcon
+              title={intl.formatMessage(
+                { id: "aiAssistant.knowledge.orphanWarning" },
+                { count: audit.orphan_count },
+              )}
+              description={
+                <div>
+                  {(audit.orphans || []).slice(0, 5).map((item) => (
+                    <div key={item.source}>
+                      <Text code style={{ fontSize: 12 }}>
+                        {item.filename || item.source}
+                      </Text>
+                      <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                        {intl.formatMessage(
+                          { id: "aiAssistant.knowledge.orphanChunks" },
+                          { count: item.chunk_count },
+                        )}
+                      </Text>
+                    </div>
+                  ))}
+                  {audit.orphan_count > 5 ? (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {intl.formatMessage(
+                        { id: "aiAssistant.knowledge.orphanMore" },
+                        { count: audit.orphan_count - 5 },
+                      )}
+                    </Text>
+                  ) : null}
+                  <Paragraph
+                    type="secondary"
+                    style={{ marginTop: 8, marginBottom: 0, fontSize: 12 }}
+                  >
+                    {intl.formatMessage({ id: "aiAssistant.knowledge.orphanHint" })}
+                  </Paragraph>
+                </div>
+              }
+            />
           ) : null}
         </Card>
       ) : null}

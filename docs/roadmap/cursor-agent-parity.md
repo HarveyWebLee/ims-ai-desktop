@@ -102,23 +102,23 @@
 
 > **说明**：下表为 **2026-08-05** 对照代码后的现状；已落地项不再标「高差距」。未勾满的体验缺口见 §7 脚注。
 
-| 能力域        | Cursor                          | 本仓现状                                                             | 差距等级   | 说明                                    |
-| ------------- | ------------------------------- | -------------------------------------------------------------------- | ---------- | --------------------------------------- |
-| 编排内核      | 闭源 Harness + tool loop        | LangGraph 父图 + `create_agent`                                      | 低         | 路径正确，需打磨可靠性                  |
-| 工具面        | 内置 IDE tools + MCP            | **仅** Platform MCP + RAG 工具                                       | 低（设计） | 业务侧应保持单一 MCP                    |
-| Instructions  | Rules 分层 + 智能应用           | System/节点 prompt + RAG + **运行时 Playbook**                       | 低～中     | Playbook 已落地；缺用户可编辑 Rules     |
-| Skills        | 按需加载多步骤工作流            | 运行时 Playbook（alarm-dispose / batch-export 等）按意图注入         | 低～中     | 关键词匹配；成功率需联调观测            |
-| 模式系统      | Agent/Ask/Plan/Debug            | 会话 `run_mode`：readonly / confirm / autonomous + `plan_first` 开关 | 低～中     | 非 Cursor 同名四模式；语义对齐权限边界  |
-| Context 管理  | 索引 + 按需读 + Skills 渐进披露 | **domains 子集 / safe_default（非写）**；写工具仅领域命中；RAG 注入  | 中         | 已非「唯一全量」；关键词漏检仍可能偏窄  |
-| HITL / 审批   | Run Mode + Hooks + 确认         | interrupt 表单 + run_mode + preflight；对称路径已硬化                | 低         | confirm 写操作依赖 handler 显式 confirm |
-| Subagents     | Explore/Shell 等隔离            | 知识检索 Subagent（`retrieve_knowledge` 摘要回主）                   | 中         | 仅工具路径；被动 RAG 仍注入主对话       |
-| Checkpoint UX | 对话时间线可回滚文件            | checkpointer resume + HITL 终态/可续跑文案                           | 低～中     | 无 IDE 级文件回滚                       |
-| 可观测性      | Trace/工具卡片较成熟            | SSE tool 事件 + 结构化结果卡 + Audit/Hooks                           | 低～中     | Hooks after 审计默认关                  |
-| 并行 Agent    | Cloud / 多 Agent Window         | 多会话切片：切走不 abort + notification                              | 低（M1）   | 无关窗续跑 / job queue                  |
-| Hooks 运行时  | 生命周期脚本可拦可改            | 工具前后 Hooks（deny_list + audit）                                  | 中         | 非全生命周期 beforeSubmit 等            |
-| 模型路由      | Auto / 按任务复杂度路由         | Auto + 关键词启发式 light/default                                    | 低～中     | 已上线；非复杂度模型                    |
-| client_action | Browser 工具闭环                | 宿主桥执行 + 回执 **仅 audit**（不回灌图）                           | 中         | 半闭环；无宿主仍 skip 降级              |
-| BPMN UI       | —                               | **未纳入**；前端 stub                                                | —          | 单独立项                                |
+| 能力域        | Cursor                          | 本仓现状                                                             | 差距等级   | 说明                                                                          |
+| ------------- | ------------------------------- | -------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------- |
+| 编排内核      | 闭源 Harness + tool loop        | LangGraph 父图 + `create_agent`                                      | 低         | 路径正确，需打磨可靠性                                                        |
+| 工具面        | 内置 IDE tools + MCP            | **仅** Platform MCP + RAG 工具                                       | 低（设计） | 业务侧应保持单一 MCP                                                          |
+| Instructions  | Rules 分层 + 智能应用           | System/节点 prompt + RAG + **运行时 Playbook**                       | 低～中     | Playbook 已落地；缺用户可编辑 Rules                                           |
+| Skills        | 按需加载多步骤工作流            | 运行时 Playbook（alarm-dispose / batch-export 等）按意图注入         | 低～中     | **可做**语义检索 + 自动评测（§3.2）；现为关键词匹配                           |
+| 模式系统      | Agent/Ask/Plan/Debug            | 会话 `run_mode`：readonly / confirm / autonomous + `plan_first` 开关 | 低～中     | 非 Cursor 同名四模式；语义对齐权限边界                                        |
+| Context 管理  | 索引 + 按需读 + Skills 渐进披露 | **domains 子集 / safe_default（非写）**；写工具仅领域命中；RAG 注入  | 中         | 可有限度优化召回（§3.2）；多域并集优先不漏条件句；禁堆词 NLU                  |
+| HITL / 审批   | Run Mode + Hooks + 确认         | interrupt 表单 + run_mode + preflight；对称路径已硬化                | 低         | **可做**统一 confirm + **平台可配风险等级**（§3.2）                           |
+| Subagents     | Explore/Shell 等隔离            | 知识检索 Subagent（`retrieve_knowledge` 摘要回主）                   | 中         | 仅工具路径；被动 RAG 仍注入主对话                                             |
+| Checkpoint UX | 对话时间线可回滚文件            | checkpointer resume + HITL 终态/可续跑文案                           | 低～中     | 无 IDE 级文件回滚                                                             |
+| 可观测性      | Trace/工具卡片较成熟            | SSE tool 事件 + 结构化结果卡 + Audit/Hooks                           | 中         | **必须做** LangSmith 级仪表盘（运维+流程评估+效率，§3.2）；Workspace 侧栏可做 |
+| 并行 Agent    | Cloud / 多 Agent Window         | 多会话切片：切走不 abort + notification                              | 低（M1）   | **可做**关窗续跑 / 任务队列（§3.2）                                           |
+| Hooks 运行时  | 生命周期脚本可拦可改            | 工具前后 Hooks（deny_list + audit）                                  | 中         | 非全生命周期 beforeSubmit 等                                                  |
+| 模型路由      | Auto / 按任务复杂度路由         | Auto + 关键词启发式 light/default                                    | 低～中     | 基线已上线；**升级待评估**（意图准不准 + 是否更快，§3.2）                     |
+| client_action | Browser 工具闭环                | 宿主桥 + 回执仅 audit（过渡）→ WS + **图内回灌**（§3.2）             | 中         | **可做**：真闭环回灌图；传输走平台 WS                                         |
+| BPMN UI       | —                               | **未纳入**；前端 stub                                                | —          | 单独立项                                                                      |
 
 差距等级：**高** = 对「像 Cursor 一样可靠智能」影响大；**中** = 体验与稳健性；**低** = 可后置或已基本对齐。
 
@@ -138,22 +138,60 @@ Cursor:
 
 **仍存设计债（非「未做」）**：
 
-1. **AI-first 默认**仍弱化 Plan 可预期性；已用 `plan_first` 开关补齐「先确认再执行」，但计划步骤 **几乎不可编辑**（相对 Cursor Plan→Build）。
-2. **领域推断靠关键词**：漏检时 safe_default 偏保守（无写工具），需用户更明确表述或扩 triggers。
-3. **client_action 半闭环**：执行回执不进图，Agent 无法根据页面跳转结果再决策。
-4. **BPMN 编排 UI** 明确非目标；后端若残留 API 勿误判为已有画布。
+1. **AI-first 默认**弱化「先出可编辑计划」；已用 `plan_first` 补齐「先确认再执行」。**产品决策（2026-08-06）：不做可编辑 Plan→Build**——平台用户只提目标、不关心执行步骤；步骤条仅过程可视化（可看/可中止）。与 Cursor Plan Mode 的差距接受为产品定位差异，非待办。
+2. **领域 / 工具子集（可优化，须控制度；产品决策 2026-08-06）**：
+   - **可做**：在现有 `select_tool_subset`（关键词推断 domains → 绑工具）上做有限度改进，减少漏绑导致「想查查不了 / 想写写不了」。
+   - **控制度**：不得恢复「正则决定 chat/plan/device/react」的意图路由；不得无限堆触发词做成第二套 NLU。关键词/规则只服务**工具绑定**，不替代大模型做条件判断与步骤编排。
+   - **不漏重点**：多意图/条件句须**多域并集**（例：「若最近三天有告警则开门」→ `alarm`∪`device`，查告警与开门工具同时可绑）；优化时优先召回用户需求中的查询条件与关键动作，宁可略宽不可漏域。偏窄导致模型无法先查再写，视为回归。
+   - **仍由模型负责**：先查后写、有数据才下发等逻辑；写操作继续靠 `run_mode` + HITL。
+3. **Playbook 匹配仍偏关键词（可增强；产品决策 2026-08-06）**：
+   - **可做**：① **语义检索**——将 playbook 索引/正文向量化，按用户话术召回相关规程注入（Embedding + 向量库；注入后仍由对话大模型按规程执行）；② **自动评测**——固定测试句断言工具调用序列/关键步骤，补齐「仓内无自动评测、仅靠联调观测」缺口。
+   - **约束**：短索引 + 按需全文；限制单轮注入份数；不把 Playbook 做成第二套意图路由器，也不替代 AI-first / HITL。
+4. **业务工具扩面（方向可做；形态待讨论；产品决策 2026-08-06）**：
+   - **可做**：覆盖值班 / 门禁 / 配置等高频平台能力（对照 `prj-docs` / YApi），补 catalog、HITL、结果卡与 i18n。
+   - **待讨论（未拍板不编码）**：新能力走 **Platform MCP**（既有 SOP：catalog → export → MCP handler → 平台 API）还是 Agent 内 **本地 tool**（LangChain `@tool`）。
+   - **现状基线（讨论默认参照，非最终结论）**：架构红线为业务工具 **仅** Platform MCP；Agent 仅本地 `retrieve_knowledge` 等非业务工具；**禁止** `import platform_mcp`、禁止业务 `@tool` 与 MCP 双轨；达梦只读、业务写走平台 API。
+   - **拍板前**：不新增值班/门禁/配置等业务执行面；讨论须写明选型理由与对 HITL / 契约 / 桌面卡片的影响。
+5. **平台联动 + client_action 图内回灌（可做；产品决策 2026-08-06）**：
+   - **传输换方案**：不以桌面 Electron 宿主桥 mock / 仅 audit 为最终闭环；目标为平台侧 **WebSocket** 接收智能平台流程，需参与时调**平台侧工具**，结果回传智能平台。
+   - **图内回灌（真闭环）可做**：`client_action`（及平台回执）执行结果必须进入 Agent 图（如 ToolMessage / `Command(resume)` 等价路径），使模型能根据成功/失败继续决策；**禁止**长期以「回执只写 audit、不回灌图」为终态。
+   - **过渡**：现有宿主桥 + `client_action_result` audit、无宿主 skip 降级可保留为过渡/降级。
+   - **待共建**：WS 协议、鉴权、与 HITL/`client_action` 契约及图内回灌字段对齐；实施前补架构小节与验收项。
+6. **BPMN 编排 UI** 明确非目标；后端若残留 API 勿误判为已有画布。
+7. **模型路由升级（待评估；产品决策 2026-08-06）**：
+   - **现状**：P2-3 基线已上线（Auto + 关键词启发式 light/default）。
+   - **升级不默认开工**：复杂度/代价感知等增强须先评估，**评估未通过则不做**。
+   - **评估焦点**：① 是否真正提高意图/任务分流准确（误路由到小模型导致工具链失败，或误用大模型浪费成本）；② 是否保证快速响应（路由决策本身延迟、小模型在多步工具场景是否更慢/更多轮）。
+   - **说明**：模型路由主要影响「用哪颗模型干活」，与领域工具子集/意图识别不是同一层；不得假设「换路由必提意图准确」。
+8. **写工具统一强制 confirm（可做；风险须可配置；产品决策 2026-08-06）**：
+   - **可做**：Agent 包装层按风险统一门控——`confirm`（及约定模式）下高风险/写类工具必经 `ask_user_confirm` → interrupt，减少 handler 漏标。
+   - **平台前提**：平台侧提供工具**是否高风险 / 风险等级**的配置能力，支持用户（或运营）配置，**禁止**仅依赖代码/catalog 写死为唯一来源。
+   - **落点约束**：catalog 可保留默认 `risk_level`；运行时以平台配置（可覆盖默认）为准；配置变更后 HITL 行为须一致可测；仍不引入图外 `pending_*` HITL。
+9. **工具 schema 两段式（可做；产品决策 2026-08-06）**：
+   - **可做**：第一段仅注入工具名 + 短描述；模型选定目标工具后，第二段再注入完整参数 JSON Schema，再实际调用 MCP，以降低上下文 token。
+   - **约束**：与现有 `select_tool_subset` / thread 指纹 / resume 同一父图工具集兼容；关键路径不得因摘要过粗漏工具；仍由大模型选工具与填参，不引入正则意图路由。
+10. **多会话 / 关窗续跑 / 任务队列（可做；产品决策 2026-08-06）**：
+    - **可做**：在 P2-4 最小切片（切会话不 abort + notification）之上，支持关窗后服务端继续、任务队列、重开查看结果。
+    - **约束**：线程/任务状态持久化；abort/resume/新会话对称路径闭合；不做无关的 Cloud 多 Agent 农场。
+11. **可观测仪表盘（必须做；产品决策 2026-08-06）**：
+    - **必须做**（非可选）：对标 LangSmith——支撑运维排障；评估需求功能的执行流程是否合理；监控各流程执行效率（延迟、工具链、HITL、成败率等）。
+    - **范围**：至少覆盖父图节点 / 工具调用 / SSE 回合 / 错误与降级的可追溯 trace；具体用自建仪表盘或对接 LangSmith 等，实施时选型。
+    - **约束**：观测数据落 Agent 侧存储/导出即可；不因此改写 HITL 主链。
+12. **语音 ASR / 声纹增强（可做；产品决策 2026-08-06）**：
+    - **可做**：按架构 `10-voice-asr` / `11-voiceprint` 继续产品化（纠错可视化、门禁、录入核验等）。
+    - **说明**：ASR/声纹为专用模型链路；转入对话后的理解与工具调用仍走主 Agent。
 
 ### 3.3 实现层差异（工程）
 
-| 主题        | Cursor 侧（公开行为） | 本仓实现                                                | 后续可选项                      |
-| ----------- | --------------------- | ------------------------------------------------------- | ------------------------------- |
-| 工具发现    | MCP schema 按需       | `select_tool_subset`：domain / safe_default；指纹持久化 | 两段式「先选后详」schema        |
-| 确认门控    | Run Mode allowlist    | `run_mode` + preflight + `ask_user_confirm`             | Agent 层统一强制 confirm 写工具 |
-| 计划        | Plan Mode + Build     | `plan_first` → `plan_confirm`；预览只读                 | 可编辑步骤 + Build              |
-| 失败恢复    | Checkpoint / 重试     | resume/reject/abort + 残留态清理                        | 持续按 M1 验收回归              |
-| 文档优先    | MCP docs / Skills     | 开发强制 docs-langchain；运行时 Playbook                | Playbook 语义检索               |
-| 审计        | Hooks / 日志          | 运行时 tool Hooks + AuditLog                            | 默认打开 after 审计             |
-| Client 执行 | Browser 工具闭环      | 宿主桥 + `client_action_result` 审计                    | 可选图内回执（需立项）          |
+| 主题        | Cursor 侧（公开行为） | 本仓实现                                                | 后续可选项                                                      |
+| ----------- | --------------------- | ------------------------------------------------------- | --------------------------------------------------------------- |
+| 工具发现    | MCP schema 按需       | `select_tool_subset`：domain / safe_default；指纹持久化 | 有限度召回优化；**可做**两段式 schema（§3.2）；**禁**堆词表 NLU |
+| 确认门控    | Run Mode allowlist    | `run_mode` + preflight + `ask_user_confirm`             | **可做**：统一强制 confirm + **平台可配风险等级**（§3.2）       |
+| 计划        | Plan Mode + Build     | `plan_first` → `plan_confirm`；预览只读                 | **Won’t do** 可编辑 Plan→Build（见 §3.2）                       |
+| 失败恢复    | Checkpoint / 重试     | resume/reject/abort + 残留态清理                        | 持续按 M1 验收回归                                              |
+| 文档优先    | MCP docs / Skills     | 开发强制 docs-langchain；运行时 Playbook                | **可做**：Playbook 语义检索 + 自动评测（§3.2）                  |
+| 审计        | Hooks / 日志          | 运行时 tool Hooks + AuditLog                            | 默认打开 after 审计                                             |
+| Client 执行 | Browser 工具闭环      | 宿主桥 + `client_action_result` 审计（过渡）            | **可做**：WS 传输 + **图内回灌真闭环**（§3.2）                  |
 
 ### 3.4 本仓已对齐、必须守住的红线
 
@@ -213,13 +251,13 @@ Cursor:
 
 ### 阶段 P2 — 产品化与规模（后续）
 
-| ID   | 事项                      | 落点                                                   | 说明                                           |
-| ---- | ------------------------- | ------------------------------------------------------ | ---------------------------------------------- |
-| P2-1 | 运行时 Hooks（审计/拦截） | 工具调用前后钩子 → Audit + 策略引擎                    | 对齐 Cursor Hooks；不替代 interrupt            |
-| P2-2 | 有宿主 client_action 闭环 | navigate / 告警详情执行回执                            | 桌面 ↔ 平台联动                                |
-| P2-3 | 模型路由（成本/质量）     | 按意图选小/大模型                                      | 对齐 Auto 路由思路；非必须                     |
-| P2-4 | 多会话并行 / 后台长任务   | 桌面按 thread 缓存 + 多 AbortController + notification | 最小切片：切会话不 abort；不做 Celery/关窗续跑 |
-| P2-5 | BPMN 编排 UI              | 单独立项                                               | **不在**本对标默认范围                         |
+| ID   | 事项                                 | 落点                                                   | 说明                                                              |
+| ---- | ------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------- |
+| P2-1 | 运行时 Hooks（审计/拦截）            | 工具调用前后钩子 → Audit + 策略引擎                    | 对齐 Cursor Hooks；不替代 interrupt                               |
+| P2-2 | 平台 WS 联动闭环（取代纯宿主桥闭环） | 平台 WS 收智能平台流程 → 平台工具执行 → 结果回灌 Agent | **可做（2026-08-06 换方案）**；宿主桥 audit 仅过渡                |
+| P2-3 | 模型路由（成本/质量）升级            | 复杂度/代价感知选小/大模型（相对现关键词 Auto）        | **待评估（2026-08-06）**：意图准不准 + 响应是否更快；未通过则不做 |
+| P2-4 | 多会话 / 关窗续跑 / 任务队列         | 桌面 thread 缓存 + 服务端队列/持久化 + 重开续看        | **可做（2026-08-06）**；最小切片已落地，本项为增强                |
+| P2-5 | BPMN 编排 UI                         | 单独立项                                               | **不在**本对标默认范围                                            |
 
 ---
 
@@ -236,7 +274,7 @@ flowchart TD
   P03 --> P14[P1-4 结果卡片]
   P11 --> P15[P1-5 RAG 运营]
   P14 --> P21[P2-1 运行时 Hooks]
-  P12 --> P22[P2-2 client_action 闭环]
+  P12 --> P22[P2-2 平台 WS 联动闭环]
 ```
 
 **原则**：先 P0（可控、不炸 context、状态不脏），再 P1（更聪明），最后 P2（规模与联动）。
@@ -254,19 +292,33 @@ flowchart TD
 
 ### P1 Done
 
-- [x] 至少 2 个高频场景有可版本化 playbook（P1-1：`alarm-dispose` / `batch-export`；**成功率需联调观测，仓内无自动评测**）
-- [x] 用户可选「先计划后执行」（P1-2：`plan_first` → `plan_confirm`；**步骤预览只读，非 Cursor 可编辑 Plan→Build**）
+- [x] 至少 2 个高频场景有可版本化 playbook（P1-1：`alarm-dispose` / `batch-export`；关键词注入已落地）
+- [ ] Playbook **语义检索**（**可做**，Embedding + 限份注入；见 §3.2）
+- [x] Playbook **自动评测**（固定用例断言匹配/工具子集；`eval/playbook_cases.json` + `scripts/eval_playbook.py`；2026-08-06 W0）
+- [x] 用户可选「先计划后执行」（P1-2：`plan_first` → `plan_confirm`；步骤预览只读）
+- ~~可编辑 Plan→Build~~：**Won’t do**（2026-08-06：平台用户只提目标、不关心执行步骤；非待办）
 - [x] 轻量 Subagent：长检索摘要回主对话（P1-3：仅 `retrieve_knowledge` 工具路径；被动 RAG 仍注入主对话）
-- [x] 至少 3 类高频工具有结构化卡片（P1-4：告警表 / 设备列表 / 导出；消息内卡片，**非独立 Workspace 侧栏**）
-- [x] 知识/playbook 更新可不发版或轻发版生效（P1-5；entity-sync **状态为进程内存**，重启清空）
+- [x] 至少 3 类高频工具有结构化卡片（P1-4：告警表 / 设备列表 / 导出；消息内卡片已落地）
+- [ ] 结果卡 / **Workspace 侧栏**（**可做**，2026-08-06：侧栏固定结构化结果；点选可追问/续跑；与消息内卡片可并存）
+- [x] 知识/playbook 更新可不发版或轻发版生效（P1-5；CRUD + entity-sync 已有）
+- [x] RAG / entity-sync **状态持久化**（水位线/进度/成败写入 Agent Postgres；设置页可读；禁达梦写同步标记；2026-08-06 W0）
 
 ### P2 Done（按立项裁剪）
 
 - [x] 工具调用审计完整可查（P2-1：Hooks deny/after → audit；**after 默认关**；SSE tool_start/end 保留）
-- [x] 有宿主时关键 client_action 可验证执行（P2-2：宿主桥 + 回执 **仅 audit，不回灌图**；无宿主仍跳过）
-- [x] （可选）按意图模型路由上线（P2-3：Auto + 关键词启发式）
-- [x] 多会话并行最小切片（P2-4：切走不 abort + thread 缓存 + notification；**无关窗续跑 / 无 job queue**）
+- [x] 有宿主时关键 client_action 可验证执行（P2-2 过渡：宿主桥 + 回执 **仅 audit**；无宿主仍跳过）
+- [ ] **平台 WS 联动闭环**（**可做 / 换方案**，2026-08-06：平台 WS 收流程 → 平台工具执行 → 结果回传；见 §3.2）
+- [ ] **client_action 图内回灌（真闭环）**（**可做**，2026-08-06：结果进 Agent 图供继续决策；禁长期仅 audit；与 WS 方案配套；见 §3.2）
+- [x] （可选）按意图模型路由基线上线（P2-3：Auto + 关键词启发式）
+- [ ] 模型路由 **升级**（成本/质量）（**待评估**，2026-08-06：须证明有助于意图/分流准确且保证快速响应；未通过则不做；见 §3.2）
+- [x] 多会话并行最小切片（P2-4：切走不 abort + thread 缓存 + notification）
+- [ ] 多会话 / **关窗续跑** / **任务队列**（**可做**，2026-08-06：服务端持久化执行，重开可看结果；见 §3.2）
+- [ ] **可观测仪表盘**（**必须做**，2026-08-06：对标 LangSmith——运维 + 流程合理性评估 + 执行效率监控；见 §3.2）
+- [ ] 语音 ASR / 声纹增强（**可做**，2026-08-06：按 `10`/`11` 架构继续产品化；见 §3.2）
 - [ ] BPMN 编排 UI（P2-5：**未纳入**，前端 stub）
+- [ ] 业务工具扩面（值班 / 门禁 / 配置…）（**方向可做**，2026-08-06；**MCP vs Agent 本地 tool 待讨论**，未拍板不编码；见 §3.2）
+- [ ] 写工具统一强制 confirm（**可做**，2026-08-06：Agent 统一门控；**前提**平台可配工具风险等级，非代码写死；见 §3.2）
+- [ ] 工具 schema **两段式**（**可做**，2026-08-06：先名后详省 token；与 subset/resume 兼容；见 §3.2）
 
 ---
 
@@ -287,7 +339,7 @@ flowchart TD
 | 文档                                                                  | 关系                                                              |
 | --------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [`../architecture/00-overview.md`](../architecture/00-overview.md) 等 | **编码唯一依据**；本文件不得与之冲突                              |
-| [`README.md`](./README.md)                                            | 迭代入口；本文件为其详细对标专项                                  |
+| [`README.md`](./README.md)                                            | 迭代入口；含 **建议排期（W0～W6）**；本文件为其详细对标专项       |
 | [`../desktop-m1-acceptance.md`](../desktop-m1-acceptance.md)          | P0 验收扩展源                                                     |
 | `.cursor/rules/*`、`.cursor/skills/*`                                 | **开发态** Cursor 定制；运行时能力需在 Agent/桌面产品内重建等价物 |
 
@@ -308,17 +360,31 @@ flowchart TD
 
 ## 修订记录
 
-| 日期       | 说明                                                                                             |
-| ---------- | ------------------------------------------------------------------------------------------------ |
-| 2026-07-31 | 初稿：Cursor 摘要、与本仓差异矩阵、P0–P2 优化计划                                                |
-| 2026-08-03 | P0-1 / P0-2 落地：会话 run_mode + catalog domains 工具子集注入                                   |
-| 2026-08-03 | P0-3/4/5：abort Stop、HITL 终态/可续跑、mcp_unavailable                                          |
-| 2026-08-03 | P1-1：运行时 Playbook（alarm-dispose / batch-export）注入                                        |
-| 2026-08-03 | P1-2：显式 Plan（plan_first 覆盖 AI-first → plan_confirm）                                       |
-| 2026-08-04 | P1-3：知识检索 Subagent（retrieve_knowledge 摘要回主 agent）                                     |
-| 2026-08-04 | P1-4：结构化结果卡（告警表 / 设备列表 / 导出）                                                   |
-| 2026-08-04 | P1-5：RAG 运营（知识 HTTP CRUD + entity-sync/status + 设置页）                                   |
-| 2026-08-04 | P2-1：运行时 Hooks（deny_list + audit；Pipeline/ReAct 对称）                                     |
-| 2026-08-04 | P2-2：client_action 宿主桥 + 执行回执 audit                                                      |
-| 2026-08-04 | P2-3：模型 Auto 路由；实测删除无额度 qwen3.7-plus / qwen-plus-2025-07-28                         |
-| 2026-08-05 | P0-2 加固：未命中改 safe_default（非写）；thread 子集 Postgres 持久化；§3 矩阵与 §7 脚注对齐代码 |
+| 日期       | 说明                                                                                                                              |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-31 | 初稿：Cursor 摘要、与本仓差异矩阵、P0–P2 优化计划                                                                                 |
+| 2026-08-03 | P0-1 / P0-2 落地：会话 run_mode + catalog domains 工具子集注入                                                                    |
+| 2026-08-03 | P0-3/4/5：abort Stop、HITL 终态/可续跑、mcp_unavailable                                                                           |
+| 2026-08-03 | P1-1：运行时 Playbook（alarm-dispose / batch-export）注入                                                                         |
+| 2026-08-03 | P1-2：显式 Plan（plan_first 覆盖 AI-first → plan_confirm）                                                                        |
+| 2026-08-04 | P1-3：知识检索 Subagent（retrieve_knowledge 摘要回主 agent）                                                                      |
+| 2026-08-04 | P1-4：结构化结果卡（告警表 / 设备列表 / 导出）                                                                                    |
+| 2026-08-04 | P1-5：RAG 运营（知识 HTTP CRUD + entity-sync/status + 设置页）                                                                    |
+| 2026-08-04 | P2-1：运行时 Hooks（deny_list + audit；Pipeline/ReAct 对称）                                                                      |
+| 2026-08-04 | P2-2：client_action 宿主桥 + 执行回执 audit                                                                                       |
+| 2026-08-04 | P2-3：模型 Auto 路由；实测删除无额度 qwen3.7-plus / qwen-plus-2025-07-28                                                          |
+| 2026-08-05 | P0-2 加固：未命中改 safe_default（非写）；thread 子集 Postgres 持久化；§3 矩阵与 §7 脚注对齐代码                                  |
+| 2026-08-06 | 产品决策：Plan 可编辑→Build 标为 Won’t do；保留 plan_first 门控与步骤条可视化（与 README 对齐）                                   |
+| 2026-08-06 | 产品决策：领域/工具子集可优化但须控制度——禁正则意图路由与堆词 NLU；多域并集优先不漏条件句重点（与 README 对齐）                   |
+| 2026-08-06 | 产品决策：Playbook 语义检索 + 自动评测标为可做（补关键词召回与无仓内评测缺口；与 README 对齐）                                    |
+| 2026-08-06 | 产品决策：RAG/entity-sync 状态持久化标为可做（Agent Postgres；禁达梦写同步标记；与 README 对齐）                                  |
+| 2026-08-06 | 产品决策：业务工具扩面（值班/门禁/配置）方向可做；MCP vs Agent 本地 tool 待讨论，未拍板不编码（与 README 对齐）                   |
+| 2026-08-06 | 产品决策：结果卡 / Workspace 侧栏标为可做（侧栏固定结果 + 点选追问；与消息内卡片可并存；与 README 对齐）                          |
+| 2026-08-06 | 产品决策：平台联动换方案——平台 WS 收流程→平台工具执行→结果回灌智能平台闭环；宿主桥 audit 仅过渡（与 README 对齐）                 |
+| 2026-08-06 | 产品决策：模型路由升级标为待评估——须验证意图/分流准确与快速响应；未通过则不做（与 README 对齐）                                   |
+| 2026-08-06 | 产品决策：写工具统一强制 confirm 可做；前提平台可配风险等级（非代码写死；与 README 对齐）                                         |
+| 2026-08-06 | 产品决策：工具 schema 两段式（先名后详省 token）标为可做（与 README 对齐）                                                        |
+| 2026-08-06 | 产品决策：多会话/关窗续跑/任务队列可做；可观测仪表盘必须做（LangSmith 级运维+流程评估+效率）；语音 ASR/声纹可做（与 README 对齐） |
+| 2026-08-06 | 产品决策：client_action 图内回灌（真闭环）可做；与平台 WS 传输配套，禁长期仅 audit（与 README 对齐）                              |
+| 2026-08-06 | 建议排期写入 README：W0→W6（小/简单靠前，大/难靠后，待评估最后）                                                                  |
+| 2026-08-06 | W0 落地：entity-sync Postgres 持久化；Playbook 自动评测脚本；工具子集多域并集/条件句防漏                                          |

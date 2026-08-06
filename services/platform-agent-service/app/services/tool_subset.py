@@ -4,11 +4,17 @@
 规则
 ----
 - readonly：仅绑定非写工具
-- confirm / autonomous：关键词推断 domains
+- confirm / autonomous：关键词推断 domains（**多域并集**）
   - 命中：core ∪ matched（写工具仅在命中领域内出现）
   - 未命中：safe_default = core ∪ 非写工具（**不再**回退全量）
 - retrieve_knowledge 与 nav 低风险工具恒保留（core）
 - 每 thread 记住上次 chat 的 tool_names（内存 + Postgres），供 resume 复用同一父图
+
+控制度（产品决策）
+------------------
+- 关键词**只服务工具绑定**，禁止用正则/堆词做成第二套意图路由或 NLU
+- 条件句（若…则… / 有…就…）须多域并集，优先不漏查询条件与关键动作
+- 先查后写、有数据才下发等编排仍由大模型负责；写操作靠 run_mode + HITL
 """
 
 from __future__ import annotations
@@ -32,6 +38,7 @@ from contracts.tool_catalog_loader import (
 
 logger = logging.getLogger(__name__)
 
+# 领域触发词：保持短表；禁止无限堆词。多意图句靠并集，不靠 NLU。
 _DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
     "alarm": (
         "告警",
@@ -40,6 +47,7 @@ _DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
         "处理告警",
         "未处理",
         "未确认",
+        "消警",
         "alarm",
     ),
     "device": (
@@ -47,6 +55,7 @@ _DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
         "门禁",
         "开门",
         "关门",
+        "开关门",
         "播报",
         "变量",
         "下发",
@@ -60,6 +69,18 @@ _DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
     "acs": ("出入", "通行记录"),
     "nav": ("跳转", "打开页面", "设施管理", "设备管理", "导航"),
 }
+
+# 条件句标记：自身不产域，仅用于「查→写」跨域防漏补齐
+_CONDITION_MARKERS: tuple[str, ...] = (
+    "如果",
+    "若",
+    "假如",
+    "一旦",
+    "的话",
+    "则",
+    "就",
+    "否则",
+)
 
 # 本地 RAG 工具名（非 catalog）
 RETRIEVE_KNOWLEDGE = "retrieve_knowledge"
@@ -83,8 +104,30 @@ def tool_subset_fingerprint(tool_names: frozenset[str]) -> str:
     return ",".join(sorted(tool_names))
 
 
+def _augment_condition_domains(blob: str, hit: set[str]) -> None:
+    """
+    条件句防漏：在条件标记下，补齐明显的「查询域 ∪ 动作域」。
+
+    例：「有告警就把东门开了」——「开了」未命中「开门」时，仍并入 device。
+    不做正则意图路由；不替代模型做条件判断。
+    """
+    if not blob or not any(m in blob for m in _CONDITION_MARKERS):
+        return
+    has_alarm_cue = "alarm" in hit or any(k in blob for k in ("告警", "报警"))
+    has_door_act = any(k in blob for k in ("开门", "关门", "开关门")) or (
+        "门" in blob and any(k in blob for k in ("开", "关", "下发", "指令", "控制"))
+    )
+    if has_alarm_cue and has_door_act:
+        hit.add("alarm")
+        hit.add("device")
+
+
 def infer_domains_from_text(*texts: str) -> frozenset[str]:
-    """轻量关键词领域推断。"""
+    """
+    轻量关键词领域推断；多段文本取**并集**。
+
+    条件句经 `_augment_condition_domains` 防漏跨域绑定。
+    """
     blob = "\n".join(t for t in texts if t).lower()
     if not blob.strip():
         return frozenset()
@@ -94,6 +137,7 @@ def infer_domains_from_text(*texts: str) -> frozenset[str]:
             if kw.lower() in blob:
                 hit.add(domain)
                 break
+    _augment_condition_domains(blob, hit)
     return frozenset(hit)
 
 
@@ -140,6 +184,7 @@ def select_tool_subset(
     计算本轮应绑定的工具名集合。
 
     available_names：底层已加载的 MCP+本地工具名；None 时仅用 catalog + retrieve_knowledge。
+    多域命中时取工具并集（宁可略宽不可漏域）。
     """
     mode = normalize_run_mode(run_mode)
     catalog_names = _catalog_tool_names()

@@ -140,6 +140,39 @@ class TestToolSubset:
         assert "send_device_cmd" not in result.tool_names
         assert "query_devices" in result.tool_names
 
+    def test_multi_domain_union_condition_sentence(self):
+        """条件句多域并集：告警查询 ∪ 开门写工具同时可绑。"""
+        from app.services.tool_subset import select_tool_subset
+
+        available = frozenset(
+            {
+                "query_alarms",
+                "batch_confirm_alarms",
+                "query_devices",
+                "send_device_cmd",
+                "navigate_to",
+                "retrieve_knowledge",
+            }
+        )
+        result = select_tool_subset(
+            run_mode="confirm",
+            message="若最近三天有告警则开门",
+            available_names=available,
+        )
+        assert result.strategy == "domain"
+        assert "alarm" in result.domains
+        assert "device" in result.domains
+        assert "query_alarms" in result.tool_names
+        assert "send_device_cmd" in result.tool_names
+
+    def test_condition_colloquial_open_augments_device(self):
+        """口语「开了」在条件句下仍并入 device（防漏）。"""
+        from app.services.tool_subset import infer_domains_from_text
+
+        domains = infer_domains_from_text("有告警就把东门开了")
+        assert "alarm" in domains
+        assert "device" in domains
+
     def test_remember_thread_subset(self):
         from app.services.tool_subset import (
             clear_thread_tool_subset,

@@ -206,10 +206,10 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://127.0.0.1:16333"
     qdrant_api_key: str = ""
     qdrant_collection: str = "platform_knowledge"
-    # 与 embedding 模型维度一致（qwen3-vl-embedding 支持 2560/2048/1536/1024/…）
-    qdrant_vector_size: int = 1536
+    # 与 embedding 模型维度一致（qwen3.7-text-embedding 默认 1024）
+    qdrant_vector_size: int = 1024
     # Embedding：文本模型走 compatible-mode；qwen3-vl-embedding 走多模态原生 API
-    embedding_model: str = "qwen3-vl-embedding"
+    embedding_model: str = "qwen3.7-text-embedding"
     embedding_provider: str = "dashscope"
     # 文本切块：字符数 / 重叠，入库脚本与 VectorStore 共用
     vector_chunk_size: int = 800

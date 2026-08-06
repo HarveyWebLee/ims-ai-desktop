@@ -113,12 +113,9 @@
 
 ## 门户与其它页面
 
-| 路由/标识            | 文档                                             | 说明     |
-| -------------------- | ------------------------------------------------ | -------- |
-| `overview`           | [overview.md](./overview.md)                     | 总览     |
-| `login`              | [login.md](./login.md)                           | 登录     |
-| `page`               | [page.md](./page.md)                             | 页面运行 |
-| `statistics`         | [statistics.md](./statistics.md)                 | 统计     |
-| `door_statistics`    | [door_statistics.md](./door_statistics.md)       | 门禁统计 |
-| `storage_statistics` | [storage_statistics.md](./storage_statistics.md) | 库房统计 |
-| `404`                | [404.md](./404.md)                               | 404 页面 |
+| 路由/标识         | 文档                                       | 说明     |
+| ----------------- | ------------------------------------------ | -------- |
+| `overview`        | [overview.md](./overview.md)               | 总览     |
+| `login`           | [login.md](./login.md)                     | 登录     |
+| `statistics`      | [statistics.md](./statistics.md)           | 统计     |
+| `door_statistics` | [door_statistics.md](./door_statistics.md) | 门禁统计 |

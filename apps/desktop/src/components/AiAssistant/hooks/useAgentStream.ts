@@ -1154,7 +1154,6 @@ export function useAgentStream() {
       appendAssistantPlaceholder,
       beginThreadController,
       clearAssistantInterruptBlock,
-      completeAssistantToolCall,
       markAssistantToolRunning,
       createStreamHandlers,
       finalizeAssistantMessage,

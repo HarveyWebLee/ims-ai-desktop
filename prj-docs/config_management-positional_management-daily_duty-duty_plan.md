@@ -1,7 +1,5 @@
 # 值班计划（duty_plan）知识库
 
-> 上级模块索引：[daily_duty.md](./daily_duty.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
-
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                                     |
@@ -27,190 +25,28 @@
 
 ---
 
-## 2. 页面与交互结构
-
-页面结构以该目录下 `index.tsx` / `constants.tsx` 实现为准，常见为配置管理类「查询列表 + 表单弹窗/抽屉」或「左树右表」布局。
-
-### 2.1 列表与查询
-
-- 支持条件查询与列表展示（若页面启用了表格组件）。
-- 树筛选、分页、导入导出等能力取决于本模块是否接入对应通用配置。
-
-### 2.2 表单与编辑
-
-- 新增/编辑通过表单提交，字段见「属性字段说明」。
-- 校验规则、联动逻辑以 `constants` 与表单配置为准。
-
----
-
 ## 3. 功能清单
 
-- 删除
-- 导出
-- 导入
-- 复制
-- 启用/停用
-
 ---
+
+- 复制
 
 ## 4. 与其他功能模块的关系
 
 ### 4.1 同目录兄弟模块
 
-| 关联模块                            | 关系说明                                     |
-| ----------------------------------- | -------------------------------------------- |
-| 执勤交接（duty_handover）           | 同级功能模块，可共同构成「日常值班」业务能力 |
-| 执勤information（duty_information） | 同级功能模块，可共同构成「日常值班」业务能力 |
-| 执勤日志（duty_logs）               | 同级功能模块，可共同构成「日常值班」业务能力 |
-| 执勤人员（duty_personnel）          | 同级功能模块，可共同构成「日常值班」业务能力 |
-| 执勤设置（duty_setting）            | 同级功能模块，可共同构成「日常值班」业务能力 |
-| 进入退出审批（entry_exit_approval） | 同级功能模块，可共同构成「日常值班」业务能力 |
-| 周交接（week_handover）             | 同级功能模块，可共同构成「日常值班」业务能力 |
+| 关联模块                            | 关系说明 |
+| ----------------------------------- | -------- |
+| 执勤交接（duty_handover）           | 同组     |
+| 执勤information（duty_information） | 同组     |
+| 执勤日志（duty_logs）               | 同组     |
+| 执勤人员（duty_personnel）          | 同组     |
+| 执勤设置（duty_setting）            | 同组     |
+| 进入退出审批（entry_exit_approval） | 同组     |
+| 周交接（week_handover）             | 同组     |
 
 ### 4.2 上游依赖 / 下游消费
 
-- **上游**：根据本页接口与字段引用，上游主要为：用户及参数管理（`user`）、阵地人员管理（`staff_management`）、基础数据（`basedata`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
-- **下游**：引用本模块数据的统计、告警、组态、流程或其他业务页（以全库引用为准）。
-
----
-
-## 5. 关键业务规则与注意事项
-
-1. 操作前确认当前用户具备对应菜单与按钮权限。
-2. 删除、导入、批量变更等操作可能影响下游运行态数据，执行前应确认范围。
-3. 若模块涉及驱动/采集类配置，变更后可能需要在数采或相关服务侧刷新配置后生效。
-4. 接口入参以 Swagger 与前端封装为准，注意必填项与枚举值。
-5. 国际化环境下，界面文案以 `src/locales` 配置为准。
-
----
-
-## 6. 总结
-
-本模块（`duty_plan`）位于 `src/pages/config_management/positional_management/daily_duty/duty_plan`，归属「日常值班」。它负责「执勤计划」相关业务的页面交互与数据读写。维护本模块时，请同步关注接口契约、字段语义及与兄弟模块的数据一致性。
-
----
-
-## 7. 接口清单
-
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
-
-### 7.1 获取值班计划列表
-
-| 项          | 内容                               |
-| ----------- | ---------------------------------- |
-| 接口路径    | `/dutyPlan/getDutyPlanList`        |
-| 请求方法    | `POST`                             |
-| 前端封装    | `SystemController.getDutyPlanList` |
-| Swagger Tag | dutyPlanApi                        |
-| 作用说明    | 获取值班计划列表                   |
-
-**请求参数（Body）：**
-
-| 字段             | 类型      | 说明 |
-| ---------------- | --------- | ---- |
-| `id`             | `integer` |      |
-| `cycleId`        | `integer` |      |
-| `dutyPositionId` | `integer` |      |
-| `timePeriod`     | `string`  |      |
-| `personIds`      | `string`  |      |
-| `remark`         | `string`  |      |
-| `uniqueKey`      | `string`  |      |
-
-**响应体：**
-
-| 字段                      | 类型            | 说明 |
-| ------------------------- | --------------- | ---- |
-| `code`                    | `integer`       |      |
-| `message`                 | `string`        |      |
-| `data`                    | `array<object>` |      |
-| `data[].id`               | `integer`       |      |
-| `data[].cycleId`          | `integer`       |      |
-| `data[].cycleName`        | `string`        |      |
-| `data[].dutyPositionId`   | `integer`       |      |
-| `data[].dutyPositionName` | `string`        |      |
-| `data[].timePeriod`       | `string`        |      |
-| `data[].personIds`        | `string`        |      |
-| `data[].personNames`      | `string`        |      |
-| `data[].remark`           | `string`        |      |
-| `data[].uniqueKey`        | `string`        |      |
-
----
-
-### 7.2 replaceDutyPlan
-
-| 项       | 内容                               |
-| -------- | ---------------------------------- |
-| 接口路径 | `/dutyPlan/replaceDutyPlan`        |
-| 请求方法 | `POST`                             |
-| 前端封装 | `SystemController.replaceDutyPlan` |
-| 作用说明 | 见模块业务逻辑                     |
-
-_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
-
----
-
-### 7.3 修改值班计划
-
-| 项          | 内容                              |
-| ----------- | --------------------------------- |
-| 接口路径    | `/dutyPlan/updateDutyPlan`        |
-| 请求方法    | `POST`                            |
-| 前端封装    | `SystemController.updateDutyPlan` |
-| Swagger Tag | dutyPlanApi                       |
-| 作用说明    | 修改值班计划                      |
-
-**请求参数（Body）：**
-
-| 字段                    | 类型      | 说明 |
-| ----------------------- | --------- | ---- |
-| `root`                  | `array`   |      |
-| `item[].id`             | `integer` |      |
-| `item[].cycleId`        | `integer` |      |
-| `item[].dutyPositionId` | `integer` |      |
-| `item[].timePeriod`     | `string`  |      |
-| `item[].personIds`      | `string`  |      |
-| `item[].remark`         | `string`  |      |
-| `item[].uniqueKey`      | `string`  |      |
-
-**响应体：**
-
-| 字段      | 类型      | 说明 |
-| --------- | --------- | ---- |
-| `code`    | `integer` |      |
-| `message` | `string`  |      |
-| `data`    | `boolean` |      |
-
----
-
-### 7.4 删除值班计划
-
-| 项          | 内容                              |
-| ----------- | --------------------------------- |
-| 接口路径    | `/dutyPlan/deleteDutyPlan`        |
-| 请求方法    | `POST`                            |
-| 前端封装    | `SystemController.deleteDutyPlan` |
-| Swagger Tag | dutyPlanApi                       |
-| 作用说明    | 删除值班计划                      |
-
-**请求参数（Body）：**
-
-| 字段                    | 类型      | 说明 |
-| ----------------------- | --------- | ---- |
-| `root`                  | `array`   |      |
-| `item[].id`             | `integer` |      |
-| `item[].cycleId`        | `integer` |      |
-| `item[].dutyPositionId` | `integer` |      |
-| `item[].timePeriod`     | `string`  |      |
-| `item[].personIds`      | `string`  |      |
-| `item[].remark`         | `string`  |      |
-| `item[].uniqueKey`      | `string`  |      |
-
-**响应体：**
-
-| 字段      | 类型      | 说明 |
-| --------- | --------- | ---- |
-| `code`    | `integer` |      |
-| `message` | `string`  |      |
-| `data`    | `boolean` |      |
+- **上游**：用户及参数管理（`user`）、阵地人员管理（`staff_management`）、基础数据（`basedata`）。
 
 ---

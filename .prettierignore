@@ -7,6 +7,9 @@ release
 .cursor
 pnpm-lock.yaml
 services/platform-agent-service/app/data/*.json
+# 运行时生成：入库进度快照 / 旧上传残留（勿进 format/check）
+services/platform-agent-service/app/data/knowledge_ingest_jobs/
+services/platform-agent-service/app/data/knowledge_uploads/
 services/platform-agent-service/app/tools/catalog.json
 services/platform-agent-service/app/models/catalog.json
 services/platform-mcp-server/platform_mcp/data/*.json

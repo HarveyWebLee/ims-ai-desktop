@@ -121,7 +121,7 @@ Python 侧使用官方只读连接参数（host / port / user / password），�
 | `p_device,p_device_variable` | 仅转换列出的表（英文逗号分隔，大小写不敏感）             |
 | 列表中含不存在的表           | **提示/返回 missing_tables**，**存在的表仍照常转换**     |
 
-侧栏「知识与术语 → 实体术语」可查看实体库统计、试检索匹配结果，并触发 `POST /api/agent/entity-sync`（达梦只读 → `platform_entities`）。`GET /api/agent/entity-sync/status` 返回进程内最近一次结果；`GET/POST /api/agent/entities/stats|search` 供运营试检索。
+侧栏「知识与术语 → 实体术语」可查看实体库统计、试检索匹配结果，并触发 `POST /api/agent/entity-sync`（达梦只读 → `platform_entities`）。`GET /api/agent/entity-sync/status` 返回最近一次结果、`persisted`（是否已写入 Agent Postgres）与 `checkpoints` 水位线；进程重启后若配置了 `POSTGRES_DSN` 可恢复。**禁止**在达梦写同步标记。
 
 推荐本地配置示例：
 
@@ -166,10 +166,21 @@ RAG：assemble_context / retrieve_knowledge
 
 ```text
 entity_sync_checkpoint(
-  stream_name,      -- device | variable
+  stream_name,      -- device | variable | <table>
   watermark_ts,
   watermark_id,
   last_full_at,
+  last_ok,
+  last_rows_read,
+  last_upserted,
+  last_error,
+  updated_at
+)
+
+entity_sync_status(   -- 单行：最近一次同步成败快照
+  id=1,
+  last_at,
+  last_result jsonb,
   updated_at
 )
 ```
@@ -212,7 +223,10 @@ platform-agent-service/
   app/sync/
     table_config.py        # 解析 ENTITY_SYNC_TABLES
     entity_mapper.py       # 行 → text / payload（含 p_device / p_device_variable）
-    entity_sync_service.py # 按配置全量同步
+    entity_sync_service.py # 按配置全量同步；推进 Postgres 水位线
+    entity_sync_status.py  # 状态门面（内存 + Postgres）
+  app/infrastructure/persistence/
+    entity_sync_repository.py  # entity_sync_status / checkpoint 读写
   app/infrastructure/vector/
     entity_store.py        # upsert_entity / delete_by_source
   app/api/entity_sync.py   # POST /api/agent/entity-sync；GET …/status
@@ -241,7 +255,7 @@ ENTITY_SYNC_TABLES=p_device,p_device_variable
 ENTITY_SYNC_MAX_ROWS_PER_TABLE=5000
 QDRANT_COLLECTION_ENTITIES=platform_entities
 
-# 可选：JDBC 驱动路径（未安装 dmPython 时使用 JayDeBeApi）
+# 可选：JDBC 驱动路径（主依赖已含 dmPython；仅作回退时配置，并 uv sync --extra entity-sync）
 # DM_JDBC_JAR=D:/dmdbms/drivers/jdbc/DmJdbcDriver18.jar
 ```
 

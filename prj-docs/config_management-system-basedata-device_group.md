@@ -1,7 +1,5 @@
 # 设备分组（device_group）知识库
 
-> 上级模块索引：[basedata.md](./basedata.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
-
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                       |
@@ -27,22 +25,6 @@
 
 ---
 
-## 2. 页面与交互结构
-
-页面结构以该目录下 `index.tsx` / `constants.tsx` 实现为准，常见为配置管理类「查询列表 + 表单弹窗/抽屉」或「左树右表」布局。
-
-### 2.1 列表与查询
-
-- 支持条件查询与列表展示（若页面启用了表格组件）。
-- 树筛选、分页、导入导出等能力取决于本模块是否接入对应通用配置。
-
-### 2.2 表单与编辑
-
-- 新增/编辑通过表单提交，字段见「属性字段说明」。
-- 校验规则、联动逻辑以 `constants` 与表单配置为准。
-
----
-
 ## 3. 属性字段说明
 
 以下字段由页面代码启发式提取，用于快速了解主数据形态；若与线上表单不一致，以实际页面与接口契约为准。
@@ -59,214 +41,25 @@
 
 ---
 
-## 4. 功能清单
-
-- 新建/新增
-- 编辑
-- 删除
-- 详情回填
-- 导出
-- 导入
-- 左侧树筛选
-
----
-
 ## 5. 与其他功能模块的关系
 
 ### 5.1 同目录兄弟模块
 
-| 关联模块                         | 关系说明                                     |
-| -------------------------------- | -------------------------------------------- |
-| 访问组（access_group）           | 同级功能模块，可共同构成「基础数据」业务能力 |
-| 卡管理（card_manage）            | 同级功能模块，可共同构成「基础数据」业务能力 |
-| 设备类型（device_type）          | 同级功能模块，可共同构成「基础数据」业务能力 |
-| 故障库（fault_library）          | 同级功能模块，可共同构成「基础数据」业务能力 |
-| 哨位信息（guard_post_info）      | 同级功能模块，可共同构成「基础数据」业务能力 |
-| 区间设置（interval_setting）     | 同级功能模块，可共同构成「基础数据」业务能力 |
-| 监控任务（monitoring_task）      | 同级功能模块，可共同构成「基础数据」业务能力 |
-| 人员管理（personnel_manage）     | 同级功能模块，可共同构成「基础数据」业务能力 |
-| 人员统计（personnel_statistics） | 同级功能模块，可共同构成「基础数据」业务能力 |
-| 区域树（region_tree）            | 同级功能模块，可共同构成「基础数据」业务能力 |
+| 关联模块                         | 关系说明 |
+| -------------------------------- | -------- |
+| 访问组（access_group）           | 同组     |
+| 卡管理（card_manage）            | 同组     |
+| 设备类型（device_type）          | 同组     |
+| 故障库（fault_library）          | 同组     |
+| 哨位信息（guard_post_info）      | 同组     |
+| 区间设置（interval_setting）     | 同组     |
+| 监控任务（monitoring_task）      | 同组     |
+| 人员管理（personnel_manage）     | 同组     |
+| 人员统计（personnel_statistics） | 同组     |
+| 区域树（region_tree）            | 同组     |
 
 ### 5.2 上游依赖 / 下游消费
 
-- **上游**：根据本页接口与字段引用，上游主要为：监控设备（`monitor_equipment`）、用户及参数管理（`user`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
-- **下游**：引用本模块数据的统计、告警、组态、流程或其他业务页（以全库引用为准）。
-
----
-
-## 6. 关键业务规则与注意事项
-
-1. 操作前确认当前用户具备对应菜单与按钮权限。
-2. 删除、导入、批量变更等操作可能影响下游运行态数据，执行前应确认范围。
-3. 若模块涉及驱动/采集类配置，变更后可能需要在数采或相关服务侧刷新配置后生效。
-4. 接口入参以 Swagger 与前端封装为准，注意必填项与枚举值。
-5. 国际化环境下，界面文案以 `src/locales` 配置为准。
-
----
-
-## 7. 总结
-
-本模块（`device_group`）位于 `src/pages/config_management/system/basedata/device_group`，归属「基础数据」。它负责「设备分组」相关业务的页面交互与数据读写。维护本模块时，请同步关注接口契约、字段语义及与兄弟模块的数据一致性。
-
----
-
-## 8. 接口清单
-
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
-
-### 8.1 获取设备分组树
-
-| 项          | 内容                                  |
-| ----------- | ------------------------------------- |
-| 接口路径    | `/device/getDeviceGroupTree`          |
-| 请求方法    | `POST`                                |
-| 前端封装    | `SystemController.getDeviceGroupTree` |
-| Swagger Tag | deviceManagementApi                   |
-| 作用说明    | 获取设备分组树                        |
-
-**请求参数（Body）：**
-
-_无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 未展开）。_
-
-**响应体：**
-
-| 字段         | 类型            | 说明 |
-| ------------ | --------------- | ---- |
-| `code`       | `integer`       |      |
-| `message`    | `string`        |      |
-| `data`       | `array<object>` |      |
-| `data[].key` | `object`        |      |
-
----
-
-### 8.2 获取设备分组
-
-| 项          | 内容                                  |
-| ----------- | ------------------------------------- |
-| 接口路径    | `/device/getDeviceGroupInfo`          |
-| 请求方法    | `POST`                                |
-| 前端封装    | `SystemController.getDeviceGroupInfo` |
-| Swagger Tag | deviceManagementApi                   |
-| 作用说明    | 获取设备分组                          |
-
-**请求参数（Body）：**
-
-| 字段        | 类型      | 说明 |
-| ----------- | --------- | ---- |
-| `id`        | `integer` |      |
-| `groupName` | `string`  |      |
-| `parentId`  | `integer` |      |
-| `weight`    | `integer` |      |
-| `pic`       | `string`  |      |
-| `remark`    | `string`  |      |
-
-**响应体：**
-
-| 字段               | 类型      | 说明 |
-| ------------------ | --------- | ---- |
-| `code`             | `integer` |      |
-| `message`          | `string`  |      |
-| `data`             | `object`  |      |
-| `data.id`          | `integer` |      |
-| `data.groupName`   | `string`  |      |
-| `data.parentId`    | `integer` |      |
-| `data.weight`      | `integer` |      |
-| `data.remark`      | `string`  |      |
-| `data.createdTime` | `string`  |      |
-| `data.updatedTime` | `string`  |      |
-
----
-
-### 8.3 添加设备分组
-
-| 项          | 内容                              |
-| ----------- | --------------------------------- |
-| 接口路径    | `/device/addDeviceGroup`          |
-| 请求方法    | `POST`                            |
-| 前端封装    | `SystemController.addDeviceGroup` |
-| Swagger Tag | deviceManagementApi               |
-| 作用说明    | 添加设备分组                      |
-
-**请求参数（Body）：**
-
-| 字段        | 类型      | 说明 |
-| ----------- | --------- | ---- |
-| `id`        | `integer` |      |
-| `groupName` | `string`  |      |
-| `parentId`  | `integer` |      |
-| `weight`    | `integer` |      |
-| `pic`       | `string`  |      |
-| `remark`    | `string`  |      |
-
-**响应体：**
-
-| 字段      | 类型      | 说明 |
-| --------- | --------- | ---- |
-| `code`    | `integer` |      |
-| `message` | `string`  |      |
-| `data`    | `boolean` |      |
-
----
-
-### 8.4 修改设备分组
-
-| 项          | 内容                               |
-| ----------- | ---------------------------------- |
-| 接口路径    | `/device/editDeviceGroup`          |
-| 请求方法    | `POST`                             |
-| 前端封装    | `SystemController.editDeviceGroup` |
-| Swagger Tag | deviceManagementApi                |
-| 作用说明    | 修改设备分组                       |
-
-**请求参数（Body）：**
-
-| 字段        | 类型      | 说明 |
-| ----------- | --------- | ---- |
-| `id`        | `integer` |      |
-| `groupName` | `string`  |      |
-| `parentId`  | `integer` |      |
-| `weight`    | `integer` |      |
-| `pic`       | `string`  |      |
-| `remark`    | `string`  |      |
-
-**响应体：**
-
-| 字段      | 类型      | 说明 |
-| --------- | --------- | ---- |
-| `code`    | `integer` |      |
-| `message` | `string`  |      |
-| `data`    | `boolean` |      |
-
----
-
-### 8.5 删除设备分组
-
-| 项          | 内容                              |
-| ----------- | --------------------------------- |
-| 接口路径    | `/device/delDeviceGroup`          |
-| 请求方法    | `POST`                            |
-| 前端封装    | `SystemController.delDeviceGroup` |
-| Swagger Tag | deviceManagementApi               |
-| 作用说明    | 删除设备分组                      |
-
-**请求参数（Body）：**
-
-| 字段        | 类型      | 说明 |
-| ----------- | --------- | ---- |
-| `id`        | `integer` |      |
-| `groupName` | `string`  |      |
-| `parentId`  | `integer` |      |
-| `weight`    | `integer` |      |
-| `pic`       | `string`  |      |
-| `remark`    | `string`  |      |
-
-**响应体：**
-
-| 字段      | 类型      | 说明 |
-| --------- | --------- | ---- |
-| `code`    | `integer` |      |
-| `message` | `string`  |      |
-| `data`    | `boolean` |      |
+- **上游**：监控设备（`monitor_equipment`）、用户及参数管理（`user`）。
 
 ---

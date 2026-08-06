@@ -150,11 +150,14 @@ async def test_entity_sync_status_empty_then_remembered():
     assert empty["code"] == 0
     assert empty["data"]["result"] is None
     assert empty["data"]["in_progress"] is False
+    assert empty["data"]["persisted"] is False
+    assert empty["data"]["checkpoints"] == []
 
     remember_entity_sync_result({"ok": True, "skipped": False, "upserted": 3, "message": "ok"})
     snap = get_entity_sync_status()
     assert snap["result"]["upserted"] == 3
     assert snap["at"]
+    assert snap["persisted"] is False
 
     with patch(
         "app.api.entity_sync.get_current_user_id",
@@ -251,13 +254,15 @@ async def test_knowledge_replace_keeps_source(tmp_path, monkeypatch):
         )
 
     assert resp["code"] == 0
-    assert resp["data"]["source"] == str(existing)
+    from app.infrastructure.vector.source_keys import normalize_source
+
+    assert resp["data"]["source"] == normalize_source(existing)
     assert resp["data"]["migrated"] is False
     assert resp["data"]["chunks"] == 3
     assert resp["data"]["deleted_before"] == 2
     assert existing.read_text(encoding="utf-8") == "# updated\n"
     meta = store.ingest_file_replacing.call_args.kwargs["extra_metadata"]
-    assert meta["source"] == str(existing)
+    assert meta["source"] == normalize_source(existing)
 
 
 @pytest.mark.asyncio

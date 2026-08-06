@@ -25,7 +25,12 @@ import {
 import { useIntl } from "react-intl";
 import { message } from "@/antd/feedback";
 import * as AgentController from "@/services/AgentController";
-import type { EntitySearchHit, EntityStats, EntitySyncResult } from "@/services/AgentController";
+import type {
+  EntitySearchHit,
+  EntityStats,
+  EntitySyncCheckpoint,
+  EntitySyncResult,
+} from "@/services/AgentController";
 import dayjs from "dayjs";
 
 const { Text, Paragraph } = Typography;
@@ -36,6 +41,8 @@ type StoredSync = {
   at: string;
   result: EntitySyncResult;
   inProgress?: boolean;
+  persisted?: boolean;
+  checkpoints?: EntitySyncCheckpoint[];
 };
 
 function readStoredSync(): StoredSync | null {
@@ -97,11 +104,24 @@ export default function EntityOpsPanel() {
           at: status.at,
           result: status.result,
           inProgress: status.in_progress,
+          persisted: status.persisted,
+          checkpoints: status.checkpoints ?? [],
         };
         writeStoredSync(entry);
         setLastSync(entry);
       } else if (status.in_progress) {
         setLastSync((prev) => (prev ? { ...prev, inProgress: true } : prev));
+      } else if (status.checkpoints && status.checkpoints.length > 0) {
+        setLastSync((prev) =>
+          prev
+            ? {
+                ...prev,
+                persisted: status.persisted,
+                checkpoints: status.checkpoints,
+                inProgress: status.in_progress,
+              }
+            : prev,
+        );
       }
     } catch {
       /* 服务端不可达时保留本地缓存 */
@@ -449,7 +469,18 @@ export default function EntityOpsPanel() {
           />
         ) : (
           <>
-            <div style={{ marginBottom: 8 }}>{statusTag}</div>
+            <div style={{ marginBottom: 8 }}>
+              <Space wrap>
+                {statusTag}
+                <Tag color={lastSync.persisted ? "blue" : "default"}>
+                  {intl.formatMessage({
+                    id: lastSync.persisted
+                      ? "aiAssistant.entitySync.persisted"
+                      : "aiAssistant.entitySync.memoryOnly",
+                  })}
+                </Tag>
+              </Space>
+            </div>
             <Descriptions size="small" column={1}>
               <Descriptions.Item
                 label={intl.formatMessage({ id: "aiAssistant.entitySync.syncedAt" })}
@@ -485,6 +516,51 @@ export default function EntityOpsPanel() {
                 </Descriptions.Item>
               ) : null}
             </Descriptions>
+
+            {(lastSync.checkpoints?.length ?? 0) > 0 ? (
+              <Table
+                style={{ marginTop: 12 }}
+                size="small"
+                rowKey="stream_name"
+                pagination={false}
+                dataSource={lastSync.checkpoints}
+                title={() => intl.formatMessage({ id: "aiAssistant.entitySync.checkpoints" })}
+                columns={[
+                  {
+                    title: intl.formatMessage({ id: "aiAssistant.entitySync.colStream" }),
+                    dataIndex: "stream_name",
+                  },
+                  {
+                    title: intl.formatMessage({ id: "aiAssistant.entitySync.colWatermark" }),
+                    dataIndex: "watermark_ts",
+                    render: (v: string | null | undefined) =>
+                      v ? dayjs(v).format("YYYY-MM-DD HH:mm:ss") : "—",
+                  },
+                  {
+                    title: intl.formatMessage({ id: "aiAssistant.entitySync.colLastFull" }),
+                    dataIndex: "last_full_at",
+                    render: (v: string | null | undefined) =>
+                      v ? dayjs(v).format("YYYY-MM-DD HH:mm:ss") : "—",
+                  },
+                  {
+                    title: intl.formatMessage({ id: "aiAssistant.entitySync.colStatus" }),
+                    width: 90,
+                    render: (_: unknown, row: EntitySyncCheckpoint) =>
+                      row.last_ok === false ? (
+                        <Tag color="error">
+                          {intl.formatMessage({ id: "aiAssistant.entitySync.statusFailed" })}
+                        </Tag>
+                      ) : row.last_ok === true ? (
+                        <Tag color="success">
+                          {intl.formatMessage({ id: "aiAssistant.entitySync.statusOk" })}
+                        </Tag>
+                      ) : (
+                        <Tag>—</Tag>
+                      ),
+                  },
+                ]}
+              />
+            ) : null}
 
             {lastSync.result.skipped ? (
               <Alert

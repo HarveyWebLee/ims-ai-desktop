@@ -107,8 +107,6 @@ function onlineLabel(status: number | undefined, intl: ReturnType<typeof useIntl
   return intl.formatMessage({ id: "aiAssistant.hitl.device.offline" });
 }
 
-const EMPTY_FILTERS: DeviceFilters = {};
-
 export default function HitlDevicePicker({
   value,
   onChange,

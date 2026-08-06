@@ -138,6 +138,10 @@ def test_ingest_file_replacing_drops_stale_chunks(
         "app.infrastructure.vector.store.settings.vector_chunk_overlap",
         0,
     )
+    monkeypatch.setattr(
+        "app.infrastructure.vector.store.settings.knowledge_docs_dir",
+        str(tmp_path),
+    )
 
     client = QdrantClient(":memory:")
     store = VectorStoreService(
@@ -159,6 +163,91 @@ def test_ingest_file_replacing_drops_stale_chunks(
     assert second_chunks >= 1
     assert second_deleted >= 1
 
-    hits, _ = store.scroll_points(limit=50, source_equals=str(doc.resolve()))
+    from app.infrastructure.vector.source_keys import normalize_source
+
+    hits, _ = store.scroll_points(limit=50, source_equals=normalize_source(doc))
     assert len(hits) == second_chunks
     assert all("新短规程" in h.text for h in hits)
+    assert all(h.payload.get("doc_id") for h in hits)
+
+
+def test_ingest_file_defaults_to_replace(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """ingest_file 默认可靠替换，避免裸 upsert 残留幽灵 chunk。"""
+    monkeypatch.setattr("app.infrastructure.vector.store.settings.qdrant_vector_size", 8)
+    monkeypatch.setattr("app.infrastructure.vector.store.settings.vector_chunk_size", 40)
+    monkeypatch.setattr("app.infrastructure.vector.store.settings.vector_chunk_overlap", 0)
+    monkeypatch.setattr(
+        "app.infrastructure.vector.store.settings.knowledge_docs_dir",
+        str(tmp_path),
+    )
+
+    client = QdrantClient(":memory:")
+    store = VectorStoreService(
+        collection="test_default_replace",
+        client=client,
+        embeddings=_FakeEmbeddings(size=8),
+    )
+    store.ensure_collection()
+
+    doc = tmp_path / "guide.md"
+    doc.write_text(("旧指南内容段落。" * 20) + "\n", encoding="utf-8")
+    assert store.ingest_file(doc) >= 2
+
+    doc.write_text("新短指南。\n", encoding="utf-8")
+    assert store.ingest_file(doc) >= 1
+
+    from app.infrastructure.vector.source_keys import normalize_source
+
+    hits, _ = store.scroll_points(limit=50, source_equals=normalize_source(doc))
+    assert all("新短指南" in h.text for h in hits)
+    assert not any("旧指南" in h.text for h in hits)
+
+
+def test_audit_orphans_detects_missing_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("app.infrastructure.vector.store.settings.qdrant_vector_size", 8)
+    monkeypatch.setattr(
+        "app.infrastructure.vector.store.settings.knowledge_docs_dir",
+        str(tmp_path),
+    )
+
+    client = QdrantClient(":memory:")
+    store = VectorStoreService(
+        collection="test_audit",
+        client=client,
+        embeddings=_FakeEmbeddings(size=8),
+    )
+    store.ensure_collection()
+
+    doc = tmp_path / "alive.md"
+    doc.write_text("仍在磁盘的文档。\n", encoding="utf-8")
+    store.ingest_file(doc)
+
+    gone = tmp_path / "gone.md"
+    gone.write_text("即将删除的文档。\n", encoding="utf-8")
+    store.ingest_file(gone)
+    gone.unlink()
+
+    audit = store.audit_orphans(docs_root=tmp_path)
+    assert audit["documents"] == 2
+    assert audit["orphan_count"] == 1
+    assert any("gone.md" in str(o.get("source")) for o in audit["orphans"])
+
+
+def test_normalize_source_and_doc_id(tmp_path: Path) -> None:
+    from app.infrastructure.vector.source_keys import compute_doc_id, normalize_source
+
+    doc = tmp_path / "a" / "b.md"
+    doc.parent.mkdir(parents=True)
+    doc.write_text("x", encoding="utf-8")
+    src = normalize_source(doc)
+    assert "\\" not in src
+    assert src.endswith("a/b.md")
+
+    doc_id = compute_doc_id(src, docs_root=tmp_path)
+    assert doc_id == "a/b.md"

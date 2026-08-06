@@ -3,15 +3,11 @@
 > 英文名：Device Variable  
 > 模块 ID：`device_variable`  
 > 所属业务域：配置管理（`/config_management/config`）  
-> 页面数：4  
-> 上级索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)  
-> 来源：前端 routes 权威菜单
+> 页面数：4
 
 ## 模块说明
 
-设备变量（`device_variable`）。真实路由为 `parent/path`，**不含 groupId**；源码目录见详档「页面目录」。
-
-## 功能页面
+设备变量（`device_variable`）。## 功能页面
 
 | 页面         | 路径                 | 路由                                           | 详细文档                                                                                                                           |
 | ------------ | -------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -20,11 +16,9 @@
 | 设备变量     | `var`                | `/config_management/config/var`                | [config_management-config-device_variable-var.md](./config_management-config-device_variable-var.md)                               |
 | 变量报警配置 | `var_alarm_config`   | `/config_management/config/var_alarm_config`   | [config_management-config-device_variable-var_alarm_config.md](./config_management-config-device_variable-var_alarm_config.md)     |
 
-## 操作指引（通用）
+## 入口
 
-1. 登录后进入「配置管理平台」。
-2. 打开「配置管理」→「设备变量」。
-3. 按页面按钮维护数据；无权限时在「角色授权 / 菜单管理」分配。
+登录 → 配置管理平台 → 打开「配置管理」→「设备变量」。；无权限时在角色授权/菜单管理分配。
 
 ## 代码定位
 
