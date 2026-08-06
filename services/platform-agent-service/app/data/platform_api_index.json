@@ -5,8 +5,8 @@
     "title": "YApi Export",
     "version": "1.0.0"
   },
-  "pathCount": 1526,
-  "tagCount": 117,
+  "pathCount": 1536,
+  "tagCount": 120,
   "apis": [
     {
       "path": "/acs/addAcsPerson",
@@ -23045,6 +23045,76 @@
       ]
     },
     {
+      "path": "/logDeleteSharding/deleteLoginLogs",
+      "method": "POST",
+      "tags": [
+        "logDeleteShardingApi"
+      ],
+      "summary": "删除登陆日志",
+      "operationId": "createLogDeleteShardingDeleteLoginLogs",
+      "requestSchema": "CreateLogDeleteShardingDeleteLoginLogsRequest",
+      "requestProperties": {
+        "isAll": {
+          "type": "integer",
+          "description": "1-删除全部，0-部分删除"
+        },
+        "startTime": {
+          "type": "string"
+        },
+        "endTime": {
+          "type": "string"
+        }
+      },
+      "required": []
+    },
+    {
+      "path": "/logDeleteSharding/deleteOperateLogs",
+      "method": "POST",
+      "tags": [
+        "logDeleteShardingApi"
+      ],
+      "summary": "删除系统操作日志",
+      "operationId": "createLogDeleteShardingDeleteOperateLogs",
+      "requestSchema": "CreateLogDeleteShardingDeleteOperateLogsRequest",
+      "requestProperties": {
+        "isAll": {
+          "type": "integer"
+        },
+        "startTime": {
+          "type": "string"
+        },
+        "endTime": {
+          "type": "string"
+        }
+      },
+      "required": []
+    },
+    {
+      "path": "/logDeleteSharding/deleteSystemLogs",
+      "method": "POST",
+      "tags": [
+        "logDeleteShardingApi"
+      ],
+      "summary": "删除设备操作日志",
+      "operationId": "createLogDeleteShardingDeleteSystemLogs",
+      "requestSchema": "CreateLogDeleteShardingDeleteSystemLogsRequest",
+      "requestProperties": {
+        "isAll": {
+          "type": "integer"
+        },
+        "startTime": {
+          "type": "string"
+        },
+        "endTime": {
+          "type": "string"
+        },
+        "deviceNo": {
+          "type": "string"
+        }
+      },
+      "required": []
+    },
+    {
       "path": "/logs/addApp",
       "method": "POST",
       "tags": [
@@ -25559,6 +25629,105 @@
         "messageNo",
         "messageType",
         "contents"
+      ]
+    },
+    {
+      "path": "/migrateDevice/execMigrateDevice",
+      "method": "POST",
+      "tags": [
+        "migrateDeviceApi"
+      ],
+      "summary": "执行迁移",
+      "operationId": "createMigrateDeviceExecMigrateDevice",
+      "requestSchema": "CreateMigrateDeviceExecMigrateDeviceRequest",
+      "requestProperties": {
+        "migrateType": {
+          "type": "integer"
+        },
+        "oldServerId": {
+          "type": "integer"
+        },
+        "oldGateWayId": {
+          "type": "integer"
+        },
+        "newServerId": {
+          "type": "integer"
+        },
+        "newGateWayId": {
+          "type": "integer"
+        },
+        "deviceCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": []
+    },
+    {
+      "path": "/migrateDevice/getMigrateDeviceStatusList",
+      "method": "POST",
+      "tags": [
+        "migrateDeviceApi"
+      ],
+      "summary": "获取任务设备状态数据",
+      "operationId": "createMigrateDeviceGetMigrateDeviceStatusList",
+      "requestSchema": "CreateMigrateDeviceGetMigrateDeviceStatusListRequest",
+      "requestProperties": {
+        "page": {
+          "type": "integer"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "taskNo": {
+          "type": "integer"
+        },
+        "search": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "page",
+        "size",
+        "taskNo"
+      ]
+    },
+    {
+      "path": "/migrateDevice/getMigrateTaskSource",
+      "method": "POST",
+      "tags": [
+        "migrateDeviceApi"
+      ],
+      "summary": "获取任务资源数据",
+      "operationId": "createMigrateDeviceGetMigrateTaskSource",
+      "requestSchema": "CreateMigrateDeviceGetMigrateTaskSourceRequest",
+      "requestProperties": {
+        "taskNo": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskNo"
+      ]
+    },
+    {
+      "path": "/migrateDevice/terminateMigrateTask",
+      "method": "POST",
+      "tags": [
+        "migrateDeviceApi"
+      ],
+      "summary": "终止执行迁移",
+      "operationId": "createMigrateDeviceTerminateMigrateTask",
+      "requestSchema": "CreateMigrateDeviceTerminateMigrateTaskRequest",
+      "requestProperties": {
+        "taskNo": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskNo"
       ]
     },
     {
@@ -44373,6 +44542,66 @@
       "required": []
     },
     {
+      "path": "/rs/addKeyWords",
+      "method": "POST",
+      "tags": [
+        "rsApi"
+      ],
+      "summary": "批量添加关键词",
+      "operationId": "createRsCreateKeyWords",
+      "requestSchema": "CreateRsCreateKeyWordsRequest",
+      "requestProperties": {
+        "keyWords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "keyWords"
+      ]
+    },
+    {
+      "path": "/rs/delKeyWords",
+      "method": "POST",
+      "tags": [
+        "rsApi"
+      ],
+      "summary": "批量删除关键词",
+      "operationId": "createRsDelKeyWords",
+      "requestSchema": "CreateRsDelKeyWordsRequest",
+      "requestProperties": {
+        "keyWords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "keyWords"
+      ]
+    },
+    {
+      "path": "/rs/searchKeyWords",
+      "method": "POST",
+      "tags": [
+        "rsApi"
+      ],
+      "summary": "近似排名查询关键词",
+      "operationId": "createRsSearchKeyWords",
+      "requestSchema": "CreateRsSearchKeyWordsRequest",
+      "requestProperties": {
+        "keyWord": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "keyWord"
+      ]
+    },
+    {
       "path": "/ruleScript/addSecondRule",
       "method": "POST",
       "tags": [
@@ -52816,6 +53045,11 @@
       "/appLogClear/deleteLogSystemData",
       "/appLogClear/getDeviceOption"
     ],
+    "logDeleteShardingApi": [
+      "/logDeleteSharding/deleteLoginLogs",
+      "/logDeleteSharding/deleteOperateLogs",
+      "/logDeleteSharding/deleteSystemLogs"
+    ],
     "materialLibraryApi": [
       "/material/addMaterial",
       "/material/deleteMaterial",
@@ -52866,6 +53100,12 @@
       "/message/weather/getMessageWeatherList",
       "/message/weather/import",
       "/message/weather/updateMessageWeather"
+    ],
+    "migrateDeviceApi": [
+      "/migrateDevice/execMigrateDevice",
+      "/migrateDevice/getMigrateDeviceStatusList",
+      "/migrateDevice/getMigrateTaskSource",
+      "/migrateDevice/terminateMigrateTask"
     ],
     "minioStorageApi": [
       "/minio/delete",
@@ -53349,6 +53589,11 @@
       "/role/getRolePerm",
       "/role/getRoles",
       "/role/writerRoleList"
+    ],
+    "rsApi": [
+      "/rs/addKeyWords",
+      "/rs/delKeyWords",
+      "/rs/searchKeyWords"
     ],
     "ruleScriptApi": [
       "/ruleScript/addSecondRule",

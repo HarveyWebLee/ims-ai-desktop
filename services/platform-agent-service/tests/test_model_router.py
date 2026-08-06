@@ -19,9 +19,10 @@ def _enable_route(monkeypatch: pytest.MonkeyPatch):
 
 def test_removed_or_unknown_model_rejected():
     # 已从 catalog 删除的旧模型 id 应被拒绝
-    mid, err = resolve_request_model_id("qwen3.7-plus", user_message="你好")
-    assert mid is None
-    assert err
+    for removed in ("qwen3.7-plus", "qwen3-8b", "qwen3-32b"):
+        mid, err = resolve_request_model_id(removed, user_message="你好")
+        assert mid is None
+        assert err
 
 
 def test_unknown_model_rejected():
@@ -41,7 +42,7 @@ def test_auto_routes_to_enabled_catalog_only():
 
 def test_heavy_prefers_default_scenario():
     mid = route_model_for_message("请导出近三天告警并批量处理")
-    assert mid == "qwen3-32b"
+    assert mid == "qwen3.5-35b-a3b"
 
 
 def test_light_prefers_light_scenario():
@@ -52,6 +53,6 @@ def test_light_prefers_light_scenario():
 
 
 def test_explicit_enabled_model_passthrough():
-    mid, err = resolve_request_model_id("qwen3-32b", user_message="任意")
+    mid, err = resolve_request_model_id("qwen3.5-35b-a3b", user_message="任意")
     assert err is None
-    assert mid == "qwen3-32b"
+    assert mid == "qwen3.5-35b-a3b"

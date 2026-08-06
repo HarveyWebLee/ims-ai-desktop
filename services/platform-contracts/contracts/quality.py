@@ -8,7 +8,8 @@ platform-contracts 本地代码质量入口：格式化 / Lint / 类型检查 / 
     uv run check typecheck
     uv run check test
     uv run check fix          # format + lint --fix
-    uv run check all          # 只读门禁：format --check + lint + typecheck + test
+    uv run check gate         # 提交门禁：format --check + lint + typecheck（不含 pytest）
+    uv run check all          # 完整自检：gate + test
 """
 
 from __future__ import annotations
@@ -65,13 +66,12 @@ def cmd_fix() -> int:
     return cmd_lint(fix=True)
 
 
-def cmd_all(pytest_args: Sequence[str]) -> int:
-    """只读门禁：不改文件，适合提交前自检。"""
+def cmd_gate() -> int:
+    """提交门禁：静态检查，不跑 pytest。"""
     steps = (
         ("format --check", lambda: cmd_format(check=True)),
         ("lint", lambda: cmd_lint(fix=False)),
         ("typecheck", cmd_typecheck),
-        ("test", lambda: cmd_test(pytest_args)),
     )
     for name, step in steps:
         print(f"\n==> {name}", flush=True)
@@ -79,6 +79,20 @@ def cmd_all(pytest_args: Sequence[str]) -> int:
         if code != 0:
             print(f"\n[check] 失败于: {name} (exit={code})", flush=True)
             return code
+    print("\n[check] gate 通过（未跑 test）", flush=True)
+    return 0
+
+
+def cmd_all(pytest_args: Sequence[str]) -> int:
+    """完整自检：gate + pytest；手动使用，不进 pre-commit。"""
+    code = cmd_gate()
+    if code != 0:
+        return code
+    print("\n==> test", flush=True)
+    code = cmd_test(pytest_args)
+    if code != 0:
+        print(f"\n[check] 失败于: test (exit={code})", flush=True)
+        return code
     print("\n[check] 全部通过", flush=True)
     return 0
 
@@ -90,7 +104,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "command",
-        choices=("format", "lint", "typecheck", "test", "fix", "all"),
+        choices=("format", "lint", "typecheck", "test", "fix", "gate", "all"),
         help="要执行的子命令",
     )
     parser.add_argument(
@@ -110,6 +124,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_test(args.pytest_args)
     if args.command == "fix":
         return cmd_fix()
+    if args.command == "gate":
+        return cmd_gate()
     return cmd_all(args.pytest_args)
 
 

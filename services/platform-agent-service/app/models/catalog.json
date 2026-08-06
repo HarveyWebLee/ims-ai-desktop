@@ -4,21 +4,6 @@
     "apiModelName": "qwen3.5-35b-a3b",
     "provider": "dashscope",
     "labelKey": "aiAssistant.model.qwen3.5-35b-a3b",
-    "enabled": true
-  },
-  {
-    "modelId": "qwen3-8b",
-    "apiModelName": "qwen3-8b",
-    "provider": "dashscope",
-    "labelKey": "aiAssistant.model.qwen3-8b",
-    "scenarioKey": "aiAssistant.model.scenario.light",
-    "enabled": true
-  },
-  {
-    "modelId": "qwen3-32b",
-    "apiModelName": "qwen3-32b",
-    "provider": "dashscope",
-    "labelKey": "aiAssistant.model.qwen3-32b",
     "scenarioKey": "aiAssistant.model.scenario.default",
     "enabled": true,
     "isDefault": true

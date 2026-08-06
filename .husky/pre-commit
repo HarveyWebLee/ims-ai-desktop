@@ -18,5 +18,6 @@ if ! git diff --quiet; then
   exit 1
 fi
 
-echo "[pre-commit] 2/2 质量检查"
+# 仅静态门禁（format/lint/typecheck）；pytest 请手动 pnpm test:agent / uv run check test
+echo "[pre-commit] 2/2 质量检查（不含测试）"
 pnpm check || exit 1

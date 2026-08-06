@@ -31,7 +31,7 @@ async def test_repair_dangling_tool_calls_appends_cancel_tool_messages():
     agent.aupdate_state = AsyncMock()
 
     with patch("app.graph.agent_factory.get_parent_graph", return_value=agent):
-        count = await repair_dangling_tool_calls("thread-repair-1", "qwen3-32b")
+        count = await repair_dangling_tool_calls("thread-repair-1", "qwen3.5-35b-a3b")
 
     assert count == 1
     agent.aupdate_state.assert_awaited_once()
@@ -71,7 +71,7 @@ async def test_repair_dangling_tool_calls_skips_when_already_answered():
     agent.aupdate_state = AsyncMock()
 
     with patch("app.graph.agent_factory.get_parent_graph", return_value=agent):
-        count = await repair_dangling_tool_calls("thread-repair-2", "qwen3-32b")
+        count = await repair_dangling_tool_calls("thread-repair-2", "qwen3.5-35b-a3b")
 
     assert count == 0
     agent.aupdate_state.assert_not_called()

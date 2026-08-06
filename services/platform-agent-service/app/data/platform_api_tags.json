@@ -1194,6 +1194,16 @@
     ]
   },
   {
+    "tag": "migrateDeviceApi",
+    "count": 4,
+    "summaries": [
+      "POST /migrateDevice/execMigrateDevice — 执行迁移",
+      "POST /migrateDevice/getMigrateDeviceStatusList — 获取任务设备状态数据",
+      "POST /migrateDevice/getMigrateTaskSource — 获取任务资源数据",
+      "POST /migrateDevice/terminateMigrateTask — 终止执行迁移"
+    ]
+  },
+  {
     "tag": "minioStorageApi",
     "count": 4,
     "summaries": [
@@ -1262,12 +1272,30 @@
     ]
   },
   {
+    "tag": "logDeleteShardingApi",
+    "count": 3,
+    "summaries": [
+      "POST /logDeleteSharding/deleteLoginLogs — 删除登陆日志",
+      "POST /logDeleteSharding/deleteOperateLogs — 删除系统操作日志",
+      "POST /logDeleteSharding/deleteSystemLogs — 删除设备操作日志"
+    ]
+  },
+  {
     "tag": "recognitionApi",
     "count": 3,
     "summaries": [
       "POST /recognition/bindCategory — 绑定所选的类别，更新到p_device的新增字段中",
       "POST /recognition/getCameraList — 获取摄像头设备列表",
       "POST /recognition/getRecognitionCategorys — 获取类别列表，支持名称模糊查询"
+    ]
+  },
+  {
+    "tag": "rsApi",
+    "count": 3,
+    "summaries": [
+      "POST /rs/addKeyWords — 批量添加关键词",
+      "POST /rs/delKeyWords — 批量删除关键词",
+      "POST /rs/searchKeyWords — 近似排名查询关键词"
     ]
   },
   {

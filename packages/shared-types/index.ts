@@ -6,8 +6,6 @@
 /** Agent 可选大模型 ID（与 model-catalog 同步） */
 export type AgentModelId =
   | "qwen3.5-35b-a3b"
-  | "qwen3-8b"
-  | "qwen3-32b"
   | "qwen3-coder-plus"
   | "qwen3-coder-480b-a35b-instruct"
   | "deepseek-v4-flash"

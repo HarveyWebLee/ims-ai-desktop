@@ -16,7 +16,7 @@ def _state(message: str) -> ParentState:
         {
             "user_message": message,
             "llm_user_message": message,
-            "model_id": "qwen3-32b",
+            "model_id": "qwen3.5-35b-a3b",
             "metadata": {},
             "messages": [],
         },

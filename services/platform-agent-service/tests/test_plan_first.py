@@ -22,7 +22,7 @@ async def test_classify_ai_first_default_react(monkeypatch: pytest.MonkeyPatch) 
             {
                 "user_message": "查近三天告警然后导出",
                 "llm_user_message": "查近三天告警然后导出",
-                "model_id": "qwen3-32b",
+                "model_id": "qwen3.5-35b-a3b",
                 "metadata": {},
             }
         )
@@ -59,7 +59,7 @@ async def test_classify_plan_first_routes_plan_confirm(monkeypatch: pytest.Monke
                 {
                     "user_message": "查近三天告警然后导出",
                     "llm_user_message": "查近三天告警然后导出",
-                    "model_id": "qwen3-32b",
+                    "model_id": "qwen3.5-35b-a3b",
                     "metadata": {},
                 }
             )

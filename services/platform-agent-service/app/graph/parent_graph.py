@@ -715,7 +715,7 @@ def reset_parent_graph_cache() -> None:
 
 def get_agent_topology(*, model_id: str = "") -> dict[str, Any]:
     """返回真实编译图拓扑（供 Trace / HTTP）。"""
-    graph = build_parent_graph(model_id=model_id or "qwen3-32b")
+    graph = build_parent_graph(model_id=model_id or "qwen3.5-35b-a3b")
     g = graph.get_graph()
     nodes = [{"id": n, "label": n} for n in g.nodes if n not in ("__start__", "__end__")]
     edges = [{"from": e.source, "to": e.target} for e in g.edges]

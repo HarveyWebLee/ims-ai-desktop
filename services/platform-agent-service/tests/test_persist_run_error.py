@@ -26,7 +26,7 @@ async def test_persist_run_error_message_appends_ai_message():
     }
 
     with patch("app.graph.agent_factory.get_parent_graph", return_value=agent):
-        ok = await persist_run_error_message("t-err", "qwen3-32b", payload, mid="mid-1")
+        ok = await persist_run_error_message("t-err", "qwen3.5-35b-a3b", payload, mid="mid-1")
 
     assert ok is True
     agent.aupdate_state.assert_awaited_once()
@@ -54,7 +54,7 @@ async def test_persist_run_error_message_skips_duplicate():
     }
 
     with patch("app.graph.agent_factory.get_parent_graph", return_value=agent):
-        ok = await persist_run_error_message("t-err", "qwen3-32b", payload)
+        ok = await persist_run_error_message("t-err", "qwen3.5-35b-a3b", payload)
 
     assert ok is True
     agent.aupdate_state.assert_not_called()

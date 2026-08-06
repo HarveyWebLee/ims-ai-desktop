@@ -246,7 +246,7 @@ export default {
         "若使用通义：请前往阿里云百炼开通按量付费，或关闭「仅使用免费额度」；也可在侧栏切换 DeepSeek 等其他模型。",
       auth: "请检查 Agent 后端 .env 中对应厂商的 API Key 是否正确。",
       rate_limit: "请等待 1～2 分钟后重试，或切换到负载更低的模型。",
-      model_unavailable: "可在侧栏切换通义 32B 或其他仍可用的模型。",
+      model_unavailable: "可在侧栏切换通义 3.5 35B 或其他仍可用的模型。",
       network: "请确认本机可访问模型 API，且代理配置正确。",
       mcp_unavailable:
         "请先启动 platform-mcp-server（默认 http://127.0.0.1:8010），或检查 PLATFORM_MCP_URL 后重试。",
@@ -256,9 +256,7 @@ export default {
   model: {
     label: "模型",
     auto: "自动（按任务选型）",
-    "qwen3.5-35b-a3b": "通义 3.5 35B",
-    "qwen3-8b": "通义 8B",
-    "qwen3-32b": "通义 32B（默认）",
+    "qwen3.5-35b-a3b": "通义 3.5 35B（默认）",
     "qwen3-coder-plus": "通义 Coder Plus",
     "qwen3-coder-480b-a35b-instruct": "通义 Coder 480B",
     "deepseek-v4-flash": "DeepSeek Flash",

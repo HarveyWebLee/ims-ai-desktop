@@ -8,7 +8,7 @@
 
 白话概念
 --------
-前端选了「通义 qwen3-32b」→ 本模块查 catalog → 取出 provider=dashscope →
+前端选了「通义 qwen3.5-35b-a3b」→ 本模块查 catalog → 取出 provider=dashscope →
 拼上 DASHSCOPE_API_KEY 与兼容 base_url → 返回流式 Chat 模型给 LangGraph。
 
 在 Agent 流程中的位置
@@ -64,7 +64,7 @@ def resolve_chat_model(model_id: str, *, streaming: bool = True):
     根据 catalog 中的 model_id 创建并返回 ChatOpenAI 实例。
 
     参数：
-        model_id: 目录中的 modelId，如 "qwen3-32b"
+        model_id: 目录中的 modelId，如 "qwen3.5-35b-a3b"
         streaming: 是否允许 token 流式；门控内 IR 等内部调用须 False
 
     返回：

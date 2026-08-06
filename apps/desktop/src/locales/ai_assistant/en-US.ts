@@ -250,7 +250,7 @@ export default {
         'For Qwen/DashScope: enable pay-as-you-go in Alibaba Cloud Bailian, or disable "free tier only"; you can also switch to DeepSeek or another model.',
       auth: "Check the provider API Key in platform-agent-service/.env.",
       rate_limit: "Wait 1–2 minutes or switch to a lighter model.",
-      model_unavailable: "Try switching to Qwen 32B or another available model in the sidebar.",
+      model_unavailable: "Try switching to Qwen 3.5 35B or another available model in the sidebar.",
       network: "Ensure this machine can reach the model API endpoint.",
       mcp_unavailable:
         "Start platform-mcp-server (default http://127.0.0.1:8010) or check PLATFORM_MCP_URL.",
@@ -261,9 +261,7 @@ export default {
   model: {
     label: "Model",
     auto: "Auto (route by task)",
-    "qwen3.5-35b-a3b": "Qwen 3.5 35B",
-    "qwen3-8b": "Qwen 8B",
-    "qwen3-32b": "Qwen 32B (Default)",
+    "qwen3.5-35b-a3b": "Qwen 3.5 35B (Default)",
     "qwen3-coder-plus": "Qwen Coder Plus",
     "qwen3-coder-480b-a35b-instruct": "Qwen Coder 480B",
     "deepseek-v4-flash": "DeepSeek Flash",

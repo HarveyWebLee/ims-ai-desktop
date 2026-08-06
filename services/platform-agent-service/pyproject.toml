@@ -60,7 +60,8 @@ entity-sync = [
 agent = "app.dev:main"
 # 知识库：uv run kb --dir D:/知识库
 kb = "app.cli.kb:main"
-# 代码质量：uv run check format|lint|typecheck|test|fix|all
+# 代码质量：uv run check format|lint|typecheck|test|fix|gate|all
+# pre-commit / pnpm check 使用 gate（不含 pytest）；all = gate + test
 check = "app.quality:main"
 
 [build-system]

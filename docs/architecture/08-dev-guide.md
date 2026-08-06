@@ -147,37 +147,42 @@ Agent Gateway：`http://127.0.0.1:8008/mcp`
 # 格式化：文档 Prettier + 桌面 Prettier + contracts fix + Agent fix + MCP fix
 pnpm format
 
-# 检查：文档 Prettier check + 桌面 check + contracts all + Agent all + MCP all
+# 检查：文档 + 桌面 + contracts/Agent gate（不含 pytest）+ MCP all
 pnpm check
+
+# 需要跑测试时手动执行（可能调模型，不进 pre-commit）
+pnpm test:agent
+pnpm test:contracts
 ```
 
 | 脚本                                          | 实际命令概要                                          |
 | --------------------------------------------- | ----------------------------------------------------- |
 | `pnpm format:docs` / `check:docs`             | Prettier 对 `**/*.{md,mdc,json,yml,yaml}`             |
 | `pnpm --filter @ims/desktop format` / `check` | 桌面 Prettier + ESLint + `tsc --noEmit`               |
-| `pnpm format:contracts` / `check:contracts`   | `uv run … python -m contracts.quality fix` / `all`    |
-| `pnpm format:agent` / `check:agent`           | `uv run … python -m app.quality fix` / `all`          |
+| `pnpm format:contracts` / `check:contracts`   | `uv run … python -m contracts.quality fix` / `gate`   |
+| `pnpm format:agent` / `check:agent`           | `uv run … python -m app.quality fix` / `gate`         |
 | `pnpm format:mcp` / `check:mcp`               | `uv run … python -m platform_mcp.quality fix` / `all` |
+| `pnpm test:agent` / `test:contracts`          | 仅 pytest（不进提交钩子）                             |
 
 提交前钩子顺序：
 
 1. `pnpm format`
 2. 若有未暂存的格式化改动 → 阻止提交（需 `git add` 后重试）
-3. `pnpm check` 全部通过才允许提交
+3. `pnpm check` 静态门禁通过才允许提交（**不含 pytest**，避免提交时调模型耗 token）
 
 ### 分服务入口（等价）
 
-| 服务      | 写回修复                                     | 全量门禁                                       |
-| --------- | -------------------------------------------- | ---------------------------------------------- |
-| contracts | `uv run check fix`                           | `uv run check all`                             |
-|           | 或 `uv run python -m contracts.quality …`    | （format --check、lint、typecheck、pytest）    |
-| Agent     | `uv run check fix`                           | `uv run check all`                             |
-|           | 或 `uv run python -m app.quality …`          | （含 format --check、lint、typecheck、pytest） |
-| MCP       | `uv run mcp-check fix`                       | `uv run mcp-check all`                         |
-|           | 或 `uv run python -m platform_mcp.quality …` | （format --check、lint、typecheck）            |
-| 桌面端    | `pnpm --filter @ims/desktop format`          | `pnpm --filter @ims/desktop check`             |
+| 服务      | 写回修复                                     | 提交门禁 `gate`                     | 完整自检（含测试）               |
+| --------- | -------------------------------------------- | ----------------------------------- | -------------------------------- |
+| contracts | `uv run check fix`                           | `uv run check gate`                 | `uv run check all`（含 pytest）  |
+|           | 或 `uv run python -m contracts.quality …`    | （format --check、lint、typecheck） |                                  |
+| Agent     | `uv run check fix`                           | `uv run check gate`                 | `uv run check all`（含 pytest）  |
+|           | 或 `uv run python -m app.quality …`          |                                     |                                  |
+| MCP       | `uv run mcp-check fix`                       | `uv run mcp-check all`              | （本服务 `all` 本就不含 pytest） |
+|           | 或 `uv run python -m platform_mcp.quality …` | （format --check、lint、typecheck） |                                  |
+| 桌面端    | `pnpm --filter @ims/desktop format`          | `pnpm --filter @ims/desktop check`  |                                  |
 
-contracts / Agent 子命令：`format` / `lint` / `typecheck` / `fix` / `all`（Agent 另有 `test`；`pyproject.toml` → `check = …quality:main`）。
+contracts / Agent 子命令：`format` / `lint` / `typecheck` / `fix` / `gate` / `test` / `all`（`pyproject.toml` → `check = …quality:main`）。
 
 catalog 导出：
 

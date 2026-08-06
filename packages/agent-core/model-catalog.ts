@@ -24,7 +24,7 @@ export const AUTO_AGENT_MODEL_ID = "auto" as const;
 export type AgentModelSelectionId = AgentModelId | typeof AUTO_AGENT_MODEL_ID;
 
 /** 默认对话模型（须为 enabled + isDefault） */
-export const DEFAULT_AGENT_MODEL_ID: AgentModelId = "qwen3-32b";
+export const DEFAULT_AGENT_MODEL_ID: AgentModelId = "qwen3.5-35b-a3b";
 
 /** 可选大模型目录 */
 export const AGENT_MODEL_CATALOG: AgentModelCatalogItem[] = [
@@ -33,21 +33,6 @@ export const AGENT_MODEL_CATALOG: AgentModelCatalogItem[] = [
     apiModelName: "qwen3.5-35b-a3b",
     provider: "dashscope",
     labelKey: "aiAssistant.model.qwen3.5-35b-a3b",
-    enabled: true,
-  },
-  {
-    modelId: "qwen3-8b",
-    apiModelName: "qwen3-8b",
-    provider: "dashscope",
-    labelKey: "aiAssistant.model.qwen3-8b",
-    enabled: true,
-    scenarioKey: "aiAssistant.model.scenario.light",
-  },
-  {
-    modelId: "qwen3-32b",
-    apiModelName: "qwen3-32b",
-    provider: "dashscope",
-    labelKey: "aiAssistant.model.qwen3-32b",
     enabled: true,
     isDefault: true,
     scenarioKey: "aiAssistant.model.scenario.default",

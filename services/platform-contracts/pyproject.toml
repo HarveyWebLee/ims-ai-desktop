@@ -25,7 +25,8 @@ dev = [
 ]
 
 [project.scripts]
-# 代码质量：uv run check format|lint|typecheck|fix|all
+# 代码质量：uv run check format|lint|typecheck|test|fix|gate|all
+# pre-commit / pnpm check 使用 gate（不含 pytest）；all = gate + test
 check = "contracts.quality:main"
 
 [build-system]

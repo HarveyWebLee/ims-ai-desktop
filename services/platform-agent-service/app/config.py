@@ -124,7 +124,7 @@ class Settings(BaseSettings):
     transcribe_dictionary_path: str = ""
     transcribe_rag_top_k: int = 2
     # 纠错用聊天模型（catalog modelId）；默认 flash 以控制延迟
-    transcribe_correct_model: str = "qwen3-8b"
+    transcribe_correct_model: str = "qwen-flash"
     # 纠错超时宜短：超时直接回退 ASR 原文，避免拖慢侧栏
     transcribe_correct_timeout_seconds: float = 6.0
     # 相似度低于此值的命中不进入纠错（减少无效 LLM）
@@ -226,7 +226,7 @@ class Settings(BaseSettings):
     # true=短模型摘要；false/失败=抽取式截断
     agent_subagent_knowledge_llm: bool = True
     # 空=优先 current_model_id，否则轻量已启用模型
-    agent_subagent_knowledge_model: str = "qwen3-8b"
+    agent_subagent_knowledge_model: str = "qwen-flash"
     agent_subagent_knowledge_timeout_seconds: float = 8.0
     agent_subagent_knowledge_max_tokens: int = 400
     agent_subagent_knowledge_snippet_chars: int = 220

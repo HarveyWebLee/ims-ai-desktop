@@ -162,7 +162,7 @@ class TestStreamChatDeviceControlGate:
         ):
             async for evt in stream_chat_core(
                 thread_id=thread_id,
-                model_id="qwen3-32b",
+                model_id="qwen3.5-35b-a3b",
                 message="广播",
                 metadata={},
             ):
@@ -203,7 +203,7 @@ class TestStreamChatDeviceControlGate:
         ):
             async for evt in stream_chat_core(
                 thread_id=thread_id,
-                model_id="qwen3-32b",
+                model_id="qwen3.5-35b-a3b",
                 message="查近三天告警然后导出",
                 metadata={},
             ):

@@ -35,33 +35,33 @@ from typing import Any
 _CATALOG_PATH = Path(__file__).parent / "catalog.json"
 
 # 当 catalog.json 不存在时的兜底默认模型 ID（须与 TS enabled 默认一致）
-DEFAULT_MODEL_ID = "qwen3-32b"
+DEFAULT_MODEL_ID = "qwen3.5-35b-a3b"
 
 # 与 TypeScript AGENT_MODEL_CATALOG 保持一致的内置快照（精简兜底）
 # 修改模型列表时应同步更新 TS 源文件并运行 export_catalog.py
 _BUILTIN_CATALOG: list[dict[str, Any]] = [
     {
-        "modelId": "qwen3-32b",
-        "apiModelName": "qwen3-32b",
+        "modelId": "qwen3.5-35b-a3b",
+        "apiModelName": "qwen3.5-35b-a3b",
         "provider": "dashscope",
-        "labelKey": "aiAssistant.model.qwen3-32b",
+        "labelKey": "aiAssistant.model.qwen3.5-35b-a3b",
         "enabled": True,
         "isDefault": True,
         "scenarioKey": "aiAssistant.model.scenario.default",
-    },
-    {
-        "modelId": "qwen3-8b",
-        "apiModelName": "qwen3-8b",
-        "provider": "dashscope",
-        "labelKey": "aiAssistant.model.qwen3-8b",
-        "enabled": True,
-        "scenarioKey": "aiAssistant.model.scenario.light",
     },
     {
         "modelId": "deepseek-v4-flash",
         "apiModelName": "deepseek-v4-flash",
         "provider": "deepseek",
         "labelKey": "aiAssistant.model.deepseek-v4-flash",
+        "enabled": True,
+        "scenarioKey": "aiAssistant.model.scenario.light",
+    },
+    {
+        "modelId": "qwen-flash",
+        "apiModelName": "qwen-flash",
+        "provider": "dashscope",
+        "labelKey": "aiAssistant.model.qwen-flash",
         "enabled": True,
         "scenarioKey": "aiAssistant.model.scenario.light",
     },
@@ -91,7 +91,7 @@ def get_catalog_item(model_id: str) -> dict[str, Any] | None:
     按 modelId 查找单个已启用的模型配置。
 
     参数：
-        model_id: 如 "qwen3-32b"
+        model_id: 如 "qwen3.5-35b-a3b"
 
     返回：
         模型 dict，未找到或已禁用则 None

@@ -89,10 +89,11 @@ DEEPSEEK_API_KEY=...
 
 ```bash
 pnpm format   # 文档 + 桌面 + contracts fix + Agent fix + MCP fix
-pnpm check    # 文档 + 桌面 + contracts all + Agent all + MCP all
+pnpm check    # 文档 + 桌面 + contracts/Agent gate（不含 pytest）+ MCP all
+pnpm test:agent   # 手动跑 Agent 测试（可能调模型，不进 pre-commit）
 ```
 
-提交：`.husky/pre-commit` 先 `format` 再 `check`。IDE：`.vscode/`（扩展 / settings / tasks）。分服务入口：`uv run check`（contracts / Agent）、`uv run mcp-check`。详见 [`08-dev-guide.md`](docs/architecture/08-dev-guide.md) §6–7。
+提交：`.husky/pre-commit` 先 `format` 再 `check`（静态门禁，不含 pytest）。IDE：`.vscode/`（扩展 / settings / tasks）。分服务入口：`uv run check`（contracts / Agent）、`uv run mcp-check`。详见 [`08-dev-guide.md`](docs/architecture/08-dev-guide.md) §6–7。
 
 ---
 
