@@ -1,5 +1,7 @@
 # 设备变量（var）知识库
 
+> 上级模块索引：[device_variable.md](./device_variable.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
+
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                     |
@@ -209,6 +211,8 @@
 
 ### 5.1 上游依赖
 
+- 根据本页接口与字段引用，上游主要为：监控设备（`monitor_equipment`）、用户及参数管理（`user`）、事件配置（`event_config`）、基础数据（`basedata`）、数采服务器（`data_acquisition_server`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
+
 | 关联模块/能力                | 关系说明                                                                                     |
 | ---------------------------- | -------------------------------------------------------------------------------------------- |
 | 设备管理（equipment_manage） | 变量必须挂载到监控设备；设备选型复用设备管理字段定义与设备列表；设备复制时可连同变量一并复制 |
@@ -272,7 +276,7 @@
 
 ## 8. 接口清单
 
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自 `swaggerApi.json`（若可匹配）。
+以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
 
 ### 8.1 采集单个变量
 
@@ -939,7 +943,7 @@ _无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 
 | 前端封装 | `SystemController.checkAviatorScript` |
 | 作用说明 | 见模块业务逻辑                        |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 
@@ -1076,7 +1080,7 @@ _无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 
 | 前端封装 | `SystemController.getValueTypeList` |
 | 作用说明 | 见模块业务逻辑                      |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 

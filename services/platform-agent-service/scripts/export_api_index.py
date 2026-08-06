@@ -8,9 +8,11 @@ Agent 在写工具、拼 Prompt、校验参数时，不需要整份文档，只�
   - 请求体有哪些字段、是否必填
   - 按 tag 分组的大致摘要
 
+约定：swaggerApi.json = 构建源；本脚本输出 = 运行时资产（勿与 prj-docs RAG 混放）。
+
 本脚本读取 swaggerApi.json，生成两个较小的 JSON 文件：
-  - app/data/platform_api_index.json   — 全量 API 索引
-  - app/data/platform_api_tags.json    — 按 tag 聚合的摘要
+  - app/data/platform_api_index.json   — 全量 API 索引（运行时）
+  - app/data/platform_api_tags.json    — 按 tag 聚合的摘要（运行时）
 
 【如何运行？】
   cd platform-agent-service

@@ -1,21 +1,23 @@
-# 告警信息统计（alarm_info_statistics）知识库
+# 报警信息统计（alarm_info_statistics）知识库
+
+> 上级模块索引：[alarm_query_statistics.md](./alarm_query_statistics.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
 
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                                              |
 | ------------------ | --------------------------------------------------------------------------------- |
-| 模块名称（中文）   | 告警信息统计                                                                      |
+| 模块名称（中文）   | 报警信息统计                                                                      |
 | 模块名称（英文）   | Alarm Info Statistics                                                             |
-| 所属 Group（中文） | 告警查询统计                                                                      |
+| 所属 Group（中文） | 报警查询统计                                                                      |
 | 所属 Group（英文） | Alarm Query Statistics                                                            |
 | Group ID           | `alarm_query_statistics`                                                          |
-| 菜单位置           | 配置管理平台 → 配置管理 → 告警查询统计 → 告警信息统计                             |
-| 路由路径           | `/config_management/config/alarm_query_statistics/alarm_info_statistics`          |
+| 菜单位置           | 配置管理平台 → 配置管理 → 报警查询统计 → 报警信息统计                             |
+| 路由路径           | `/config_management/config/alarm_info_statistics`                                 |
 | 页面目录           | `src/pages/config_management/config/alarm_query_statistics/alarm_info_statistics` |
 
 ## 1. 模块定位与项目作用
 
-告警信息统计是综合信息平台中「告警查询统计」业务域下的功能模块，对应页面目录 `src/pages/config_management/config/alarm_query_statistics/alarm_info_statistics`。
+告警信息统计是综合信息平台中「报警查询统计」业务域下的功能模块，对应页面目录 `src/pages/config_management/config/alarm_query_statistics/alarm_info_statistics`。
 
 在项目中的主要作用：
 
@@ -72,11 +74,11 @@
 
 | 关联模块                         | 关系说明                                         |
 | -------------------------------- | ------------------------------------------------ |
-| 告警信息查询（alarm_info_query） | 同级功能模块，可共同构成「告警查询统计」业务能力 |
+| 告警信息查询（alarm_info_query） | 同级功能模块，可共同构成「报警查询统计」业务能力 |
 
 ### 5.2 上游依赖 / 下游消费
 
-- **上游**：基础数据、字典、组织/设备主数据、登录权限等（按本模块实际选型接口而定）。
+- **上游**：根据本页接口与字段引用，上游主要为：用户及参数管理（`user`）、监控设备（`monitor_equipment`）、基础数据（`basedata`）、字典表（`dic_table`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
 - **下游**：引用本模块数据的统计、告警、组态、流程或其他业务页（以全库引用为准）。
 
 ---
@@ -93,13 +95,13 @@
 
 ## 7. 总结
 
-本模块（`alarm_info_statistics`）位于 `src/pages/config_management/config/alarm_query_statistics/alarm_info_statistics`，归属「告警查询统计」。它负责「告警信息统计」相关业务的页面交互与数据读写。维护本模块时，请同步关注接口契约、字段语义及与兄弟模块的数据一致性。
+本模块（`alarm_info_statistics`）位于 `src/pages/config_management/config/alarm_query_statistics/alarm_info_statistics`，归属「报警查询统计」。它负责「告警信息统计」相关业务的页面交互与数据读写。维护本模块时，请同步关注接口契约、字段语义及与兄弟模块的数据一致性。
 
 ---
 
 ## 8. 接口清单
 
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自 `swaggerApi.json`（若可匹配）。
+以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
 
 ### 8.1 告警统计
 

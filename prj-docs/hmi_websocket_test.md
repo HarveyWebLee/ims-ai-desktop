@@ -70,29 +70,18 @@ HMI WebSocket 测试是综合信息平台中「HMI WebSocket 测试」业务域�
 
 ## 5. 与其他功能模块的关系
 
-### 5.1 同目录兄弟模块
+### 5.1 相关模块
 
-| 关联模块                       | 关系说明                                               |
-| ------------------------------ | ------------------------------------------------------ |
-| 404 页面（404）                | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
-| 门禁统计（door_statistics）    | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
-| GoBinding（go_binding）        | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
-| 跳转维护（go_to_maintenance）  | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
-| 二级组件（level_2_comp）       | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
-| 三级组件（level_3_comp）       | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
-| 登录（login）                  | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
-| 总览（overview）               | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
-| 页面运行（page）               | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
-| 统计（statistics）             | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
-| 库房统计（storage_statistics） | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
-| 测试页（test_page）            | 同级功能模块，可共同构成「HMI WebSocket 测试」业务能力 |
+| 关联模块  | 文档                                       | 关系说明       |
+| --------- | ------------------------------------------ | -------------- |
+| 页面运行  | [page.md](./page.md)                       | 正式运行态入口 |
+| GoBinding | [go_binding.md](./go_binding.md)           | 绑定调试相关   |
+| 设备变量  | [device_variable.md](./device_variable.md) | 推送/订阅点位  |
 
 ### 5.2 上游依赖 / 下游消费
 
-- **上游**：基础数据、字典、组织/设备主数据、登录权限等（按本模块实际选型接口而定）。
-- **下游**：引用本模块数据的统计、告警、组态、流程或其他业务页（以全库引用为准）。
-
----
+- **上游**：根据本页接口与字段引用，上游主要为：用户及参数管理（`user`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
+- **下游**：仅用于联调测试，非正式业务菜单。
 
 ## 6. 关键业务规则与注意事项
 
@@ -112,7 +101,7 @@ HMI WebSocket 测试是综合信息平台中「HMI WebSocket 测试」业务域�
 
 ## 8. 接口清单
 
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自 `swaggerApi.json`（若可匹配）。
+以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
 
 ### 8.1 获取组态模块配置
 
@@ -149,7 +138,7 @@ HMI WebSocket 测试是综合信息平台中「HMI WebSocket 测试」业务域�
 | 前端封装 | `SystemController.getFileByPath` |
 | 作用说明 | 见模块业务逻辑                   |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 

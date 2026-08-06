@@ -3,43 +3,28 @@
 > 英文名：Data Acquisition Server  
 > 模块 ID：`data_acquisition_server`  
 > 所属业务域：配置管理（`/config_management/config`）  
-> 来源：平台功能模块知识库（本仓 `prj-docs`）
+> 页面数：3  
+> 上级索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)  
+> 来源：前端 routes 权威菜单
 
 ## 模块说明
 
-管理数采服务器、通信网关与服务组件，是设备数据采集与通信链路的基础配置入口。
-
-## 适用场景
-
-设备接入、变量采集、事件联动、周界安防、报警与历史数据分析等配置与运维场景。
+数采服务器（`data_acquisition_server`）。真实路由为 `parent/path`，**不含 groupId**；源码目录见详档「页面目录」。
 
 ## 功能页面
 
-| 页面       | 路径                   | 路由                                             | 说明                               |
-| ---------- | ---------------------- | ------------------------------------------------ | ---------------------------------- |
-| 数采服务器 | `das`                  | `/config_management/config/das`                  | 配置数采服务器连接与采集服务参数。 |
-| 通信网关   | `communication_config` | `/config_management/config/communication_config` | 配置通信网关，打通设备协议接入。   |
-| 服务组件   | `service_component`    | `/config_management/config/service_component`    | 管理与数采相关的服务组件。         |
+| 页面       | 路径                   | 路由                                             | 详细文档                                                                                                                                               |
+| ---------- | ---------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 通信网关   | `communication_config` | `/config_management/config/communication_config` | [config_management-config-data_acquisition_server-communication_config.md](./config_management-config-data_acquisition_server-communication_config.md) |
+| 数采服务器 | `das`                  | `/config_management/config/das`                  | [config_management-config-data_acquisition_server-das.md](./config_management-config-data_acquisition_server-das.md)                                   |
+| 服务组件   | `service_component`    | `/config_management/config/service_component`    | [config_management-config-data_acquisition_server-service_component.md](./config_management-config-data_acquisition_server-service_component.md)       |
 
 ## 操作指引（通用）
 
-1. 登录综合信息管理平台，从门户进入「配置管理平台」。
-2. 打开左侧「配置管理」→「数采服务器」。
-3. 在列表页按条件查询；通过新增/编辑/删除维护数据（具体按钮以页面为准）。
-4. 若页面含树形筛选（区域/组织/类别），先选节点再操作右侧列表。
-5. 无菜单权限时，请管理员在「角色授权 / 菜单管理」中分配。
-
-## 关联依赖
-
-后续「监控设备」「设备变量」依赖本模块通信链路可用。
-
-## 常见问题
-
-- **看不到本模块菜单**：检查账号角色是否授权；超级管理员可在「菜单管理 / 角色授权 / 场景管理」配置。
-- **列表无数据**：确认筛选条件、所属区域/组织节点，以及后端服务与数据权限范围。
-- **无法保存**：检查必填项、字典引用是否存在，以及是否具备写权限。
+1. 登录后进入「配置管理平台」。
+2. 打开「配置管理」→「数采服务器」。
+3. 按页面按钮维护数据；无权限时在「角色授权 / 菜单管理」分配。
 
 ## 代码定位
 
-- 功能分组：`groupId: data_acquisition_server`
-- 对应平台配置管理功能页面
+- `groupId: data_acquisition_server`

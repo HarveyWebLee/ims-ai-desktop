@@ -1,16 +1,18 @@
-# 数据源管理（data-source-management）知识库
+# 数据迁移（data-source-management）知识库
+
+> 上级模块索引：[system_devops.md](./system_devops.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
 
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                                      |
 | ------------------ | ------------------------------------------------------------------------- |
-| 模块名称（中文）   | 数据源管理                                                                |
+| 模块名称（中文）   | 数据迁移                                                                  |
 | 模块名称（英文）   | Data Source Management                                                    |
 | 所属 Group（中文） | 系统运维                                                                  |
 | 所属 Group（英文） | System DevOps                                                             |
 | Group ID           | `system_devops`                                                           |
-| 菜单位置           | 配置管理平台 → 系统管理 → 系统运维 → 数据源管理                           |
-| 路由路径           | `/config_management/system/system_devops/data-source-management`          |
+| 菜单位置           | 配置管理平台 → 系统管理 → 系统运维 → 数据迁移                             |
+| 路由路径           | `/config_management/system/data-source-management`                        |
 | 页面目录           | `src/pages/config_management/system/system_devops/data-source-management` |
 
 ## 1. 模块定位与项目作用
@@ -41,17 +43,7 @@
 
 ---
 
-## 3. 属性字段说明
-
-以下字段由页面代码启发式提取，用于快速了解主数据形态；若与线上表单不一致，以实际页面与接口契约为准。
-
-| 字段名 | 中文含义 | 作用说明                                                |
-| ------ | -------- | ------------------------------------------------------- |
-| -      | -        | 未从 constants/index 中稳定解析到字段，请以页面表单为准 |
-
----
-
-## 4. 功能清单
+## 3. 功能清单
 
 - 新建/新增
 - 编辑
@@ -62,22 +54,22 @@
 
 ---
 
-## 5. 与其他功能模块的关系
+## 4. 与其他功能模块的关系
 
-### 5.1 同目录兄弟模块
+### 4.1 同目录兄弟模块
 
 | 关联模块                | 关系说明                                     |
 | ----------------------- | -------------------------------------------- |
 | 数据备份（data_backup） | 同级功能模块，可共同构成「系统运维」业务能力 |
 
-### 5.2 上游依赖 / 下游消费
+### 4.2 上游依赖 / 下游消费
 
-- **上游**：基础数据、字典、组织/设备主数据、登录权限等（按本模块实际选型接口而定）。
+- **上游**：根据本页接口与字段引用，上游主要为：事件配置（`event_config`）、用户及参数管理（`user`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
 - **下游**：引用本模块数据的统计、告警、组态、流程或其他业务页（以全库引用为准）。
 
 ---
 
-## 6. 关键业务规则与注意事项
+## 5. 关键业务规则与注意事项
 
 1. 操作前确认当前用户具备对应菜单与按钮权限。
 2. 删除、导入、批量变更等操作可能影响下游运行态数据，执行前应确认范围。
@@ -87,17 +79,17 @@
 
 ---
 
-## 7. 总结
+## 6. 总结
 
 本模块（`data-source-management`）位于 `src/pages/config_management/system/system_devops/data-source-management`，归属「系统运维」。它负责「数据源管理」相关业务的页面交互与数据读写。维护本模块时，请同步关注接口契约、字段语义及与兄弟模块的数据一致性。
 
 ---
 
-## 8. 接口清单
+## 7. 接口清单
 
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自 `swaggerApi.json`（若可匹配）。
+以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
 
-### 8.1 分页查询事件流快照（支持条件查询和排序）
+### 7.1 分页查询事件流快照（支持条件查询和排序）
 
 | 项          | 内容                                     |
 | ----------- | ---------------------------------------- |
@@ -153,7 +145,7 @@
 
 ---
 
-### 8.2 createDataSource
+### 7.2 createDataSource
 
 | 项       | 内容                                      |
 | -------- | ----------------------------------------- |
@@ -163,11 +155,11 @@
 | baseURL  | `/api/devops2`                            |
 | 作用说明 | 见模块业务逻辑                            |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 
-### 8.3 updateDataSource
+### 7.3 updateDataSource
 
 | 项       | 内容                                      |
 | -------- | ----------------------------------------- |
@@ -177,11 +169,11 @@ _未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装
 | baseURL  | `/api/devops2`                            |
 | 作用说明 | 见模块业务逻辑                            |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 
-### 8.4 deleteDataSource
+### 7.4 deleteDataSource
 
 | 项       | 内容                                    |
 | -------- | --------------------------------------- |
@@ -190,11 +182,11 @@ _未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装
 | 前端封装 | `DataSourceController.deleteDataSource` |
 | 作用说明 | 见模块业务逻辑                          |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 
-### 8.5 enableTsDataSource
+### 7.5 enableTsDataSource
 
 | 项       | 内容                                      |
 | -------- | ----------------------------------------- |
@@ -203,11 +195,11 @@ _未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装
 | 前端封装 | `DataSourceController.enableTsDataSource` |
 | 作用说明 | 见模块业务逻辑                            |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 
-### 8.6 switchTsPort
+### 7.6 switchTsPort
 
 | 项       | 内容                                  |
 | -------- | ------------------------------------- |
@@ -217,6 +209,6 @@ _未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装
 | baseURL  | `/api/devops2`                        |
 | 作用说明 | 见模块业务逻辑                        |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---

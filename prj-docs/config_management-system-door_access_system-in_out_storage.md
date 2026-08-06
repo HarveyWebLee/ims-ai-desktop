@@ -1,16 +1,18 @@
-# 入出仓储（in_out_storage）知识库
+# 出入信息管理（in_out_storage）知识库
+
+> 上级模块索引：[door_access_system.md](./door_access_system.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
 
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                                   |
 | ------------------ | ---------------------------------------------------------------------- |
-| 模块名称（中文）   | 入出仓储                                                               |
+| 模块名称（中文）   | 出入信息管理                                                           |
 | 模块名称（英文）   | In Out Storage                                                         |
 | 所属 Group（中文） | 门禁系统                                                               |
 | 所属 Group（英文） | Door Access System                                                     |
 | Group ID           | `door_access_system`                                                   |
-| 菜单位置           | 配置管理平台 → 系统管理 → 门禁系统 → 入出仓储                          |
-| 路由路径           | `/config_management/system/door_access_system/in_out_storage`          |
+| 菜单位置           | 配置管理平台 → 系统管理 → 门禁系统 → 出入信息管理                      |
+| 路由路径           | `/config_management/system/in_out_storage`                             |
 | 页面目录           | `src/pages/config_management/system/door_access_system/in_out_storage` |
 
 ## 1. 模块定位与项目作用
@@ -95,7 +97,7 @@
 
 ### 5.2 上游依赖 / 下游消费
 
-- **上游**：基础数据、字典、组织/设备主数据、登录权限等（按本模块实际选型接口而定）。
+- **上游**：根据本页接口与字段引用，上游主要为：用户及参数管理（`user`）、监控设备（`monitor_equipment`）、基础数据（`basedata`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
 - **下游**：引用本模块数据的统计、告警、组态、流程或其他业务页（以全库引用为准）。
 
 ---
@@ -118,7 +120,7 @@
 
 ## 8. 接口清单
 
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自 `swaggerApi.json`（若可匹配）。
+以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
 
 ### 8.1 出入库信息分页列表
 

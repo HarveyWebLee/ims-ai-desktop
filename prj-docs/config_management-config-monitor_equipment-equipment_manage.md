@@ -1,5 +1,7 @@
 # 设备管理（equipment_manage）知识库
 
+> 上级模块索引：[monitor_equipment.md](./monitor_equipment.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
+
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                                                                             |
@@ -198,6 +200,8 @@
 
 ### 5.1 上游依赖
 
+- 根据本页接口与字段引用，上游主要为：用户及参数管理（`user`）、基础数据（`basedata`）、数采服务器（`data_acquisition_server`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
+
 | 关联模块/能力          | 关系说明                                     |
 | ---------------------- | -------------------------------------------- |
 | 设备分组               | 提供设备分组树，设备必须归属分组             |
@@ -254,7 +258,7 @@
 
 ## 8. 接口清单
 
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自 `swaggerApi.json`（若可匹配）。
+以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
 
 ### 8.1 获取设备分组树
 
@@ -562,7 +566,7 @@ _无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 
 | 前端封装 | `SystemController.batchSetDefenceOnline` |
 | 作用说明 | 见模块业务逻辑                           |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 
@@ -575,7 +579,7 @@ _未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装
 | 前端封装 | `SystemController.batchSetDefenceOffline` |
 | 作用说明 | 见模块业务逻辑                            |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 
@@ -588,7 +592,7 @@ _未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装
 | 前端封装 | `SystemController.batchSetDevicePermission` |
 | 作用说明 | 见模块业务逻辑                              |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 
@@ -601,7 +605,7 @@ _未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装
 | 前端封装 | `SystemController.exportDevice1` |
 | 作用说明 | 见模块业务逻辑                   |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 
@@ -838,7 +842,7 @@ _无明确请求体字段（可能为 Query/Path 参数、空 Body，或 Schema 
 | 前端封装 | `SystemController.importDevice1` |
 | 作用说明 | 见模块业务逻辑                   |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 
@@ -851,7 +855,7 @@ _未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装
 | 前端封装 | `SystemController.batchUpdateDevice1` |
 | 作用说明 | 见模块业务逻辑                        |
 
-_未在 `swaggerApi.json` 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
+_未在平台 OpenAPI 中匹配到该路径；请以实际 Controller 封装与网络请求为准。_
 
 ---
 

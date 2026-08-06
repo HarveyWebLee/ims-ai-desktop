@@ -1,25 +1,27 @@
-# 周交接（week_handover）知识库
+# 交接班记录（week_handover）知识库
+
+> 上级模块索引：[daily_duty.md](./daily_duty.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
 
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                                         |
 | ------------------ | ---------------------------------------------------------------------------- |
-| 模块名称（中文）   | 周交接                                                                       |
+| 模块名称（中文）   | 交接班记录                                                                   |
 | 模块名称（英文）   | Week Handover                                                                |
-| 所属 Group（中文） | 日常执勤                                                                     |
+| 所属 Group（中文） | 日常值班                                                                     |
 | 所属 Group（英文） | Daily Duty                                                                   |
 | Group ID           | `daily_duty`                                                                 |
-| 菜单位置           | 配置管理平台 → 阵地管理 → 日常执勤 → 周交接                                  |
-| 路由路径           | `/config_management/positional_management/daily_duty/week_handover`          |
+| 菜单位置           | 配置管理平台 → 阵地维护管理 → 日常值班 → 交接班记录                          |
+| 路由路径           | `/config_management/positional_management/week_handover`                     |
 | 页面目录           | `src/pages/config_management/positional_management/daily_duty/week_handover` |
 
 ## 1. 模块定位与项目作用
 
-周交接是综合信息平台中「日常执勤」业务域下的功能模块，对应页面目录 `src/pages/config_management/positional_management/daily_duty/week_handover`。
+周交接是综合信息平台中「日常值班」业务域下的功能模块，对应页面目录 `src/pages/config_management/positional_management/daily_duty/week_handover`。
 
 在项目中的主要作用：
 
-- 作为「配置管理平台 → 阵地管理 → 日常执勤 → 周交接」菜单下的业务入口，承载该场景的数据维护、查询或运维操作。
+- 作为「配置管理平台 → 阵地维护管理 → 日常值班 → 周交接」菜单下的业务入口，承载该场景的数据维护、查询或运维操作。
 - 通过本模块维护或消费的数据，可能被同业务域其他页面、报表、组态或流程能力引用。
 - 具体能力以页面交互与接口清单为准；变更本模块配置/数据时，应评估对上下游模块的影响。
 
@@ -77,17 +79,17 @@
 
 | 关联模块                            | 关系说明                                     |
 | ----------------------------------- | -------------------------------------------- |
-| 执勤交接（duty_handover）           | 同级功能模块，可共同构成「日常执勤」业务能力 |
-| 执勤information（duty_information） | 同级功能模块，可共同构成「日常执勤」业务能力 |
-| 执勤日志（duty_logs）               | 同级功能模块，可共同构成「日常执勤」业务能力 |
-| 执勤人员（duty_personnel）          | 同级功能模块，可共同构成「日常执勤」业务能力 |
-| 执勤计划（duty_plan）               | 同级功能模块，可共同构成「日常执勤」业务能力 |
-| 执勤设置（duty_setting）            | 同级功能模块，可共同构成「日常执勤」业务能力 |
-| 进入退出审批（entry_exit_approval） | 同级功能模块，可共同构成「日常执勤」业务能力 |
+| 执勤交接（duty_handover）           | 同级功能模块，可共同构成「日常值班」业务能力 |
+| 执勤information（duty_information） | 同级功能模块，可共同构成「日常值班」业务能力 |
+| 执勤日志（duty_logs）               | 同级功能模块，可共同构成「日常值班」业务能力 |
+| 执勤人员（duty_personnel）          | 同级功能模块，可共同构成「日常值班」业务能力 |
+| 执勤计划（duty_plan）               | 同级功能模块，可共同构成「日常值班」业务能力 |
+| 执勤设置（duty_setting）            | 同级功能模块，可共同构成「日常值班」业务能力 |
+| 进入退出审批（entry_exit_approval） | 同级功能模块，可共同构成「日常值班」业务能力 |
 
 ### 5.2 上游依赖 / 下游消费
 
-- **上游**：基础数据、字典、组织/设备主数据、登录权限等（按本模块实际选型接口而定）。
+- **上游**：根据本页接口与字段引用，上游主要为：用户及参数管理（`user`）、阵地人员管理（`staff_management`）、基础数据（`basedata`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
 - **下游**：引用本模块数据的统计、告警、组态、流程或其他业务页（以全库引用为准）。
 
 ---
@@ -104,13 +106,13 @@
 
 ## 7. 总结
 
-本模块（`week_handover`）位于 `src/pages/config_management/positional_management/daily_duty/week_handover`，归属「日常执勤」。它负责「周交接」相关业务的页面交互与数据读写。维护本模块时，请同步关注接口契约、字段语义及与兄弟模块的数据一致性。
+本模块（`week_handover`）位于 `src/pages/config_management/positional_management/daily_duty/week_handover`，归属「日常值班」。它负责「周交接」相关业务的页面交互与数据读写。维护本模块时，请同步关注接口契约、字段语义及与兄弟模块的数据一致性。
 
 ---
 
 ## 8. 接口清单
 
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自 `swaggerApi.json`（若可匹配）。
+以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
 
 ### 8.1 获取交接记录分页列表
 

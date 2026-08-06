@@ -3,42 +3,27 @@
 > 英文名：System DevOps  
 > 模块 ID：`system_devops`  
 > 所属业务域：系统管理（`/config_management/system`）  
-> 来源：平台功能模块知识库（本仓 `prj-docs`）
+> 页面数：2  
+> 上级索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)  
+> 来源：前端 routes 权威菜单
 
 ## 模块说明
 
-数据备份与数据源迁移等系统运维能力。
-
-## 适用场景
-
-账号权限、基础主数据、日志审计、门禁业务与信息发布等系统级管理场景。
+系统运维（`system_devops`）。真实路由为 `parent/path`，**不含 groupId**；源码目录见详档「页面目录」。
 
 ## 功能页面
 
-| 页面     | 路径                     | 路由                                               | 说明                 |
-| -------- | ------------------------ | -------------------------------------------------- | -------------------- |
-| 数据备份 | `data_backup`            | `/config_management/system/data_backup`            | 执行或查看数据备份。 |
-| 数据迁移 | `data-source-management` | `/config_management/system/data-source-management` | 数据源与迁移管理。   |
+| 页面     | 路径                     | 路由                                               | 详细文档                                                                                                                               |
+| -------- | ------------------------ | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 数据迁移 | `data-source-management` | `/config_management/system/data-source-management` | [config_management-system-system_devops-data-source-management.md](./config_management-system-system_devops-data-source-management.md) |
+| 数据备份 | `data_backup`            | `/config_management/system/data_backup`            | [config_management-system-system_devops-data_backup.md](./config_management-system-system_devops-data_backup.md)                       |
 
 ## 操作指引（通用）
 
-1. 登录综合信息管理平台，从门户进入「配置管理平台」。
-2. 打开左侧「系统管理」→「系统运维」。
-3. 在列表页按条件查询；通过新增/编辑/删除维护数据（具体按钮以页面为准）。
-4. 若页面含树形筛选（区域/组织/类别），先选节点再操作右侧列表。
-5. 无菜单权限时，请管理员在「角色授权 / 菜单管理」中分配。
-
-## 关联依赖
-
-备份与迁移影响全库数据，操作前需确认环境。
-
-## 常见问题
-
-- **看不到本模块菜单**：检查账号角色是否授权；超级管理员可在「菜单管理 / 角色授权 / 场景管理」配置。
-- **列表无数据**：确认筛选条件、所属区域/组织节点，以及后端服务与数据权限范围。
-- **无法保存**：检查必填项、字典引用是否存在，以及是否具备写权限。
+1. 登录后进入「配置管理平台」。
+2. 打开「系统管理」→「系统运维」。
+3. 按页面按钮维护数据；无权限时在「角色授权 / 菜单管理」分配。
 
 ## 代码定位
 
-- 功能分组：`groupId: system_devops`
-- 对应平台配置管理功能页面
+- `groupId: system_devops`

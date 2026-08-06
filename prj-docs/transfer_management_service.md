@@ -3,41 +3,26 @@
 > 英文名：Transfer Management Service  
 > 模块 ID：`transfer_management_service`  
 > 所属业务域：阵地维护管理（`/config_management/positional_management`）  
-> 来源：平台功能模块知识库（本仓 `prj-docs`）
+> 页面数：1  
+> 上级索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)  
+> 来源：前端 routes 权威菜单
 
 ## 模块说明
 
-物资移交单管理。
-
-## 适用场景
-
-阵地设施、值班、人员、巡检、保养、工具备件、故障维修与计量移交等日常保障场景。
+物资移交管理（`transfer_management_service`）。真实路由为 `parent/path`，**不含 groupId**；源码目录见详档「页面目录」。
 
 ## 功能页面
 
-| 页面       | 路径                         | 路由                                                                  | 说明         |
-| ---------- | ---------------------------- | --------------------------------------------------------------------- | ------------ |
-| 物资移交单 | `transfer_management_record` | `/config_management/positional_management/transfer_management_record` | 物资移交单。 |
+| 页面       | 路径                         | 路由                                                                  | 详细文档                                                                                                                                                                                                 |
+| ---------- | ---------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 物资移交单 | `transfer_management_record` | `/config_management/positional_management/transfer_management_record` | [config_management-positional_management-transfer_management_service-transfer_management_record.md](./config_management-positional_management-transfer_management_service-transfer_management_record.md) |
 
 ## 操作指引（通用）
 
-1. 登录综合信息管理平台，从门户进入「配置管理平台」。
-2. 打开左侧「阵地维护管理」→「物资移交管理」。
-3. 在列表页按条件查询；通过新增/编辑/删除维护数据（具体按钮以页面为准）。
-4. 若页面含树形筛选（区域/组织/类别），先选节点再操作右侧列表。
-5. 无菜单权限时，请管理员在「角色授权 / 菜单管理」中分配。
-
-## 关联依赖
-
-移交单关联物资/设施资产与接收方。
-
-## 常见问题
-
-- **看不到本模块菜单**：检查账号角色是否授权；超级管理员可在「菜单管理 / 角色授权 / 场景管理」配置。
-- **列表无数据**：确认筛选条件、所属区域/组织节点，以及后端服务与数据权限范围。
-- **无法保存**：检查必填项、字典引用是否存在，以及是否具备写权限。
+1. 登录后进入「配置管理平台」。
+2. 打开「阵地维护管理」→「物资移交管理」。
+3. 按页面按钮维护数据；无权限时在「角色授权 / 菜单管理」分配。
 
 ## 代码定位
 
-- 功能分组：`groupId: transfer_management_service`
-- 对应平台配置管理功能页面
+- `groupId: transfer_management_service`

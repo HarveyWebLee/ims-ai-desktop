@@ -1,15 +1,17 @@
-# 实时变量数据（real_time_var_data）知识库
+# 实时数据（real_time_var_data）知识库
+
+> 上级模块索引：[device_variable.md](./device_variable.md) · 总索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)
 
 ## 0. 路由与归属信息
 
 | 项                 | 内容                                                                    |
 | ------------------ | ----------------------------------------------------------------------- |
-| 模块名称（中文）   | 实时变量数据                                                            |
+| 模块名称（中文）   | 实时数据                                                                |
 | 模块名称（英文）   | Real-time Variable Data                                                 |
 | 所属 Group（中文） | 设备变量                                                                |
 | 所属 Group（英文） | Device Variable                                                         |
 | Group ID           | `device_variable`                                                       |
-| 菜单位置           | 配置管理平台 → 配置管理 → 设备变量 → 实时变量数据                       |
+| 菜单位置           | 配置管理平台 → 配置管理 → 设备变量 → 实时数据                           |
 | 路由路径           | `/config_management/config/real_time_var_data`                          |
 | 页面目录           | `src/pages/config_management/config/device_variable/real_time_var_data` |
 
@@ -74,7 +76,7 @@
 
 ### 5.2 上游依赖 / 下游消费
 
-- **上游**：基础数据、字典、组织/设备主数据、登录权限等（按本模块实际选型接口而定）。
+- **上游**：根据本页接口与字段引用，上游主要为：用户及参数管理（`user`）、基础数据（`basedata`）。另可能依赖登录会话与菜单授权（用户及参数管理）。
 - **下游**：引用本模块数据的统计、告警、组态、流程或其他业务页（以全库引用为准）。
 
 ---
@@ -97,7 +99,7 @@
 
 ## 8. 接口清单
 
-以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自 `swaggerApi.json`（若可匹配）。
+以下接口由本模块页面代码直接或通过 `@/services` Controller 调用，参数与响应 Schema 来自平台 OpenAPI（若可匹配）。
 
 ### 8.1 获取实时数据列表
 

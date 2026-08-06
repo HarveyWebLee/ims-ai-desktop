@@ -143,9 +143,10 @@ grep AgentTrace
 ## 目录
 
 - `app/` — FastAPI 应用、LangGraph Agent、工具、提示词
-- `scripts/export_catalog.py` — 从 `../../packages/` 导出 catalog JSON；从 `swaggerApi.json` 导出 API 索引
-- `app/data/swaggerApi.json` — 平台全量 OpenAPI（YApi 导出），Agent 工具开发参考
-- `app/data/platform_api_index.json` — 轻量 API 索引（由 export 脚本生成）
+- `scripts/export_catalog.py` — 从 `../../packages/` 导出 catalog JSON；从 swagger 导出 API 索引
+- `app/data/swaggerApi.json` — 平台全量 OpenAPI（YApi 导出）= **构建源**，勿入库 RAG
+- `app/data/platform_api_index.json` / `platform_api_tags.json` — **运行时**轻量索引（由 export 脚本生成）
+- `prj-docs/`（仓根）— RAG 语料，与 `app/data` 解耦
 - `tests/` — 单元测试
 
 ## 共享包
@@ -162,7 +163,15 @@ Python **不直接运行 TS**；修改 catalog 或 swagger 后须执行 `python 
 
 ## 平台 OpenAPI 与 Agent 工具开发
 
-`app/data/swaggerApi.json` 为平台接口的 OpenAPI 3.0 导出（约 1500+ path）。**不应**把全部接口直接暴露给 LLM，而应用于：
+约定分层：
+
+| 资产                                                 | 角色                                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| `swaggerApi.json`                                    | **构建源**（YApi OpenAPI 3.0，约 1500+ path）；`export_api_index.py` 输入 |
+| `platform_api_index.json` / `platform_api_tags.json` | **运行时**；Prompt / preflight / 检索只读这两份                           |
+| 仓根 `prj-docs/`                                     | **RAG**；不放 swagger / `platform_api_*`                                  |
+
+**不应**把全量 OpenAPI 直接暴露给 LLM，构建源用于：
 
 | 用途                | 说明                                                                                                   |
 | ------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -179,7 +188,7 @@ python scripts/export_api_index.py
 #       app/data/platform_api_tags.json
 ```
 
-Python 读取：`app/services/platform_api_catalog.py`。
+Python 读取：`app/services/platform_api_catalog.py`（读运行时 index，非全量 swagger）。
 
 **推荐做法**：继续以 `packages/agent-core/tool-catalog.ts` 为 **Agent 可见工具** 的唯一白名单；swagger 作为 **实现层参考**，按业务域逐步封装为高阶 @tool（如现有 `query_alarms`），而非 1526 个裸 API 全部注册给模型。
 

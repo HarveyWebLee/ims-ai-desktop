@@ -3,42 +3,27 @@
 > 英文名：Fault Repair Management  
 > 模块 ID：`fault_repair_management`  
 > 所属业务域：阵地维护管理（`/config_management/positional_management`）  
-> 来源：平台功能模块知识库（本仓 `prj-docs`）
+> 页面数：2  
+> 上级索引：[README.md](./README.md) · 页面总表：[TOTAL-MODULE.md](./TOTAL-MODULE.md)  
+> 来源：前端 routes 权威菜单
 
 ## 模块说明
 
-故障库与维修任务管理，支撑故障诊断与维修闭环。
-
-## 适用场景
-
-阵地设施、值班、人员、巡检、保养、工具备件、故障维修与计量移交等日常保障场景。
+故障维修管理（`fault_repair_management`）。真实路由为 `parent/path`，**不含 groupId**；源码目录见详档「页面目录」。
 
 ## 功能页面
 
-| 页面         | 路径                     | 路由                                                              | 说明                           |
-| ------------ | ------------------------ | ----------------------------------------------------------------- | ------------------------------ |
-| 故障库管理   | `fault_info_library`     | `/config_management/positional_management/fault_info_library`     | 故障现象/原因/处理方法知识库。 |
-| 维修任务管理 | `repair_task_management` | `/config_management/positional_management/repair_task_management` | 维修任务闭环。                 |
+| 页面         | 路径                     | 路由                                                              | 详细文档                                                                                                                                                                                 |
+| ------------ | ------------------------ | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 故障库管理   | `fault_info_library`     | `/config_management/positional_management/fault_info_library`     | [config_management-positional_management-fault_repair_management-fault_info_library.md](./config_management-positional_management-fault_repair_management-fault_info_library.md)         |
+| 维修任务管理 | `repair_task_management` | `/config_management/positional_management/repair_task_management` | [config_management-positional_management-fault_repair_management-repair_task_management.md](./config_management-positional_management-fault_repair_management-repair_task_management.md) |
 
 ## 操作指引（通用）
 
-1. 登录综合信息管理平台，从门户进入「配置管理平台」。
-2. 打开左侧「阵地维护管理」→「故障维修管理」。
-3. 在列表页按条件查询；通过新增/编辑/删除维护数据（具体按钮以页面为准）。
-4. 若页面含树形筛选（区域/组织/类别），先选节点再操作右侧列表。
-5. 无菜单权限时，请管理员在「角色授权 / 菜单管理」中分配。
-
-## 关联依赖
-
-故障库支撑维修任务处置；可关联设施/设备。
-
-## 常见问题
-
-- **看不到本模块菜单**：检查账号角色是否授权；超级管理员可在「菜单管理 / 角色授权 / 场景管理」配置。
-- **列表无数据**：确认筛选条件、所属区域/组织节点，以及后端服务与数据权限范围。
-- **无法保存**：检查必填项、字典引用是否存在，以及是否具备写权限。
+1. 登录后进入「配置管理平台」。
+2. 打开「阵地维护管理」→「故障维修管理」。
+3. 按页面按钮维护数据；无权限时在「角色授权 / 菜单管理」分配。
 
 ## 代码定位
 
-- 功能分组：`groupId: fault_repair_management`
-- 对应平台配置管理功能页面
+- `groupId: fault_repair_management`
