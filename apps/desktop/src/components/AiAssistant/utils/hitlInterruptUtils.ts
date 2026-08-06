@@ -125,7 +125,9 @@ export function findPendingInterruptFromMessages(messages: AiMessage[]): HitlPay
 }
 
 /**
- * 将 /state 返回的 pending_interrupt 挂到对应助手气泡（按 mid）。
+ * 将 /state 返回的 pending_interrupt 挂到对应助手气泡。
+ * 有 mid：挂同 mid 助手；找不到则新建（禁止回退上一轮）。
+ * 无 mid：兼容旧数据挂最后一条助手。
  * 后端已挂块时幂等；仅有顶层字段时补块。
  */
 export function applyPendingInterruptToMessages(
@@ -161,8 +163,7 @@ export function applyPendingInterruptToMessages(
         break;
       }
     }
-  }
-  if (targetIndex < 0) {
+  } else {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       if (messages[i].role === "assistant") {
         targetIndex = i;

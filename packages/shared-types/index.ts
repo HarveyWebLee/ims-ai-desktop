@@ -265,6 +265,8 @@ export interface HitlPayload {
   message?: string;
   /** 用户本轮需求 ID；resume 须回传，与 SSE/气泡归属一致 */
   mid?: string;
+  /** ask_params：表单预填值（如 device_code / start_time） */
+  current?: Record<string, unknown>;
   /** confirm：指令下发前设备摘要（来自 get_device_detail 等价只读） */
   device_preview?: HitlDevicePreview;
   /** plan_confirm：待用户批准的多步计划预览 */

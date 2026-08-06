@@ -246,9 +246,19 @@ export function AlarmQueryTable({
         className={styles.workspaceTable}
         onRow={(record) => ({
           onClick: () => {
-            if (record.id) {
-              setAlarmDetailRecord(record as Record<string, unknown>);
+            if (!record.id) return;
+            if (onSend) {
+              const device = record.deviceName || record.deviceCode || "-";
+              const status = record.statusName || "-";
+              onSend(
+                intl.formatMessage(
+                  { id: "aiAssistant.workspace.alarmDetailPrompt" },
+                  { id: String(record.id), device, status },
+                ),
+              );
+              return;
             }
+            setAlarmDetailRecord(record as Record<string, unknown>);
           },
           className: record.id ? styles.workspaceRowClickable : undefined,
         })}

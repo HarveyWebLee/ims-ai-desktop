@@ -239,6 +239,11 @@ class Settings(BaseSettings):
     agent_playbook_max_matches: int = 2
     # true=监听目录 .md 变更并 reload 内存缓存（不重启进程）
     agent_playbook_watch: bool = True
+    # true=关键词并集语义召回（Qdrant playbook collection）；失败回退纯关键词
+    agent_playbook_semantic_enabled: bool = True
+    qdrant_collection_playbooks: str = "platform_playbooks"
+    # 语义命中相似度下限（Cosine）；0=不设阈值
+    agent_playbook_semantic_score_threshold: float = 0.35
 
     # 知识库：图片视觉抽取（DashScope VL → 文本 → Embedding）
     knowledge_vision_enabled: bool = True
@@ -270,6 +275,10 @@ class Settings(BaseSettings):
     # 开发排查：输出 [AgentTrace] 结构化日志（跨轮次 HITL / Plan 污染定位）
     # 环境变量 AGENT_DEBUG_TRACE=true 开启；uv run dev 默认会 setdefault 为 true
     agent_debug_trace: bool = False
+
+    # 工具 schema 两段式：先名+短描述，同名首调解锁后再绑完整 args_schema（默认关）
+    # 见 docs/roadmap/cursor-agent-parity.md §3.2；与 select_tool_subset / resume 兼容
+    agent_tool_schema_twophase: bool = False
 
 
 # 模块级单例：整个进程共用一份 settings（别处 from app.config import settings）

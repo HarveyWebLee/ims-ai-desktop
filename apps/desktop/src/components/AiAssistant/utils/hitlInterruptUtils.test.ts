@@ -179,3 +179,35 @@ describe("action visibility helpers", () => {
     expect(shouldHideMessagePlanForInteractiveHitl(askParamsPayload, true)).toBe(false);
   });
 });
+
+describe("applyPendingInterruptToMessages", () => {
+  it("creates a new assistant card when mid has no assistant yet", () => {
+    const messages: AiMessage[] = [
+      {
+        id: "u1",
+        role: "user",
+        mid: "m1",
+        blocks: [{ type: "text", content: "开门" }],
+        createdAt: 1,
+      },
+      assistantMsg("a1", [{ type: "text", content: "已开门" }], { mid: "m1" }),
+      {
+        id: "u2",
+        role: "user",
+        mid: "m2",
+        blocks: [{ type: "text", content: "查告警" }],
+        createdAt: 2,
+      },
+    ];
+    const pending: HitlPayload = {
+      ...askParamsPayload,
+      mid: "m2",
+    };
+    const out = applyPendingInterruptToMessages(messages, pending);
+    expect(out).toHaveLength(4);
+    expect(out[3].role).toBe("assistant");
+    expect(out[3].mid).toBe("m2");
+    expect(out[3].blocks.some((b) => b.type === "interrupt")).toBe(true);
+    expect(out[1].blocks.some((b) => b.type === "interrupt")).toBe(false);
+  });
+});

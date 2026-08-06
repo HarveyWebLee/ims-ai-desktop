@@ -233,3 +233,22 @@ def apply_device_focus_to_interrupt(
         if (not msg) or re.search(r"设备|未指定|选择", msg):
             out["message"] = focus.hint_message
     return out
+
+
+def merge_unique_device_focus_into_args(
+    args: dict[str, Any],
+    focus: DeviceFocus | None,
+) -> dict[str, Any]:
+    """
+    唯一设备焦点回填空的 device_code / device_name（不覆盖调用方已填值）。
+
+    用于 query_alarms 等告警工具：指代「这个设备」时减少再次选设备。
+    """
+    out = dict(args or {})
+    if not focus or not focus.is_unique:
+        return out
+    if not str(out.get("device_code") or "").strip() and str(focus.device_code or "").strip():
+        out["device_code"] = focus.device_code.strip()
+    if not str(out.get("device_name") or "").strip() and str(focus.device_name or "").strip():
+        out["device_name"] = focus.device_name.strip()
+    return out

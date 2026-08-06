@@ -75,6 +75,7 @@ async def stream_resume_core(
     from app.graph.stream_envelope import wrap_stream_with_plan_trace
     from app.middleware.auth import get_current_user_id
     from app.models.router import require_model_credentials
+    from app.services.tool_schema_phase import current_schema_phase_reset
 
     require_model_credentials()
 
@@ -95,6 +96,8 @@ async def stream_resume_core(
     mode = normalize_run_mode(run_mode)
     mode_token = current_run_mode.set(mode)
     plan_first_token = current_plan_first.set(bool(plan_first))
+    # resume 不清空 unlocked：与 chat 对称
+    schema_reset_token = current_schema_phase_reset.set(False)
     from contracts.agent_debug import agent_debug
 
     agent_debug(
@@ -260,6 +263,11 @@ async def stream_resume_core(
                 bypass_token,
                 label="current_hitl_confirm_bypass",
             )
+        safe_reset_contextvar(
+            current_schema_phase_reset,
+            schema_reset_token,
+            label="current_schema_phase_reset",
+        )
 
 
 async def stream_resume(

@@ -638,6 +638,27 @@ async def wrap_stream_with_plan_trace(
                 # plan_confirm 时步骤保持 pending，等待用户批准后再执行
                 if payload.get("type") != "plan_confirm":
                     tool = str(payload.get("tool", "")) or None
+                    if tool:
+                        # interrupt 前未走过 tool_start 时补发 plan + tool_start，
+                        # 避免前端只有 HITL、历史恢复时无本轮助手卡可挂载
+                        step = tracker._find_step_for_tool(tool, include_awaiting_hitl=True)
+                        needs_tool_start = step is None or step.get("status") == "pending"
+                        if needs_tool_start:
+                            args: dict[str, Any] = {}
+                            current = payload.get("current")
+                            if isinstance(current, dict):
+                                args = dict(current)
+                            elif isinstance(payload.get("args"), dict):
+                                args = dict(payload["args"])
+                            had_plan = tracker.has_plan
+                            start_update = tracker.on_tool_start(tool, args)
+                            if not had_plan and tracker.has_plan:
+                                collector.record_plan(tracker.steps, graph=tracker.graph)
+                                yield ("plan", tracker.initial_payload())
+                                yield ("trace", collector.events[-1])
+                            if start_update:
+                                yield ("plan_update", start_update)
+                            yield ("tool_start", {"tool": tool, "args": args})
                     for plan_update in tracker.on_interrupt(tool):
                         yield ("plan_update", plan_update)
 

@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from app.config import settings
+from app.utils.atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -190,11 +191,19 @@ class KnowledgeIngestJobManager:
         self._tasks: dict[str, asyncio.Task[None]] = {}
 
     def _persist(self, job: IngestJob) -> None:
+        """落盘快照；Windows 下文件占用时不得拖垮整批入库。"""
         path = _snapshot_path(job.user_id)
-        tmp = path.with_suffix(".json.tmp")
         payload = json.dumps(job.to_snapshot(), ensure_ascii=False, indent=2)
-        tmp.write_text(payload, encoding="utf-8")
-        tmp.replace(path)
+        try:
+            atomic_write_text(path, payload)
+        except OSError as exc:
+            # 内存仍为运行期权威；仅影响重启后回显
+            logger.error(
+                "入库任务快照落盘失败 user=%s job=%s err=%s",
+                job.user_id,
+                job.job_id,
+                exc,
+            )
 
     def _load_from_disk(self, user_id: str) -> IngestJob | None:
         path = _snapshot_path(user_id)

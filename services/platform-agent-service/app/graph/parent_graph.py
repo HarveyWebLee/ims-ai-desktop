@@ -37,7 +37,7 @@ RouteKind = Literal[
     "end",
 ]
 
-_parent_graph_cache: dict[tuple[str, str], Any] = {}
+_parent_graph_cache: dict[tuple[str, str, int], Any] = {}
 
 
 class ParentState(TypedDict, total=False):
@@ -637,6 +637,7 @@ def _route_after_device_gate(state: ParentState) -> RouteKind:
 
 def build_parent_graph(*, model_id: str, tool_names: frozenset[str] | None = None):
     """编译父 StateGraph；按 model_id + 工具子集指纹缓存子图。"""
+    from app.config import settings
     from app.graph.agent_factory import get_agent, get_chat_agent
     from app.services.tool_subset import tool_subset_fingerprint
 
@@ -647,7 +648,8 @@ def build_parent_graph(*, model_id: str, tool_names: frozenset[str] | None = Non
         fp = tool_subset_fingerprint(frozenset(t.name for t in get_agent_tools()))
     else:
         fp = tool_subset_fingerprint(tool_names)
-    cache_key = (mid, fp)
+    twophase = 1 if settings.agent_tool_schema_twophase else 0
+    cache_key = (mid, fp, twophase)
     if cache_key in _parent_graph_cache:
         return _parent_graph_cache[cache_key]
 

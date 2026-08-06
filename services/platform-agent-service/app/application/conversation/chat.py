@@ -43,11 +43,13 @@ async def stream_chat_core(
 ) -> AsyncIterator[AgentEvent]:
     """执行新消息：组装上下文、清理 stale 状态、驱动父 StateGraph。"""
     from app.models.router import require_model_credentials
+    from app.services.tool_schema_phase import current_schema_phase_reset
 
     require_model_credentials()
     token = current_auth_token.set(auth_token)
     tid = current_thread_id.set(thread_id)
     turn_mid = (mid or "").strip() or str(uuid.uuid4())
+    schema_reset_token = current_schema_phase_reset.set(True)
     mid_token = current_message_id.set(turn_mid)
     mode = normalize_run_mode(run_mode)
     mode_token = current_run_mode.set(mode)
@@ -252,6 +254,11 @@ async def stream_chat_core(
         )
         safe_reset_contextvar(current_device_focus, focus_token, label="current_device_focus")
         safe_reset_contextvar(current_alarm_focus, alarm_focus_token, label="current_alarm_focus")
+        safe_reset_contextvar(
+            current_schema_phase_reset,
+            schema_reset_token,
+            label="current_schema_phase_reset",
+        )
 
 
 async def stream_chat(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.graph.stream_envelope import PlanTracker
 
 
@@ -141,3 +143,43 @@ def test_on_interrupt_still_skips_stale_download_file_on_nav_hitl():
 
     assert tracker.steps[0]["status"] == "skipped"
     assert {"step_id": "1", "status": "skipped", "tool": "download_file"} in updates
+
+
+@pytest.mark.asyncio
+async def test_wrap_stream_synthesizes_plan_and_tool_start_before_interrupt():
+    """仅 interrupt、无前置 tool_start 时，envelope 应补发 plan + tool_start。"""
+    from app.graph.stream_envelope import wrap_stream_with_plan_trace
+
+    async def inner():
+        yield (
+            "interrupt",
+            {
+                "type": "ask_params",
+                "tool": "query_alarms",
+                "message": "请选择时间范围",
+                "current": {"device_code": "zhonglian_9001"},
+            },
+        )
+        yield ("done", {"type": "done"})
+
+    events: list[tuple[str, dict]] = []
+    async for name, payload in wrap_stream_with_plan_trace(
+        inner(),
+        thread_id="t-hitl-synth",
+        run_id="r1",
+        user_id="u1",
+        user_message="查询这个设备是否存在告警",
+        auto_replan=False,
+    ):
+        events.append((name, payload))
+
+    names = [n for n, _ in events]
+    assert "plan" in names
+    assert "tool_start" in names
+    assert names.index("plan") < names.index("tool_start")
+    assert names.index("tool_start") < names.index("interrupt")
+    tool_start = next(p for n, p in events if n == "tool_start")
+    assert tool_start["tool"] == "query_alarms"
+    assert tool_start["args"].get("device_code") == "zhonglian_9001"
+    awaiting = [p for n, p in events if n == "plan_update" and p.get("status") == "awaiting_hitl"]
+    assert awaiting

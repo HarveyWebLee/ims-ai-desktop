@@ -17,6 +17,25 @@ class TestPreflightTool:
         assert result.interrupt["tool"] == "query_alarms"
         assert result.interrupt["fields"]
 
+    def test_query_alarms_prefills_unique_device_focus(self):
+        from contracts.context import current_device_focus
+        from contracts.device_focus import DeviceFocus
+
+        focus = DeviceFocus(
+            device_code="zhonglian_9001",
+            device_name="中联门禁",
+            total=1,
+            source_tool="get_device_detail",
+        )
+        token = current_device_focus.set(focus)
+        try:
+            result = preflight_tool("query_alarms", {"start_time": "", "end_time": ""})
+        finally:
+            current_device_focus.reset(token)
+        assert result.interrupt is not None
+        assert result.args.get("device_code") == "zhonglian_9001"
+        assert result.interrupt.get("current", {}).get("device_code") == "zhonglian_9001"
+
     def test_query_alarms_with_relative_time(self):
         result = preflight_tool(
             "query_alarms",

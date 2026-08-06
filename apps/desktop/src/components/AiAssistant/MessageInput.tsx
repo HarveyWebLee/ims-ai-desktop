@@ -32,7 +32,7 @@ export default function MessageInput({
   onSend: (text: string) => void;
   /** 流式中中止当前回复 */
   onAbort?: () => void;
-  /** HITL 待确认或拉取历史时禁用输入（流式中可点停止） */
+  /** HITL 待确认或拉取历史时禁用输入；流式中仍可预输入/语音，仅禁止发送 */
   disabled?: boolean;
 }) {
   const intl = useIntl();
@@ -62,10 +62,13 @@ export default function MessageInput({
     setPlanFirst,
     pendingInterrupt,
   } = useAiAssistantStore();
-  const disabled = inputDisabled || isStreaming;
-  const runModeDisabled = disabled || Boolean(pendingInterrupt);
-  const voiceprintSelectDisabled = disabled || voiceBusy;
-  const canSend = Boolean(text.trim()) && !inputDisabled && !isStreaming;
+  /** HITL / 拉历史时锁定编辑；流式中允许预录入 */
+  const composeDisabled = Boolean(inputDisabled);
+  /** 流式未结束或输入锁定时禁止发送 */
+  const sendBlocked = composeDisabled || isStreaming;
+  const runModeDisabled = composeDisabled || isStreaming || Boolean(pendingInterrupt);
+  const voiceprintSelectDisabled = composeDisabled || voiceBusy;
+  const canSend = Boolean(text.trim()) && !sendBlocked;
   const canAbort = isStreaming && Boolean(onAbort);
 
   const hasCorrectionMarks =
@@ -231,10 +234,12 @@ export default function MessageInput({
                   if (showAnnotationOverlay && !voiceBusy) setAnnotationMode("edit");
                 }}
                 placeholder={intl.formatMessage({
-                  id: "aiAssistant.inputPlaceholder",
+                  id: isStreaming
+                    ? "aiAssistant.inputPlaceholderWhileStreaming"
+                    : "aiAssistant.inputPlaceholder",
                 })}
                 autoSize={{ minRows: 3, maxRows: 8 }}
-                disabled={disabled}
+                disabled={composeDisabled}
                 variant="borderless"
               />
             </div>
@@ -311,7 +316,7 @@ export default function MessageInput({
                   onInterim={handleInterim}
                   onTranscribed={handleTranscribed}
                   onBusyChange={setVoiceBusy}
-                  disabled={disabled}
+                  disabled={composeDisabled}
                 />
               </div>
               {canAbort ? (
@@ -327,7 +332,11 @@ export default function MessageInput({
                   />
                 </Tooltip>
               ) : (
-                <Tooltip title={intl.formatMessage({ id: "aiAssistant.send" })}>
+                <Tooltip
+                  title={intl.formatMessage({
+                    id: sendBlocked ? "aiAssistant.sendBlockedWhileBusy" : "aiAssistant.send",
+                  })}
+                >
                   <Button
                     type="primary"
                     shape="circle"
@@ -347,11 +356,13 @@ export default function MessageInput({
         <p className={styles.inputHint}>
           {hasCorrectionMarks
             ? intl.formatMessage({ id: "aiAssistant.voice.correctionHighlightHint" })
-            : !voiceprintEnabled || selectedVoiceprintId
-              ? intl.formatMessage({ id: "aiAssistant.inputShortcutHint" })
-              : intl.formatMessage({
-                  id: "aiAssistant.voiceprint.selectRequiredHint",
-                })}
+            : isStreaming
+              ? intl.formatMessage({ id: "aiAssistant.inputDraftWhileStreamingHint" })
+              : !voiceprintEnabled || selectedVoiceprintId
+                ? intl.formatMessage({ id: "aiAssistant.inputShortcutHint" })
+                : intl.formatMessage({
+                    id: "aiAssistant.voiceprint.selectRequiredHint",
+                  })}
         </p>
       </div>
     </div>

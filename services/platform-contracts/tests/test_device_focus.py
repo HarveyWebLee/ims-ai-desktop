@@ -79,3 +79,20 @@ class TestInferUsesUniqueFocus:
             )
         finally:
             current_device_focus.reset(token)
+
+
+class TestMergeUniqueDeviceFocusIntoArgs:
+    def test_fills_empty_device_code(self):
+        from contracts.device_focus import merge_unique_device_focus_into_args
+
+        focus = DeviceFocus(device_code="zhonglian_9001", device_name="中联", total=1)
+        out = merge_unique_device_focus_into_args({"start_time": ""}, focus)
+        assert out["device_code"] == "zhonglian_9001"
+        assert out["device_name"] == "中联"
+
+    def test_does_not_override_existing(self):
+        from contracts.device_focus import merge_unique_device_focus_into_args
+
+        focus = DeviceFocus(device_code="A", total=1)
+        out = merge_unique_device_focus_into_args({"device_code": "B"}, focus)
+        assert out["device_code"] == "B"

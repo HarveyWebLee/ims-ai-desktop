@@ -95,6 +95,7 @@ def ask_user_params(
             "tool": tool,
             "message": message,
             "fields": fields,
+            "current": current,
         }
     )
 

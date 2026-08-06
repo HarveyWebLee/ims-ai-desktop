@@ -17,7 +17,8 @@ from typing import Any
 from app.persistence.bootstrap import get_checkpointer as _get_persistence_checkpointer
 from app.services.tool_subset import tool_subset_fingerprint
 
-_agent_cache: dict[tuple[str, str, int], Any] = {}
+# (model_id, tool_fp, prompt_version, schema_twophase_flag)
+_agent_cache: dict[tuple[str, str, int, int], Any] = {}
 _chat_agent = None
 _last_chat_model_id: str | None = None
 _chat_prompt_version: int | None = None
@@ -75,7 +76,12 @@ def get_agent(model_id: str, tool_names: frozenset[str] | None = None):
     """按 model_id + 工具子集指纹获取或重建带工具的 create_agent ReAct Agent。"""
     from langchain.agents import create_agent
 
+    from app.config import settings
     from app.models.router import resolve_chat_model
+    from app.services.tool_schema_phase import (
+        SchemaPhaseAgentState,
+        build_tool_schema_phase_middleware,
+    )
     from app.tools.registry import get_agent_tools, get_agent_tools_filtered
 
     system_prompt = load_system_prompt()
@@ -87,18 +93,25 @@ def get_agent(model_id: str, tool_names: frozenset[str] | None = None):
         tools = get_agent_tools_filtered(tool_names)
         fp = tool_subset_fingerprint(frozenset(t.name for t in tools))
 
-    cache_key = (model_id or "__default__", fp, prompt_version)
+    # 两段式开关参与缓存键，避免开关切换后仍命中旧 agent
+    twophase = 1 if settings.agent_tool_schema_twophase else 0
+    cache_key = (model_id or "__default__", fp, prompt_version, twophase)
     cached = _agent_cache.get(cache_key)
     if cached is not None:
         return cached
 
     model = resolve_chat_model(model_id)
-    agent = create_agent(
-        model=model,
-        tools=tools,
-        system_prompt=system_prompt,
-        checkpointer=_get_checkpointer(),
-    )
+    phase_mw = build_tool_schema_phase_middleware(tools)
+    create_kwargs: dict[str, Any] = {
+        "model": model,
+        "tools": tools,
+        "system_prompt": system_prompt,
+        "checkpointer": _get_checkpointer(),
+    }
+    if phase_mw is not None:
+        create_kwargs["middleware"] = [phase_mw]
+        create_kwargs["state_schema"] = SchemaPhaseAgentState
+    agent = create_agent(**create_kwargs)
     _agent_cache[cache_key] = agent
     return agent
 

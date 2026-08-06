@@ -1,9 +1,12 @@
 /**
- * 聊天面板：消息区 + 输入（HITL 交互嵌入消息卡片）
+ * 聊天面板：消息区 + 输入 + 右侧 Workspace 固定侧栏 + 最右边缘切换条
  */
 import { useEffect, useRef } from "react";
+import { Layout } from "antd";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
+import WorkspacePanel from "./WorkspacePanel";
+import WorkspaceEdgeToggle from "./WorkspaceEdgeToggle";
 import { useAiAssistantStore } from "./store";
 import { useAgentStream } from "./hooks/useAgentStream";
 import { isActiveInterruptBlock } from "./utils/hitlInterruptUtils";
@@ -32,23 +35,29 @@ export default function ChatPanel() {
   }, [messages, pendingInterrupt, isStreaming, isLoadingHistory]);
 
   return (
-    <div className={styles.chatPanel}>
-      <div className={styles.messageArea} ref={messageAreaRef}>
-        <MessageList
-          messages={messages}
-          loading={isStreaming}
-          loadingHistory={isLoadingHistory}
-          onHitlSubmit={submitHitlResume}
-          onHitlConfirm={submitHitlConfirm}
-          onSend={sendMessage}
-        />
-      </div>
+    <div className={styles.chatShell}>
+      <Layout className={styles.chatPanelLayout} hasSider>
+        <div className={styles.chatPanel}>
+          <div className={styles.messageArea} ref={messageAreaRef}>
+            <MessageList
+              messages={messages}
+              loading={isStreaming}
+              loadingHistory={isLoadingHistory}
+              onHitlSubmit={submitHitlResume}
+              onHitlConfirm={submitHitlConfirm}
+              onSend={sendMessage}
+            />
+          </div>
 
-      <MessageInput
-        onSend={sendMessage}
-        onAbort={abortStream}
-        disabled={isLoadingHistory || hasPendingHitl}
-      />
+          <MessageInput
+            onSend={sendMessage}
+            onAbort={abortStream}
+            disabled={isLoadingHistory || hasPendingHitl}
+          />
+        </div>
+        <WorkspacePanel onSend={sendMessage} />
+      </Layout>
+      <WorkspaceEdgeToggle />
     </div>
   );
 }

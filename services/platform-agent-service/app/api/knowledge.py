@@ -21,6 +21,7 @@ from app.api.response import fail, ok
 from app.config import settings
 from app.infrastructure.vector.source_keys import normalize_source
 from app.middleware.auth import get_current_user_id
+from app.utils.atomic_write import atomic_write_bytes
 
 _SAFE_NAME_RE = re.compile(r"[^\w.\-()\u4e00-\u9fff]+", re.UNICODE)
 _TEXT_EXPORT_SUFFIXES = {".md", ".txt", ".markdown", ".rst", ".csv", ".tsv", ".html", ".htm"}
@@ -391,15 +392,8 @@ async def _save_upload(
     if len(content) > max_bytes:
         raise ValueError(f"文件过大（>{max_bytes} 字节）")
     target.parent.mkdir(parents=True, exist_ok=True)
-    # 先写临时文件再替换，避免半截写入被入库
-    tmp = target.with_name(f".{target.name}.uploading")
-    try:
-        tmp.write_bytes(content)
-        tmp.replace(target)
-    except Exception:
-        if tmp.is_file():
-            tmp.unlink(missing_ok=True)
-        raise
+    # 先写临时文件再替换，避免半截写入被入库（Windows 占用时带重试）
+    atomic_write_bytes(target, content)
     return target
 
 

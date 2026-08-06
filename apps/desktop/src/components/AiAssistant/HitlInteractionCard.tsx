@@ -8,7 +8,7 @@ import { useIntl } from "react-intl";
 import type { HitlPayload, PlanGraph, PlanStep } from "@ims/shared-types";
 import HitlFormField, { buildHitlFieldRules } from "./HitlFormField";
 import PlanFlowChart from "./PlanFlowChart";
-import { normalizeHitlFormValues } from "./utils/hitlFormUtils";
+import { normalizeHitlFormValues, buildHitlInitialValues } from "./utils/hitlFormUtils";
 import { buildPlanGraphFromSteps } from "./utils/planGraphUtils";
 import type { FlowDocumentJSON } from "@/components/BpmnFlowgram";
 import styles from "./index.module.less";
@@ -67,6 +67,14 @@ export default function HitlInteractionCard({
       setEditableGraph(payload.graph ?? buildPlanGraphFromSteps(payload.steps));
     }
   }, [isPlanConfirm, payload.steps, payload.graph]);
+
+  useEffect(() => {
+    if (!interactive || payload.type !== "ask_params") return;
+    const initial = buildHitlInitialValues(payload);
+    if (Object.keys(initial).length) {
+      form.setFieldsValue(initial);
+    }
+  }, [interactive, payload, form]);
 
   const normalizePlanConfirmSteps = (steps: PlanStep[]): PlanStep[] =>
     steps.map((s) => ({
@@ -241,6 +249,7 @@ export default function HitlInteractionCard({
             form={form}
             layout="vertical"
             className={styles.hitlCardForm}
+            initialValues={buildHitlInitialValues(payload)}
             onFinish={handleFinish}
           >
             {payload.fields?.map((field) => (

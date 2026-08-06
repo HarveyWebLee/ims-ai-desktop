@@ -113,6 +113,14 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
                 await start_playbook_watcher()
             except Exception:  # noqa: BLE001
                 logger.exception("playbook watcher 启动失败（Agent 仍继续）")
+        if settings.agent_playbook_enabled and settings.agent_playbook_semantic_enabled:
+            try:
+                from app.services.playbook.semantic import reindex_playbooks
+                from app.services.playbook.service import list_playbooks
+
+                reindex_playbooks(list_playbooks())
+            except Exception:  # noqa: BLE001
+                logger.exception("playbook 语义索引启动同步失败（Agent 仍继续）")
         try:
             yield
         finally:

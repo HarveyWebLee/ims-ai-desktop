@@ -201,13 +201,22 @@ def _ask_params_interrupt(
     fields: list[dict[str, Any]],
     current: dict[str, Any],
 ) -> dict[str, Any]:
-    """构造前端可识别的 ask_params interrupt payload（current 预留，由 ask_user_params 合并）。"""
-    return {
+    """构造前端可识别的 ask_params interrupt payload（含 current 供表单预填）。"""
+    payload: dict[str, Any] = {
         "type": "ask_params",
         "tool": tool,
         "message": message,
         "fields": fields,
     }
+    # 仅下发非空预填，避免前端被空字符串冲掉默认态
+    filled = {
+        k: v
+        for k, v in dict(current or {}).items()
+        if v is not None and not (isinstance(v, str) and not str(v).strip())
+    }
+    if filled:
+        payload["current"] = filled
+    return payload
 
 
 def _missing_schema_required(args: dict[str, Any], required: list[str]) -> list[str]:
@@ -345,8 +354,12 @@ def _preflight_alarm_time_tool(
     """query_alarms / download_file / batch_*（无 alarm_ids）时间 preflight。
 
     仅校验调用方已提供的时间能否解析；不再从用户原话正则回填。
+    唯一设备焦点可预填 device_code / device_name，减少「这个设备」再次选设备。
     """
-    data = dict(args)
+    from contracts.context import current_device_focus
+    from contracts.device_focus import merge_unique_device_focus_into_args
+
+    data = merge_unique_device_focus_into_args(dict(args), current_device_focus.get())
     start = str(data.get("start_time") or "")
     end = str(data.get("end_time") or "")
     _, _, needs_hitl = resolve_or_prepare_alarm_times(start, end)
@@ -356,9 +369,14 @@ def _preflight_alarm_time_tool(
             "start_time": start,
             "end_time": end,
         }
-        # 仅告警类表单带 status 回填
-        if any(str(f.get("name") or "") == "status" for f in hitl_fields):
+        # 仅告警类表单带 status / 设备槽位回填
+        field_names = {str(f.get("name") or "") for f in hitl_fields}
+        if "status" in field_names:
             current["status"] = data.get("status", "")
+        if "device_code" in field_names and str(data.get("device_code") or "").strip():
+            current["device_code"] = str(data.get("device_code")).strip()
+        if "device_name" in field_names and str(data.get("device_name") or "").strip():
+            current["device_name"] = str(data.get("device_name")).strip()
         return PreflightResult(
             args=dict(data),
             interrupt=_ask_params_interrupt(

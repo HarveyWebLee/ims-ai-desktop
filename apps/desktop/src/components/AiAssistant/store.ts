@@ -10,12 +10,26 @@ import {
   type AgentModelSelectionId,
 } from "@ims/agent-core/model-catalog";
 import type { AgentRunMode, PlanStep, TraceEvent } from "@ims/shared-types";
-import type { AiMessage, AiSession, HitlPayload } from "./types";
+import type { AiMessage, AiSession, HitlPayload, WorkspaceContent } from "./types";
 import { getMessageWriteThreadId, type ThreadSnapshot } from "./threadRuntime";
 import { reconcilePlanStepsWithToolBlocks } from "./utils/planGraphUtils";
 import { v4 as uuidv4 } from "uuid";
+import { isPinnedWorkspaceKind } from "./WorkspaceContentView";
 
 const DEFAULT_RUN_MODE: AgentRunMode = "confirm";
+
+/** 从消息列表取最近一条可固定侧栏的 workspace */
+function latestPinnedWorkspace(
+  messages: AiMessage[],
+): { content: WorkspaceContent; messageId: string } | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i];
+    if (m.role === "assistant" && m.workspaceContent && isPinnedWorkspaceKind(m.workspaceContent)) {
+      return { content: m.workspaceContent, messageId: m.id };
+    }
+  }
+  return null;
+}
 
 function resolvePersistedRunMode(value: unknown): AgentRunMode {
   if (value === "readonly" || value === "confirm" || value === "autonomous") {
@@ -158,10 +172,16 @@ export interface AiAssistantState {
   voiceCorrectionHighlightEnabled: boolean;
   pendingInterrupt: HitlPayload | null;
   alarmDetailRecord: Record<string, unknown> | null;
+  /** 右侧 Workspace 侧栏当前展示的结构化结果 */
+  activeWorkspace: WorkspaceContent | null;
+  activeWorkspaceSourceId: string | null;
 
   setSidebarOpen: (open: boolean) => void;
   setSidebarWidth: (width: number) => void;
   toggleSidebar: () => void;
+  /** 打开侧栏并固定展示指定结果（与消息内卡片并存） */
+  openWorkspacePanel: (content: WorkspaceContent, sourceMessageId?: string | null) => void;
+  clearActiveWorkspace: () => void;
   setSelectedModelId: (id: AgentModelSelectionId) => void;
   setRunMode: (mode: AgentRunMode) => void;
   setPlanFirst: (enabled: boolean) => void;
@@ -302,10 +322,19 @@ export const useAiAssistantStore = create<AiAssistantState>()(
       voiceCorrectionHighlightEnabled: false,
       pendingInterrupt: null,
       alarmDetailRecord: null,
+      activeWorkspace: null,
+      activeWorkspaceSourceId: null,
 
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setSidebarWidth: (width) => set({ sidebarWidth: Math.max(280, Math.round(width)) }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+      openWorkspacePanel: (content, sourceMessageId) =>
+        set({
+          activeWorkspace: content,
+          activeWorkspaceSourceId: sourceMessageId ?? null,
+          sidebarOpen: true,
+        }),
+      clearActiveWorkspace: () => set({ activeWorkspace: null, activeWorkspaceSourceId: null }),
 
       setSelectedModelId: (id) => set({ selectedModelId: id }),
       setRunMode: (mode) => set({ runMode: mode }),
@@ -330,6 +359,8 @@ export const useAiAssistantStore = create<AiAssistantState>()(
             pendingInterrupt: null,
             isStreaming: Boolean(s.streamingByThread[threadId]),
             isLoadingHistory: false,
+            activeWorkspace: null,
+            activeWorkspaceSourceId: null,
           };
         });
         return threadId;
@@ -344,16 +375,22 @@ export const useAiAssistantStore = create<AiAssistantState>()(
             pendingInterrupt: s.pendingInterrupt,
           };
           const target = snapshots[threadId];
+          const nextMessages = target?.messages ?? [];
+          const pinned = latestPinnedWorkspace(nextMessages);
           const hasCache =
             Boolean(target && target.messages.length > 0) || Boolean(s.streamingByThread[threadId]);
           return {
             threadSnapshots: snapshots,
             currentThreadId: threadId,
-            messages: target?.messages ?? [],
+            messages: nextMessages,
             pendingInterrupt: target?.pendingInterrupt ?? null,
             isStreaming: Boolean(s.streamingByThread[threadId]),
             // 有快照或后台仍在流：不拉历史，避免冲掉进行中气泡
             isLoadingHistory: !hasCache,
+            activeWorkspace: pinned?.content ?? null,
+            activeWorkspaceSourceId: pinned?.messageId ?? null,
+            // 切会话时若有可展示结果则保持侧栏偏好；无结果则关闭避免空壳
+            sidebarOpen: pinned ? s.sidebarOpen : false,
           };
         }),
 
@@ -413,7 +450,15 @@ export const useAiAssistantStore = create<AiAssistantState>()(
       setMessages: (messages) =>
         set((s) => {
           const tid = getMessageWriteThreadId(s.currentThreadId);
-          return commitThreadMessages(s, tid, messages);
+          const pinned = latestPinnedWorkspace(messages);
+          const committed = commitThreadMessages(s, tid, messages);
+          return {
+            ...committed,
+            activeWorkspace: pinned?.content ?? null,
+            activeWorkspaceSourceId: pinned?.messageId ?? null,
+            // 历史加载后有结果则保留侧栏偏好；无结果关闭空壳
+            sidebarOpen: pinned ? s.sidebarOpen : false,
+          };
         }),
 
       setLoadingHistory: (loading) => set({ isLoadingHistory: loading }),
@@ -680,12 +725,19 @@ export const useAiAssistantStore = create<AiAssistantState>()(
 
       patchAssistantMessage: (messageId, patch) =>
         set((s) => {
-          const { threadId, messages: base } = baseMessagesForWrite(s);
-          return commitThreadMessages(
-            s,
-            threadId,
-            base.map((m) => (m.id === messageId ? { ...m, ...patch } : m)),
-          );
+          const { threadId, messages: base, isCurrent } = baseMessagesForWrite(s);
+          const nextMessages = base.map((m) => (m.id === messageId ? { ...m, ...patch } : m));
+          const committed = commitThreadMessages(s, threadId, nextMessages);
+          const ws = patch.workspaceContent;
+          if (isCurrent && ws && isPinnedWorkspaceKind(ws)) {
+            return {
+              ...committed,
+              activeWorkspace: ws,
+              activeWorkspaceSourceId: messageId,
+              sidebarOpen: true,
+            };
+          }
+          return committed;
         }),
 
       appendAssistantTraceEvent: (messageId, event) =>

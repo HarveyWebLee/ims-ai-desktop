@@ -293,13 +293,13 @@ flowchart TD
 ### P1 Done
 
 - [x] 至少 2 个高频场景有可版本化 playbook（P1-1：`alarm-dispose` / `batch-export`；关键词注入已落地）
-- [ ] Playbook **语义检索**（**可做**，Embedding + 限份注入；见 §3.2）
+- [x] Playbook **语义检索**（关键词 ∪ Qdrant `platform_playbooks`；限份注入；失败回退关键词；2026-08-06 W1）
 - [x] Playbook **自动评测**（固定用例断言匹配/工具子集；`eval/playbook_cases.json` + `scripts/eval_playbook.py`；2026-08-06 W0）
 - [x] 用户可选「先计划后执行」（P1-2：`plan_first` → `plan_confirm`；步骤预览只读）
 - ~~可编辑 Plan→Build~~：**Won’t do**（2026-08-06：平台用户只提目标、不关心执行步骤；非待办）
 - [x] 轻量 Subagent：长检索摘要回主对话（P1-3：仅 `retrieve_knowledge` 工具路径；被动 RAG 仍注入主对话）
 - [x] 至少 3 类高频工具有结构化卡片（P1-4：告警表 / 设备列表 / 导出；消息内卡片已落地）
-- [ ] 结果卡 / **Workspace 侧栏**（**可做**，2026-08-06：侧栏固定结构化结果；点选可追问/续跑；与消息内卡片可并存）
+- [x] 结果卡 / **Workspace 侧栏**（右侧固定结构化结果；消息内入口并存；点选追问走 sendMessage；2026-08-06 W1）
 - [x] 知识/playbook 更新可不发版或轻发版生效（P1-5；CRUD + entity-sync 已有）
 - [x] RAG / entity-sync **状态持久化**（水位线/进度/成败写入 Agent Postgres；设置页可读；禁达梦写同步标记；2026-08-06 W0）
 
@@ -318,7 +318,7 @@ flowchart TD
 - [ ] BPMN 编排 UI（P2-5：**未纳入**，前端 stub）
 - [ ] 业务工具扩面（值班 / 门禁 / 配置…）（**方向可做**，2026-08-06；**MCP vs Agent 本地 tool 待讨论**，未拍板不编码；见 §3.2）
 - [ ] 写工具统一强制 confirm（**可做**，2026-08-06：Agent 统一门控；**前提**平台可配工具风险等级，非代码写死；见 §3.2）
-- [ ] 工具 schema **两段式**（**可做**，2026-08-06：先名后详省 token；与 subset/resume 兼容；见 §3.2）
+- [x] 工具 schema **两段式**（**可做**，2026-08-06：先名后详省 token；与 subset/resume 兼容；见 §3.2；`AGENT_TOOL_SCHEMA_TWOPHASE` 默认 false）
 
 ---
 
@@ -388,3 +388,5 @@ flowchart TD
 | 2026-08-06 | 产品决策：client_action 图内回灌（真闭环）可做；与平台 WS 传输配套，禁长期仅 audit（与 README 对齐）                              |
 | 2026-08-06 | 建议排期写入 README：W0→W6（小/简单靠前，大/难靠后，待评估最后）                                                                  |
 | 2026-08-06 | W0 落地：entity-sync Postgres 持久化；Playbook 自动评测脚本；工具子集多域并集/条件句防漏                                          |
+| 2026-08-06 | W1 落地：Workspace 右侧固定侧栏 + 点选追问；Playbook 语义检索（关键词 ∪ Qdrant）                                                  |
+| 2026-08-06 | W1 落地：工具 schema 两段式（`wrap_model_call` 同名首调解锁；`AGENT_TOOL_SCHEMA_TWOPHASE` 默认 false）                            |

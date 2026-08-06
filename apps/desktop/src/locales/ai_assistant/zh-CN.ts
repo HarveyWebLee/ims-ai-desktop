@@ -226,7 +226,10 @@ export default {
   thinkingHint: "正在分析您的需求…",
   emptyResponse: "未收到助手回复，可能是模型响应超时或连接中断。请重试，或切换其他模型。",
   inputPlaceholder: "输入消息…",
+  inputPlaceholderWhileStreaming: "回复生成中，可先输入或语音录入…",
   inputShortcutHint: "Enter 发送 · Shift+Enter 换行",
+  inputDraftWhileStreamingHint: "回复生成中可先编辑下一条；结束后再发送 · Shift+Enter 换行",
+  sendBlockedWhileBusy: "请等待当前回复结束后再发送",
   error: {
     generic: "模型服务调用失败，请稍后重试",
     kind: {
@@ -594,7 +597,14 @@ export default {
     timeRange: "时间范围",
     noAlarms: "该时段暂无告警",
     queryFailed: "告警查询失败",
-    rowHint: "点击行可查看告警详情（若有编号）",
+    rowHint: "点击行可让助手查看该告警详情并给出处理建议（经 Agent，可触发确认）",
+    alarmDetailPrompt:
+      "请查看告警详情并说明状态与建议处理步骤。告警编号：{id}。设备：{device}。当前状态：{status}。",
+    panelTitle: "结果工作区",
+    panelEmpty: "暂无结构化结果。查询告警/设备后将显示在此处。",
+    closePanel: "关闭",
+    openPanel: "打开结果工作区",
+    hidePanel: "隐藏结果工作区",
     paginationTotal: "第 {start}-{end} 条，共 {total} 条",
     pageLoadFailed: "加载该页数据失败，请重试",
     col: {

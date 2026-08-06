@@ -391,9 +391,10 @@ def attach_pending_interrupt_to_ui(
     pending: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
     """
-    将 checkpoint pending HITL 挂到对应助手气泡（按 mid；无 mid 则挂最后一条助手）。
+    将 checkpoint pending HITL 挂到对应助手气泡。
 
-    历史还原与实时流一致：有 pending 时 UI 必有 interrupt 块可交互。
+    - 有 mid：挂到同 mid 助手；没有则**新建**该 mid 助手卡（禁止回退到上一轮）。
+    - 无 mid：兼容旧数据，挂最后一条助手；再没有则新建。
     """
     if not pending or not isinstance(pending, dict):
         return ui_messages
@@ -408,8 +409,7 @@ def attach_pending_interrupt_to_ui(
             if item.get("role") == "assistant" and str(item.get("mid") or "") == mid:
                 target_idx = i
                 break
-
-    if target_idx is None:
+    else:
         for i in range(len(result) - 1, -1, -1):
             if result[i].get("role") == "assistant":
                 target_idx = i

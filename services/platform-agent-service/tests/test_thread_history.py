@@ -71,6 +71,31 @@ def test_attach_pending_interrupt_to_ui_by_mid():
     assert all(b.get("type") != "interrupt" for b in out[1]["blocks"])
 
 
+def test_attach_pending_interrupt_creates_assistant_when_mid_missing_card():
+    """有 mid 但尚无本轮助手卡时，新建助手卡，禁止挂到上一轮。"""
+    ui = [
+        {"role": "user", "mid": "m1", "blocks": [{"type": "text", "content": "开门"}]},
+        {
+            "role": "assistant",
+            "mid": "m1",
+            "blocks": [{"type": "text", "content": "已开门"}],
+        },
+        {"role": "user", "mid": "m2", "blocks": [{"type": "text", "content": "查告警"}]},
+    ]
+    pending = {
+        "type": "ask_params",
+        "tool": "query_alarms",
+        "message": "请选择时间范围",
+        "mid": "m2",
+    }
+    out = attach_pending_interrupt_to_ui(ui, pending)
+    assert len(out) == 4
+    assert out[3]["role"] == "assistant"
+    assert out[3]["mid"] == "m2"
+    assert out[3]["blocks"][-1]["type"] == "interrupt"
+    assert all(b.get("type") != "interrupt" for b in out[1]["blocks"])
+
+
 def test_checkpoint_messages_to_ui_merges_same_mid_react_turn():
     """ReAct 多 AIMessage 同 mid 合并为一张助手卡（对齐实时 SSE）。"""
     mid = "turn-export"

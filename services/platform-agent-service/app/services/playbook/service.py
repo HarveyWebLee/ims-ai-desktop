@@ -50,9 +50,16 @@ def clear_playbook_cache() -> None:
 
 
 def reload_playbooks() -> list[Playbook]:
-    """强制从磁盘重载。"""
+    """强制从磁盘重载，并尝试语义索引同步。"""
     clear_playbook_cache()
-    return list_playbooks()
+    loaded = list_playbooks()
+    try:
+        from app.services.playbook.semantic import reindex_playbooks
+
+        reindex_playbooks(loaded)
+    except Exception:  # noqa: BLE001
+        logger.exception("playbook semantic reindex after reload failed")
+    return loaded
 
 
 def list_playbooks() -> list[Playbook]:
@@ -90,6 +97,13 @@ def score_playbook(playbook: Playbook, haystack: str) -> int:
     return score
 
 
+def _semantic_bonus(similarity: float) -> int:
+    """将 Cosine 相似度映射为与关键词同量级的加分（约 1～12）。"""
+    if similarity <= 0:
+        return 0
+    return max(1, min(12, int(round(similarity * 12))))
+
+
 def match_playbooks(
     message: str,
     *,
@@ -99,7 +113,7 @@ def match_playbooks(
     """
     按用户句 + 近期消息匹配 playbook。
 
-    仅返回 score>0；同分比 priority，再比 id。
+    关键词计分 ∪ 语义召回（可关）；仅返回 score>0；同分比 priority，再比 id。
     「怎么导出 / 注意什么」等说明咨询不注入执行类 Playbook（含导出/告警处置）。
     """
     from app.config import settings
@@ -114,11 +128,31 @@ def match_playbooks(
         max_matches if max_matches is not None else max(1, int(settings.agent_playbook_max_matches))
     )
     haystack = _haystack(message, *(recent_user_messages or [])[-3:])
-    scored: list[PlaybookMatch] = []
-    for pb in list_playbooks():
+    catalog = {pb.id: pb for pb in list_playbooks()}
+    scores: dict[str, int] = {}
+
+    for pb in catalog.values():
         s = score_playbook(pb, haystack)
         if s > 0:
-            scored.append(PlaybookMatch(playbook=pb, score=s))
+            scores[pb.id] = s
+
+    # 语义补充：不替代关键词，只并集加分；失败静默
+    try:
+        from app.services.playbook.semantic import semantic_search_playbook_ids
+
+        for pid, sim in semantic_search_playbook_ids(message, limit=limit + 2):
+            if pid not in catalog:
+                continue
+            bonus = _semantic_bonus(sim)
+            scores[pid] = scores.get(pid, 0) + bonus
+    except Exception:  # noqa: BLE001
+        logger.exception("playbook semantic merge failed")
+
+    scored: list[PlaybookMatch] = [
+        PlaybookMatch(playbook=catalog[pid], score=sc)
+        for pid, sc in scores.items()
+        if sc > 0 and pid in catalog
+    ]
     scored.sort(key=lambda m: (-m.score, -m.playbook.priority, m.playbook.id))
     return scored[:limit]
 

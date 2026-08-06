@@ -229,7 +229,11 @@ export default {
   emptyResponse:
     "No assistant reply was received. The model may have timed out or the connection was interrupted. Please retry or switch models.",
   inputPlaceholder: "Type a message…",
+  inputPlaceholderWhileStreaming: "Generating a reply — you can draft or dictate now…",
   inputShortcutHint: "Enter to send · Shift+Enter for new line",
+  inputDraftWhileStreamingHint:
+    "You can draft the next message while generating; send after it finishes · Shift+Enter for new line",
+  sendBlockedWhileBusy: "Wait until the current reply finishes before sending",
   error: {
     generic: "Model service call failed. Please try again later.",
     kind: {
@@ -606,7 +610,15 @@ export default {
       value: "Value",
       taskNo: "Task No.",
     },
-    rowHint: "Click a row to view alarm details (when ID is available)",
+    rowHint:
+      "Click a row to ask the assistant for alarm details and handling advice (via Agent; may require confirmation)",
+    alarmDetailPrompt:
+      "Please show alarm details and suggested next steps. Alarm ID: {id}. Device: {device}. Status: {status}.",
+    panelTitle: "Results workspace",
+    panelEmpty: "No structured results yet. Alarm/device queries will appear here.",
+    closePanel: "Close",
+    openPanel: "Open results workspace",
+    hidePanel: "Hide results workspace",
     paginationTotal: "{start}-{end} of {total}",
     pageLoadFailed: "Failed to load this page. Please retry.",
     col: {

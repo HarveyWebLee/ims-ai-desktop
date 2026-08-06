@@ -2,21 +2,17 @@
  * 单轮助手消息内的 Trace / Plan / 查询结果区块
  * 与全局底部面板解耦，按消息实例展示
  */
-import { useState } from "react";
-import { Alert, Button, Collapse, Modal, Tag, Typography } from "antd";
+import { Alert, Button, Collapse, Typography } from "antd";
 import { BugOutlined, TableOutlined } from "@ant-design/icons";
 import { useIntl } from "react-intl";
 import dayjs from "dayjs";
 import type { PlanStep, TraceEvent, HitlPayload, TraceGraph, PlanGraph } from "@ims/shared-types";
 import type { FlowDocumentJSON } from "@/components/BpmnFlowgram";
 import type { WorkspaceContent, AiMessageBlock } from "./types";
-import { AlarmQueryTable } from "./AlarmQueryTable";
-import { DeviceDetailPanel } from "./DeviceDetailPanel";
 import DeviceCommandResultPanel from "./DeviceCommandResultPanel";
-import { DeviceListTable } from "./DeviceListTable";
 import ExportResultPanel from "./ExportResultPanel";
-import { DeviceVariableHistoryPanel, DeviceVariableRealtimePanel } from "./DeviceVariablePanels";
 import PlanFlowChart from "./PlanFlowChart";
+import { useAiAssistantStore } from "./store";
 import { getTraceKindClassName, getTraceKindLabelKey } from "./utils/traceTagUtils";
 import { buildTraceGraphFromEvents } from "./utils/traceGraphUtils";
 import { inferPlanStepStatusFromToolBlocks } from "./utils/planGraphUtils";
@@ -253,16 +249,16 @@ export function MessagePlanSection({
   );
 }
 
-/** 查询结果：消息内按钮 + 弹窗表格，避免撑高对话区 */
+/** 查询结果：消息内入口按钮；表格固定在右侧 Workspace 侧栏（与消息卡并存） */
 export function MessageWorkspaceSection({
   content,
-  onSend,
 }: {
   content: WorkspaceContent;
+  /** 保留签名以兼容消息卡调用链；表格追问在侧栏内处理 */
   onSend?: (text: string) => void;
 }) {
   const intl = useIntl();
-  const [open, setOpen] = useState(false);
+  const openWorkspacePanel = useAiAssistantStore((s) => s.openWorkspacePanel);
 
   if (content.kind === "device_command") {
     return <DeviceCommandResultPanel data={content} />;
@@ -308,73 +304,18 @@ export function MessageWorkspaceSection({
           ? ` · ${content.deviceName}`
           : "";
 
-  const modalTitle = isDevice
-    ? intl.formatMessage({ id: "aiAssistant.workspace.deviceTitle" })
-    : isDeviceList
-      ? intl.formatMessage({ id: "aiAssistant.workspace.deviceListTitle" })
-      : isVarRealtime
-        ? intl.formatMessage({ id: "aiAssistant.workspace.varRealtimeTitle" })
-        : isVarHistory
-          ? intl.formatMessage({ id: "aiAssistant.workspace.varHistoryTitle" })
-          : intl.formatMessage({ id: "aiAssistant.workspace.title" });
-
   return (
-    <>
-      <Button
-        type="default"
-        size="small"
-        icon={<TableOutlined />}
-        className={styles.messageTurnWorkspaceBtn}
-        onClick={() => setOpen(true)}
-      >
-        {viewButtonLabel}
-        {deviceNameSuffix}
-        {timeLabel ? ` · ${timeLabel}` : ""}
-        {totalLabel ? ` · ${totalLabel}` : ""}
-      </Button>
-
-      <Modal
-        title={
-          <span>
-            {modalTitle}
-            {(isAlarm || isDeviceList) && content.ok && content.total > 0 ? (
-              <Tag color="green" className={styles.workspaceTotalTag}>
-                {totalLabel}
-              </Tag>
-            ) : null}
-          </span>
-        }
-        open={open}
-        onCancel={() => setOpen(false)}
-        footer={null}
-        width={640}
-        destroyOnHidden
-        className={styles.workspaceModal}
-      >
-        {timeLabel ? (
-          <Text type="secondary" className={styles.workspaceMeta}>
-            {intl.formatMessage({ id: "aiAssistant.workspace.timeRange" })}：{timeLabel}
-          </Text>
-        ) : null}
-        {content.kind === "alarm_query" && (
-          <AlarmQueryTable data={content} modalMode onSend={onSend} />
-        )}
-        {content.kind === "device_list" && (
-          <DeviceListTable data={content} modalMode onSend={onSend} />
-        )}
-        {content.kind === "device_detail" && <DeviceDetailPanel data={content} />}
-        {content.kind === "device_variable_realtime" && (
-          <DeviceVariableRealtimePanel data={content} />
-        )}
-        {content.kind === "device_variable_history" && (
-          <DeviceVariableHistoryPanel data={content} />
-        )}
-        {isAlarm ? (
-          <Text type="secondary" className={styles.workspaceHint}>
-            {intl.formatMessage({ id: "aiAssistant.workspace.rowHint" })}
-          </Text>
-        ) : null}
-      </Modal>
-    </>
+    <Button
+      type="default"
+      size="small"
+      icon={<TableOutlined />}
+      className={styles.messageTurnWorkspaceBtn}
+      onClick={() => openWorkspacePanel(content)}
+    >
+      {viewButtonLabel}
+      {deviceNameSuffix}
+      {timeLabel ? ` · ${timeLabel}` : ""}
+      {totalLabel ? ` · ${totalLabel}` : ""}
+    </Button>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * HITL 表单值规范化：datetime_range 等复合字段 → resume 参数字典
  */
-import type { HitlField } from "@ims/shared-types";
+import type { HitlField, HitlPayload } from "@ims/shared-types";
 
 export interface HitlDateTimeRangeValue {
   start_time?: string;
@@ -27,5 +27,29 @@ export function normalizeHitlFormValues(
     delete out[field.name];
   }
 
+  return out;
+}
+
+/**
+ * 将 interrupt.current（flat）转为 Form initialValues。
+ * datetime_range 字段需要 { start_time, end_time } 结构。
+ */
+export function buildHitlInitialValues(
+  payload: Pick<HitlPayload, "fields" | "current">,
+): Record<string, unknown> {
+  const current = payload.current;
+  if (!current || typeof current !== "object") return {};
+
+  const out: Record<string, unknown> = { ...current };
+  for (const field of payload.fields ?? []) {
+    if (field.type !== "datetime_range") continue;
+    const existing = out[field.name];
+    if (existing && typeof existing === "object") continue;
+    const start = typeof out.start_time === "string" ? out.start_time : undefined;
+    const end = typeof out.end_time === "string" ? out.end_time : undefined;
+    if (start || end) {
+      out[field.name] = { start_time: start, end_time: end };
+    }
+  }
   return out;
 }
