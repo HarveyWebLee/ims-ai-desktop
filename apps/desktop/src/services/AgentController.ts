@@ -271,6 +271,99 @@ export async function getThreadAudit(
   return parseJsonResponse(res);
 }
 
+/** 可观测：聚合摘要 */
+export interface ObservabilitySummary {
+  from_ms: number;
+  to_ms: number;
+  run_count: number;
+  ok_count: number;
+  error_count: number;
+  interrupted_count: number;
+  success_rate: number | null;
+  latency_ms: { p50: number | null; p95: number | null };
+  tool_calls: number;
+  tool_fail_count: number;
+  tool_fail_rate: number | null;
+  hitl: { emit: number; approve: number; reject: number; abort: number };
+  timeline: Array<{ bucket: string; run_count: number; error_count: number }>;
+}
+
+export interface ObservabilityRunSummary {
+  thread_id: string;
+  run_id: string;
+  thread_title?: string;
+  status: "ok" | "error" | "interrupted";
+  duration_ms: number | null;
+  started_at: number;
+  ended_at: number;
+  tool_call_count: number;
+  tool_fail_count: number;
+  has_interrupt: boolean;
+  has_error: boolean;
+  has_full_trace: boolean;
+  user_message_preview?: string;
+}
+
+export async function getObservabilitySummary(options?: {
+  hours?: number;
+  fromMs?: number;
+  toMs?: number;
+}): Promise<ObservabilitySummary> {
+  const qs = new URLSearchParams();
+  if (options?.hours != null) qs.set("hours", String(options.hours));
+  if (options?.fromMs != null) qs.set("from_ms", String(options.fromMs));
+  if (options?.toMs != null) qs.set("to_ms", String(options.toMs));
+  const res = await fetch(`${AGENT_BASE}/observability/summary?${qs.toString()}`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(res);
+}
+
+export async function listObservabilityRuns(options?: {
+  hours?: number;
+  fromMs?: number;
+  toMs?: number;
+  status?: "ok" | "error" | "interrupted";
+  limit?: number;
+  offset?: number;
+}): Promise<{
+  from_ms: number;
+  to_ms: number;
+  total: number;
+  limit: number;
+  offset: number;
+  runs: ObservabilityRunSummary[];
+}> {
+  const qs = new URLSearchParams();
+  if (options?.hours != null) qs.set("hours", String(options.hours));
+  if (options?.fromMs != null) qs.set("from_ms", String(options.fromMs));
+  if (options?.toMs != null) qs.set("to_ms", String(options.toMs));
+  if (options?.status) qs.set("status", options.status);
+  if (options?.limit != null) qs.set("limit", String(options.limit));
+  if (options?.offset != null) qs.set("offset", String(options.offset));
+  const res = await fetch(`${AGENT_BASE}/observability/runs?${qs.toString()}`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(res);
+}
+
+export async function getObservabilityRunDetail(
+  threadId: string,
+  runId: string,
+): Promise<{
+  thread_id: string;
+  run_id: string;
+  summary: ObservabilityRunSummary;
+  run: import("@ims/shared-types").AgentTraceRun;
+  audit_logs: AgentAuditLogEntry[];
+}> {
+  const res = await fetch(
+    `${AGENT_BASE}/observability/runs/${encodeURIComponent(threadId)}/${encodeURIComponent(runId)}`,
+    { headers: getAuthHeaders() },
+  );
+  return parseJsonResponse(res);
+}
+
 /** P2-2：上报 client_action 执行回执（写入 Agent 审计；失败不抛，由调用方吞掉） */
 export async function reportClientActionResult(
   threadId: string,

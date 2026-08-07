@@ -106,6 +106,24 @@ async def stream_chat_core(
             recent_user_messages=merged_recent,
         )
 
+        # 可观测旁路：仅供 wrap_stream_with_plan_trace 写入 trace，不向桌面透传
+        yield (
+            "__obs__",
+            {
+                "type": "context_snapshot",
+                "model_id": model_id,
+                "run_mode": mode,
+                "llm_user_message": ctx.llm_user_message,
+                "passive_rag_blocks": list(ctx.passive_rag_blocks),
+                "skip_passive_rag": ctx.skip_passive_rag,
+                "rag_query": ctx.message,
+                "playbook_ids": list(ctx.playbook_ids),
+                "tool_names": list(subset.tool_names),
+                "tool_subset_strategy": subset.strategy,
+                "domains": sorted(subset.domains),
+            },
+        )
+
         from app.services.session_store import clear_thread_orchestration
         from contracts.agent_debug import agent_debug, orchestration_snapshot
 

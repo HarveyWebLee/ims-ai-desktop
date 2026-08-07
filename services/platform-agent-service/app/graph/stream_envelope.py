@@ -33,12 +33,10 @@ SSE 流包装器：注入 Plan 更新、Re-plan 与 Trace 事件
 from __future__ import annotations
 
 import copy
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-# ---------------------------------------------------------------------------
-# 本项目：审计、计划、Trace
-# ---------------------------------------------------------------------------
 from app.services.audit_store import audit_store, build_audit_from_sse
 from app.services.task_planner import (
     MAX_REPLAN_ATTEMPTS,
@@ -47,6 +45,8 @@ from app.services.task_planner import (
 )
 from app.services.trace_collector import TraceCollector
 from app.services.trace_store import trace_store
+
+logger = logging.getLogger(__name__)
 
 
 def _tool_step_label(
@@ -508,6 +508,8 @@ async def wrap_stream_with_plan_trace(
         auto_replan=False（chat/resume 默认）时 Re-plan 由 Plan 执行路径 emit，
         本函数收到外层 replan 事件时只同步 PlanTracker，避免双重规划。
     """
+    from app.services.run_context import current_run_id
+
     collector = TraceCollector(thread_id=thread_id, run_id=run_id)
     collector.record_user_message(user_message)
     tracker = PlanTracker(
@@ -517,6 +519,7 @@ async def wrap_stream_with_plan_trace(
         user_message=user_message,
     )
     error_persisted = False
+    run_id_token = current_run_id.set(run_id)
 
     async def _persist_error_to_history(payload: dict[str, Any] | None) -> None:
         nonlocal error_persisted
@@ -555,6 +558,15 @@ async def wrap_stream_with_plan_trace(
         async for event_name, payload in inner:
             if event_name == "__keepalive__":
                 yield ("__keepalive__", {})
+                continue
+
+            # 可观测内部事件：仅落盘，不向桌面直播推送（避免拖慢聊天 SSE）
+            if event_name == "__obs__":
+                try:
+                    if isinstance(payload, dict) and payload.get("type") == "context_snapshot":
+                        collector.record_context_snapshot(payload)
+                except Exception:
+                    logger.debug("obs context_snapshot failed", exc_info=True)
                 continue
 
             suppressed_tool = ""
@@ -688,20 +700,41 @@ async def wrap_stream_with_plan_trace(
             if event_name == "error":
                 await _persist_error_to_history(payload if isinstance(payload, dict) else None)
 
-            trace_evt = collector.record_sse(event_name, payload)
-            if trace_evt:
-                audit_fields = build_audit_from_sse(event_name, payload)
-                if audit_fields:
-                    evt_type, tool_name, summary = audit_fields
-                    _write_audit(
-                        thread_id=thread_id,
-                        run_id=run_id,
-                        user_id=user_id,
-                        event_type=evt_type,
-                        tool_name=tool_name,
-                        payload_summary=summary,
-                    )
-                yield ("trace", trace_evt)
+            # 观测采集失败不得阻断业务 SSE
+            try:
+                if event_name in ("tool_start", "interrupt", "error", "done"):
+                    # 助手全文仅落盘，不直播（气泡已有 message）
+                    collector.flush_assistant_message(reason=f"before_{event_name}")
+                trace_evt = collector.record_sse(event_name, payload)
+                if trace_evt:
+                    audit_fields = build_audit_from_sse(event_name, payload)
+                    if audit_fields:
+                        evt_type, tool_name, summary = audit_fields
+                        _write_audit(
+                            thread_id=thread_id,
+                            run_id=run_id,
+                            user_id=user_id,
+                            event_type=evt_type,
+                            tool_name=tool_name,
+                            payload_summary=summary,
+                        )
+                    # 直播仅推既有轻量 kind，避免大 payload 拖慢前端
+                    if event_name in (
+                        "tool_start",
+                        "tool_end",
+                        "interrupt",
+                        "error",
+                        "done",
+                        "replan",
+                        "client_action",
+                    ):
+                        yield ("trace", trace_evt)
+            except Exception:
+                logger.debug(
+                    "trace/audit side-channel failed event=%s",
+                    event_name,
+                    exc_info=True,
+                )
 
             yield (event_name, payload)
     except Exception as exc:
@@ -723,3 +756,6 @@ async def wrap_stream_with_plan_trace(
             trace_store.save_run(exported)
         except Exception:
             pass
+        from contracts.context import safe_reset_contextvar
+
+        safe_reset_contextvar(current_run_id, run_id_token)

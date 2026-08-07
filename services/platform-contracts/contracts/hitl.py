@@ -42,6 +42,26 @@ def _has_value(value: Any) -> bool:
     return True
 
 
+def filter_hitl_current(current: dict[str, Any] | None) -> dict[str, Any]:
+    """
+    仅保留有效预填值，供 ask_params interrupt.current 下发。
+
+    空字符串 / 空列表 / 仅含空白的列表项不得进入前端：
+    antd Select mode=multiple 会把 ``""`` / ``[""]`` 渲染成空白已选项。
+    """
+    out: dict[str, Any] = {}
+    for key, value in dict(current or {}).items():
+        if isinstance(value, list):
+            cleaned = [item for item in value if _has_value(item)]
+            if cleaned:
+                out[key] = cleaned
+            continue
+        if not _has_value(value):
+            continue
+        out[key] = value
+    return out
+
+
 def _normalize_hitl_args(data: dict[str, Any]) -> dict[str, Any]:
     """展开 HITL 参数：time_range → start_time / end_time。"""
     out = dict(data)
@@ -89,15 +109,17 @@ def ask_user_params(
     if not missing:
         return current
 
-    raise McpHitlSignal(
-        {
-            "type": "ask_params",
-            "tool": tool,
-            "message": message,
-            "fields": fields,
-            "current": current,
-        }
-    )
+    payload: dict[str, Any] = {
+        "type": "ask_params",
+        "tool": tool,
+        "message": message,
+        "fields": fields,
+    }
+    # 与 _ask_params_interrupt 一致：不下发空预填，避免多选被空标签污染
+    filled = filter_hitl_current(current)
+    if filled:
+        payload["current"] = filled
+    raise McpHitlSignal(payload)
 
 
 def ask_user_confirm(

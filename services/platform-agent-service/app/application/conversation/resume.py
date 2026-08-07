@@ -158,6 +158,23 @@ async def stream_resume_core(
     async def _resume_inner() -> AsyncIterator[AgentEvent]:
         from app.graph.checkpoint_utils import checkpoint_messages_summary
 
+        yield (
+            "__obs__",
+            {
+                "type": "context_snapshot",
+                "model_id": model_id,
+                "run_mode": mode,
+                "llm_user_message": f"[resume] {resume_user_msg}",
+                "passive_rag_blocks": [],
+                "skip_passive_rag": True,
+                "rag_query": "",
+                "playbook_ids": [],
+                "tool_names": list(tool_names) if tool_names else [],
+                "tool_subset_strategy": "resume_remembered",
+                "domains": [],
+            },
+        )
+
         agent_debug(
             "resume.start",
             thread_id=thread_id,

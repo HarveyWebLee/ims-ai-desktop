@@ -202,6 +202,7 @@ async def health():
             "audit_backend": (
                 "postgres" if _persistence_info.get("mode") == "postgres" else "memory"
             ),
+            "dashboard": True,
         },
     }
 
@@ -264,6 +265,64 @@ async def get_thread_trace(
     from app.api import trace as trace_api
 
     return await trace_api.get_thread_trace(thread_id, run_id=run_id, authorization=authorization)
+
+
+@app.get("/api/agent/observability/summary")
+async def get_observability_summary(
+    hours: int | None = None,
+    from_ms: int | None = None,
+    to_ms: int | None = None,
+    authorization: str | None = Header(default=None),
+):
+    """可观测仪表盘：跨会话聚合指标（当前用户）。"""
+    from app.api import observability as obs_api
+
+    return await obs_api.get_observability_summary(
+        hours=hours,
+        from_ms=from_ms,
+        to_ms=to_ms,
+        authorization=authorization,
+    )
+
+
+@app.get("/api/agent/observability/runs")
+async def list_observability_runs(
+    hours: int | None = None,
+    from_ms: int | None = None,
+    to_ms: int | None = None,
+    status: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    authorization: str | None = Header(default=None),
+):
+    """可观测仪表盘：跨会话 run 摘要列表。"""
+    from app.api import observability as obs_api
+
+    return await obs_api.list_observability_runs(
+        hours=hours,
+        from_ms=from_ms,
+        to_ms=to_ms,
+        status=status,
+        limit=limit,
+        offset=offset,
+        authorization=authorization,
+    )
+
+
+@app.get("/api/agent/observability/runs/{thread_id}/{run_id}")
+async def get_observability_run_detail(
+    thread_id: str,
+    run_id: str,
+    authorization: str | None = Header(default=None),
+):
+    """可观测仪表盘：单 run 下钻（trace + audit）。"""
+    from app.api import observability as obs_api
+
+    return await obs_api.get_observability_run_detail(
+        thread_id,
+        run_id,
+        authorization=authorization,
+    )
 
 
 @app.get("/api/agent/models")

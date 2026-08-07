@@ -37,10 +37,10 @@ QUERY_ALARM_FIELDS: list[dict[str, Any]] = [
     },
     {
         "name": "status",
-        "label": "告警状态",
+        "label": "报警状态",
         "type": "select",
         "required": False,
-        "description": "可选，按告警状态筛选",
+        "description": "可选，按报警状态筛选",
         "mode": "multiple",
         "options": [
             {"label": "未处理（待确认+已确认）", "value": "unprocessed"},

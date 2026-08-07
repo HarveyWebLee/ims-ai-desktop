@@ -12,6 +12,10 @@ const TRACE_KIND_CLASS: Record<string, string> = {
   done: "traceKindDone",
   user_message: "traceKindUserMessage",
   client_action: "traceKindClientAction",
+  context: "traceKindPlan",
+  rag_passive: "traceKindToolStart",
+  llm_input: "traceKindUserMessage",
+  assistant_message: "traceKindDone",
 };
 
 const TRACE_KIND_I18N: Record<string, string> = {
@@ -24,6 +28,10 @@ const TRACE_KIND_I18N: Record<string, string> = {
   done: "aiAssistant.trace.kind.done",
   user_message: "aiAssistant.trace.kind.userMessage",
   client_action: "aiAssistant.trace.kind.clientAction",
+  context: "aiAssistant.trace.kind.context",
+  rag_passive: "aiAssistant.trace.kind.ragPassive",
+  llm_input: "aiAssistant.trace.kind.llmInput",
+  assistant_message: "aiAssistant.trace.kind.assistantMessage",
 };
 
 export function getTraceKindClassName(kind: string): string {

@@ -40,19 +40,6 @@ class AgentContext:
     一次 chat 请求的编排上下文（不可变 dataclass）。
 
     frozen=True：组装后字段不可改，避免中途误改「本轮真实用户句」。
-
-    字段
-    ----
-    thread_id : str
-        会话唯一 ID，与 checkpointer / session_store 对齐。
-    message : str
-        使用者本轮原始输入（已 strip）。
-    llm_user_message : str
-        注入路径/近期消息后的 LLM 输入。
-    metadata : dict
-        来自前端请求体，如 current_path。
-    recent_user_messages : list[str]
-        解析后、用于意图理解的近期用户句列表。
     """
 
     thread_id: str
@@ -60,6 +47,10 @@ class AgentContext:
     llm_user_message: str
     metadata: dict[str, Any] = field(default_factory=dict)
     recent_user_messages: list[str] = field(default_factory=list)
+    # 可观测旁路：被动 RAG / Playbook（不进业务主链）
+    passive_rag_blocks: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    skip_passive_rag: bool = False
+    playbook_ids: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def current_path(self) -> str:
@@ -131,11 +122,13 @@ def assemble_context(
     # Qdrant RAG：每轮被动注入（失败不阻断）。
     # 纯设备控制意图跳过：避免「播放广播」等命中前端播报方案文档，诱导模型空口「等待结果」而不调工具。
     skip_passive_rag = parse_device_control_action(message) is not None
+    passive_rag_blocks: list[dict[str, Any]] = []
     if not skip_passive_rag:
         try:
             from app.rag.context import format_rag_section, retrieve_knowledge_blocks
 
             rag_blocks = retrieve_knowledge_blocks(message.strip())
+            passive_rag_blocks = list(rag_blocks or [])
             rag_section = format_rag_section(rag_blocks)
             if rag_section:
                 llm_message = f"{rag_section}\n\n{llm_message}"
@@ -176,4 +169,7 @@ def assemble_context(
         llm_user_message=llm_message,
         metadata=meta,
         recent_user_messages=prior,
+        passive_rag_blocks=tuple(passive_rag_blocks),
+        skip_passive_rag=skip_passive_rag,
+        playbook_ids=tuple(playbook_ids),
     )

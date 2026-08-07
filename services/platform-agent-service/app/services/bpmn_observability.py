@@ -53,6 +53,7 @@ def record_audit_event(
     thread_id: str | None = None,
     user_id: str | None = None,
     tool_name: str | None = None,
+    run_id: str | None = None,
     payload: dict[str, Any] | None = None,
 ) -> None:
     """写入 audit（失败不抛）；并打结构化日志。"""
@@ -60,6 +61,17 @@ def record_audit_event(
     summary = dict(payload or {})
     if tid and "thread_id" not in summary:
         summary["thread_id"] = tid
+
+    resolved_run_id = (run_id or "").strip() or None
+    if not resolved_run_id:
+        try:
+            from app.services.run_context import current_run_id
+
+            resolved_run_id = (current_run_id.get() or "").strip() or None
+        except Exception:
+            resolved_run_id = None
+    if resolved_run_id and "run_id" not in summary:
+        summary["run_id"] = resolved_run_id
 
     logger.info(
         "bpmn_obs event=%s tool=%s payload=%s",
@@ -77,6 +89,7 @@ def record_audit_event(
             thread_id=tid,
             user_id=_resolve_user_id(user_id),
             event_type=event_type,
+            run_id=resolved_run_id,
             tool_name=tool_name,
             payload_summary=mask_payload_summary(summary),
         )
@@ -147,6 +160,7 @@ def record_hitl_lifecycle(
     tool: str | None = None,
     thread_id: str | None = None,
     user_id: str | None = None,
+    run_id: str | None = None,
 ) -> None:
     """记录 HITL 生命周期。"""
     payload: dict[str, Any] = {
@@ -158,6 +172,7 @@ def record_hitl_lifecycle(
         thread_id=thread_id,
         user_id=user_id,
         tool_name=tool,
+        run_id=run_id,
         payload=payload,
     )
 

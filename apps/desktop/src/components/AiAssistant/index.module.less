@@ -280,8 +280,231 @@
   box-shadow: 0 1px 2px color-mix(in srgb, var(--ai-text) 4%, transparent);
 }
 
+.settingsInnerWide {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  background: var(--ai-surface);
+  border: 1px solid var(--ai-border);
+  border-radius: 12px;
+  padding: 8px 20px 24px;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ai-text) 4%, transparent);
+}
+
+.observabilityRoot {
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.observabilityToolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.observabilityStats {
+  margin-bottom: 4px;
+}
+
+.observabilityRunsCard {
+  margin-top: 4px;
+}
+
+.observabilitySessionCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.observabilitySessionId {
+  font-size: 12px;
+}
+
+.observabilityNestedRuns {
+  margin: 0 0 4px 24px;
+  background: color-mix(in srgb, var(--ai-surface) 92%, var(--ai-text) 4%);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.observabilityTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+
+  /* Collapse 标题默认不收缩，长预览会撑破 Drawer */
+  :global(.ant-collapse-item) {
+    min-width: 0;
+  }
+
+  :global(.ant-collapse-header) {
+    overflow: hidden;
+  }
+
+  :global(.ant-collapse-title) {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+}
+
+.observabilityTimelineHint {
+  font-size: 12px;
+}
+
+.observabilityFlowSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ai-surface) 90%, var(--ai-text) 6%);
+  min-width: 0;
+}
+
+.observabilityFlowChain {
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.observabilityTimelineLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.observabilityTimelineIdx {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.observabilityTimelineChannel {
+  flex: 0 0 auto;
+  max-width: 72px;
+  margin-inline-end: 0 !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.observabilityTimelinePreview {
+  flex: 1 1 0%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.observabilityTimelinePre {
+  margin: 0;
+  max-height: 280px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ai-surface) 88%, var(--ai-text) 8%);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.observabilityAuditList {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+}
+
 .auditPanel {
   min-height: 240px;
+}
+
+.auditPanelIntro {
+  display: block;
+  padding: 0 12px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.auditSessionCollapse {
+  :global(.ant-collapse-item) {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  :global(.ant-collapse-header) {
+    align-items: flex-start !important;
+    padding: 10px 12px !important;
+  }
+}
+
+.auditSessionCollapseLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+  padding-right: 8px;
+}
+
+.auditSessionTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.auditSessionTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.auditSessionMetaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.auditRunCollapse {
+  margin-left: 4px;
+  border-left: 2px solid rgba(0, 0, 0, 0.06);
+  padding-left: 4px;
+
+  :global(.ant-collapse-header) {
+    padding: 6px 8px !important;
+  }
+}
+
+.auditRunCollapseLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.auditRunTitle {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.auditRunMeta {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
 }
 
 .splitterRoot {

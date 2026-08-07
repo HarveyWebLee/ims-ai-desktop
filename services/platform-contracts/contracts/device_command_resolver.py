@@ -5,7 +5,7 @@
 --------
 把 LLM / 用户填表得到的口语槽位（device_name、action、variable_name 等）
 解析成可下发的三要素：``device_code`` + ``varName`` + ``variable_value``。
-能唯一确定则自动补齐；不确定则生成**渐进式** HITL（只问还缺的槽位）。
+能唯一确定则自动补齐；不确定则生成 HITL（缺变量时与写入值同屏，避免两轮补参）。
 
 在 Agent 流程中的位置
 --------------------
@@ -496,6 +496,66 @@ def _build_variable_picker_field(
     return field
 
 
+def _build_variable_value_field(
+    *,
+    required: bool,
+    action_token: str = "",
+    optional_with_variable: bool = False,
+) -> dict[str, Any]:
+    """构造写入值 / 播报正文 HITL 字段。"""
+    token = (action_token or "").strip()
+    if action_requires_user_value(token):
+        return {
+            "name": "variable_value",
+            "label": "播报内容",
+            "type": "text",
+            "required": required,
+            "description": "请输入要播报的文字内容",
+        }
+    if optional_with_variable:
+        return {
+            "name": "variable_value",
+            "label": "写入值",
+            "type": "text",
+            "required": required,
+            "description": "选变量后填写要下发的值（播报则为正文）",
+        }
+    return {
+        "name": "variable_value",
+        "label": "写入值",
+        "type": "text",
+        "required": required,
+        "description": "要下发给变量的值",
+    }
+
+
+def _append_value_field_if_needed(
+    fields: list[dict[str, Any]],
+    messages: list[str],
+    partial: dict[str, Any],
+    *,
+    required: bool,
+    optional_with_variable: bool = False,
+) -> None:
+    """若尚未有写入值字段且 partial 未填值，则同屏追加。"""
+    if str(partial.get("variable_value") or "").strip():
+        return
+    if any(f.get("name") == "variable_value" for f in fields):
+        return
+    action_token = str(partial.get("action") or "").strip()
+    if action_requires_user_value(action_token):
+        messages.append("播报内容")
+    else:
+        messages.append("写入值")
+    fields.append(
+        _build_variable_value_field(
+            required=required,
+            action_token=action_token,
+            optional_with_variable=optional_with_variable,
+        )
+    )
+
+
 def _build_device_select_interrupt(
     *,
     query: str,
@@ -505,18 +565,16 @@ def _build_device_select_interrupt(
     """多台设备无法自动选中时的 HITL：设备筛选表格单选。"""
     _ = records  # 候选由前端按筛选条件实时查询，不再塞入有限 options
     fields: list[dict[str, Any]] = [_build_device_picker_field(required=True)]
+    messages: list[str] = []
     if not partial.get("variable_name") and not partial.get("action"):
         fields.append(_build_variable_picker_field(required=False))
-        if not str(partial.get("variable_value") or "").strip():
-            fields.append(
-                {
-                    "name": "variable_value",
-                    "label": "写入值",
-                    "type": "text",
-                    "required": False,
-                    "description": "选变量后填写要下发的值（播报则为正文）",
-                }
-            )
+        _append_value_field_if_needed(
+            fields,
+            messages,
+            partial,
+            required=False,
+            optional_with_variable=True,
+        )
     query_label = (query or "").strip() or "目标"
     return {
         "type": "ask_params",
@@ -532,7 +590,7 @@ def _build_variable_select_interrupt(
     device_name: str,
     partial: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """多变量时的 HITL：前端按设备拉取全部变量下拉。"""
+    """多变量时的 HITL：前端按设备拉取全部变量下拉，并同屏填写写入值。"""
     try:
         records = fetch_device_variable_records(device_code)
     except PlatformApiError:
@@ -546,20 +604,16 @@ def _build_variable_select_interrupt(
     fields: list[dict[str, Any]] = [
         _build_variable_picker_field(required=True, device_code=device_code),
     ]
-    if not str(partial.get("variable_value") or "").strip():
-        fields.append(
-            {
-                "name": "variable_value",
-                "label": "写入值",
-                "type": "text",
-                "required": True,
-                "description": "要下发给变量的值",
-            }
-        )
+    messages: list[str] = []
+    _append_value_field_if_needed(fields, messages, partial, required=True)
     return {
         "type": "ask_params",
         "tool": "send_device_cmd",
-        "message": f"设备「{display}」存在多个变量，请选择要操作的变量：",
+        "message": (
+            f"设备「{display}」存在多个变量，请选择要操作的变量"
+            + ("并填写写入值" if messages else "")
+            + "："
+        ),
         "fields": fields,
     }
 
@@ -568,7 +622,7 @@ def _build_missing_fields_interrupt(
     missing: list[MissingSlot],
     partial: dict[str, Any],
 ) -> dict[str, Any]:
-    """按缺失槽位生成渐进式 HITL 表单。"""
+    """按缺失槽位生成 HITL 表单（变量与写入值同屏，避免两轮 ask_params）。"""
     fields: list[dict[str, Any]] = []
     messages: list[str] = []
 
@@ -580,16 +634,13 @@ def _build_missing_fields_interrupt(
         if not action_token and not partial.get("variable_name"):
             messages.append("控制变量")
             fields.append(_build_variable_picker_field(required=False))
-            if not str(partial.get("variable_value") or "").strip():
-                fields.append(
-                    {
-                        "name": "variable_value",
-                        "label": "写入值",
-                        "type": "text",
-                        "required": False,
-                        "description": "选变量后填写要下发的值（播报则为正文）",
-                    }
-                )
+            _append_value_field_if_needed(
+                fields,
+                messages,
+                partial,
+                required=False,
+                optional_with_variable=True,
+            )
 
     if "variable" in missing:
         # 与设备同屏时已追加 variable_picker，避免重复字段
@@ -602,33 +653,12 @@ def _build_missing_fields_interrupt(
                     device_code=device_code,
                 )
             )
+        # 仅缺变量时也同屏带上写入值，避免「选变量确认 → 再填值」
+        _append_value_field_if_needed(fields, messages, partial, required=True)
 
     if "value" in missing:
-        # 与设备同屏时可能已追加可选写入值，避免重复
-        if not any(f.get("name") == "variable_value" for f in fields):
-            action_token = str(partial.get("action") or "").strip()
-            if action_requires_user_value(action_token):
-                messages.append("播报内容")
-                fields.append(
-                    {
-                        "name": "variable_value",
-                        "label": "播报内容",
-                        "type": "text",
-                        "required": True,
-                        "description": "请输入要播报的文字内容",
-                    }
-                )
-            else:
-                messages.append("写入值")
-                fields.append(
-                    {
-                        "name": "variable_value",
-                        "label": "写入值",
-                        "type": "text",
-                        "required": True,
-                        "description": "要下发给变量的值",
-                    }
-                )
+        # 与设备/变量同屏时可能已追加写入值，避免重复
+        _append_value_field_if_needed(fields, messages, partial, required=True)
 
     scope = "、".join(messages) if messages else "参数"
     message = f"请补充设备指令所需的{scope}："
@@ -641,7 +671,7 @@ def _build_missing_fields_interrupt(
             message = "未指定广播设备，请在下方表格中筛选并单选要播报的设备："
         elif not action_token and not str(partial.get("variable_name") or "").strip():
             message = (
-                "未指定设备与控制内容，请选择目标设备，并从该设备变量中选择要下发的变量"
+                "未指定设备与控制内容，请选择目标设备、要下发的变量并填写写入值"
                 "（支持任意具备变量的设备，不限于门禁或广播）："
             )
         elif missing == ["device"] or set(missing) <= {"device", "value"}:

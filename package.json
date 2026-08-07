@@ -18,8 +18,10 @@
     "check:contracts": "cd services/platform-contracts && uv run --no-sync --extra dev python -m contracts.quality gate",
     "check:agent": "cd services/platform-agent-service && uv run --no-sync --extra dev python -m app.quality gate",
     "check:mcp": "cd services/platform-mcp-server && uv run --no-sync --extra dev python -m platform_mcp.quality all",
+    "test": "pnpm test:contracts && pnpm test:agent && pnpm test:mcp",
     "test:contracts": "cd services/platform-contracts && uv run --no-sync --extra dev python -m contracts.quality test",
-    "test:agent": "cd services/platform-agent-service && uv run --no-sync --extra dev python -m app.quality test"
+    "test:agent": "cd services/platform-agent-service && uv run --no-sync --extra dev python -m app.quality test",
+    "test:mcp": "cd services/platform-mcp-server && uv run --no-sync --extra dev python -m platform_mcp.quality test"
   },
   "engines": {
     "node": ">=20"

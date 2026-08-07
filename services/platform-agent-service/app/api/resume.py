@@ -225,6 +225,7 @@ async def resume_sse(request: Request, body: ResumeRequest):
             tool_name = None
             if isinstance(decision.args, dict):
                 tool_name = decision.args.get("_hitl_tool") or decision.args.get("tool")
+            # 不在 resume 热路径同步查 trace（避免阻塞 SSE 开流）；run_id 由 payload 旁路可选
             record_hitl_lifecycle(
                 action=hitl_action,  # type: ignore[arg-type]
                 interrupt_type=str(interrupt_type or decision.type),

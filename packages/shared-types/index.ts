@@ -193,6 +193,10 @@ export interface PlanStepHitlInfo {
 /** 执行 Trace 事件（研发只读观测） */
 export type TraceEventKind =
   | "user_message"
+  | "context"
+  | "rag_passive"
+  | "llm_input"
+  | "assistant_message"
   | "plan"
   | "replan"
   | "tool_start"

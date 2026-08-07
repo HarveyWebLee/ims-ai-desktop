@@ -193,3 +193,16 @@ MCP ToolResult.client_action 或 .client_actions
 | 对称路径 | chat / resume 共用 `useAgentStream.onClientAction`             |
 
 契约见 [`06-contracts.md`](./06-contracts.md) §2；类型源：`@ims/shared-types` 的 `ToolResult` / `ClientActionResult`。
+
+## 10. 可观测（自建仪表盘）
+
+旁路写入 + 只读聚合；**不**改写 HITL / SSE 主链。
+
+| 层       | 说明                                                                                                                                                                                                 |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 写入     | `wrap_stream_with_plan_trace` → traces + audit；HITL 经 `record_hitl_lifecycle`；chat 经内部 `__obs__` 写入被动 RAG / LLM 入参 / 工具通道（MCP\|RAG\|本地）与助手回复（脱敏截断，不向桌面 SSE 透传） |
+| 聚合 API | `GET /api/agent/observability/summary`、`/runs`、`/runs/{thread_id}/{run_id}`（当前用户时间窗）                                                                                                      |
+| 桌面     | 设置页「可观测」：指标卡 + **按会话分组**列表 + 运行详情**过程时间线**（用户→RAG→LLM 入参→工具→回复→结束）                                                                                           |
+| 存储     | Agent Postgres（无 DSN 时内存）；**禁止**为观测写平台达梦                                                                                                                                            |
+
+健康检查 `observability.dashboard=true` 表示本能力已挂载。

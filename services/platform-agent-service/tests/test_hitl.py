@@ -42,6 +42,46 @@ class TestAskUserParams:
         assert exc_info.value.payload["type"] == "ask_params"
         assert exc_info.value.payload["tool"] == "query_alarms"
 
+    def test_empty_filter_fields_omitted_from_current(self):
+        """LLM/工具默认空串不得进入 interrupt.current，避免多选空白已选项。"""
+        with pytest.raises(McpHitlSignal) as exc_info:
+            ask_user_params(
+                tool="query_alarms",
+                message="请补充时间",
+                fields=[
+                    {"name": "time_range", "required": True, "type": "datetime_range"},
+                    {
+                        "name": "status",
+                        "required": False,
+                        "type": "select",
+                        "mode": "multiple",
+                    },
+                    {
+                        "name": "alarm_category_id",
+                        "required": False,
+                        "type": "async_select",
+                        "mode": "multiple",
+                    },
+                    {
+                        "name": "alarm_rank_id",
+                        "required": False,
+                        "type": "async_select",
+                        "mode": "multiple",
+                    },
+                    {"name": "device_name", "required": False, "type": "text"},
+                ],
+                current={
+                    "start_time": "",
+                    "end_time": "",
+                    "device_name": "岗亭-1",
+                    "status": "",
+                    "alarm_category_id": [""],
+                    "alarm_rank_id": "",
+                },
+            )
+        current = exc_info.value.payload.get("current") or {}
+        assert current == {"device_name": "岗亭-1"}
+
 
 class TestAskUserConfirm:
     def test_raises_without_bypass(self):

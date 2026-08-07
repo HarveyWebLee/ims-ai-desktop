@@ -206,3 +206,29 @@ class TestEnsureToolArgsOutsideGraph:
 
         with pytest.raises(McpHitlSignal):
             ensure_tool_args("query_alarms", {"start_time": "", "end_time": ""})
+
+    def test_empty_optional_filters_omitted_from_current(self):
+        """缺时间 HITL 时，空的 status/类型/级别不得预填成空白多选项。"""
+        from contracts.hitl import McpHitlSignal
+
+        with pytest.raises(McpHitlSignal) as exc_info:
+            ensure_tool_args(
+                "query_alarms",
+                {
+                    "start_time": "",
+                    "end_time": "",
+                    "device_name": "岗亭-1",
+                    "status": "",
+                    "alarm_category_id": "",
+                    "alarm_rank_id": [""],
+                    "device_code": "",
+                },
+            )
+        current = exc_info.value.payload.get("current") or {}
+        assert current.get("device_name") == "岗亭-1"
+        assert "status" not in current
+        assert "alarm_category_id" not in current
+        assert "alarm_rank_id" not in current
+        assert "device_code" not in current
+        assert "start_time" not in current
+        assert "end_time" not in current

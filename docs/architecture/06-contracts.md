@@ -76,6 +76,16 @@ interface ClientActionResult {
 
 `interrupt` 事件 **仅** 由图 `astream_events` 的 `stream.interrupts`（或等价 checkpoint interrupt）映射产生。
 
+### 3.1 可观测只读 API（非 SSE）
+
+| 方法 | 路径                                                 | 说明                                                    |
+| ---- | ---------------------------------------------------- | ------------------------------------------------------- |
+| GET  | `/api/agent/observability/summary`                   | 当前用户时间窗指标（成功率、p50/p95、HITL、工具失败率） |
+| GET  | `/api/agent/observability/runs`                      | 跨会话 run 摘要列表（可按 status 筛选）                 |
+| GET  | `/api/agent/observability/runs/{thread_id}/{run_id}` | 单 run 下钻（enrich trace + audit）                     |
+
+写入仍走既有 SSE envelope → trace/audit；本 API **不**改变事件契约。
+
 ## 4. Catalog → MCP
 
 `export_catalog.py` 输出：

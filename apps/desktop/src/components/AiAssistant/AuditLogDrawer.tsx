@@ -1,5 +1,5 @@
 /**
- * 审计日志面板 — 配置页内嵌展示当前会话的工具调用、HITL 等审计事件
+ * 审计日志面板 — 配置页内嵌；按会话分组，会话内再按运行（run）折叠展示
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button, Collapse, Empty, Select, Spin, Tag, Typography } from "antd";
@@ -9,6 +9,7 @@ import { useIntl, type IntlShape } from "react-intl";
 import dayjs from "dayjs";
 import * as AgentController from "@/services/AgentController";
 import type { AgentAuditLogEntry } from "@/services/AgentController";
+import type { AiSession } from "./types";
 import { formatAgentErrorMessage } from "./utils/formatAgentError";
 import { useAiAssistantStore } from "./store";
 import styles from "./index.module.less";
@@ -28,6 +29,7 @@ const EVENT_TYPE_I18N: Record<string, string> = {
   tool_hook_deny: "toolHookDeny",
   tool_hook_after: "toolHookAfter",
   client_action_result: "clientActionResult",
+  hitl_lifecycle: "hitlLifecycle",
 };
 
 /** 可选 event_type 筛选列表 */
@@ -45,10 +47,33 @@ const FILTERABLE_EVENT_TYPES = [
   "client_action_result",
 ] as const;
 
+/** 单次运行下的审计事件组 */
+interface RunAuditGroup {
+  runId: string | null;
+  logs: AgentAuditLogEntry[];
+  latestAt: string;
+}
+
+/** 会话级审计分组 */
+interface SessionAuditGroup {
+  threadId: string;
+  title: string;
+  updatedAt: string;
+  logs: AgentAuditLogEntry[];
+  latestAt: string;
+  runs: RunAuditGroup[];
+}
+
 function formatAuditTime(iso?: string | null): string {
   if (!iso) return "";
   const d = dayjs(iso);
   return d.isValid() ? d.format("MM-DD HH:mm:ss") : "";
+}
+
+function eventTimeMs(iso?: string | null): number {
+  if (!iso) return 0;
+  const d = dayjs(iso);
+  return d.isValid() ? d.valueOf() : 0;
 }
 
 /** 列表行摘要（一行） */
@@ -212,78 +237,72 @@ function renderAuditDetail(entry: AgentAuditLogEntry, intl: IntlShape) {
   );
 }
 
-/** 审计日志面板（配置页内嵌；不再以 Drawer 打开） */
-export default function AuditLogPanel() {
-  const intl = useIntl();
-  const { currentThreadId } = useAiAssistantStore();
-  const [loading, setLoading] = useState(false);
-  const [allLogs, setAllLogs] = useState<AgentAuditLogEntry[]>([]);
-  const [filterRunId, setFilterRunId] = useState<string | undefined>();
-  const [filterEventType, setFilterEventType] = useState<string | undefined>();
-
-  const loadAudit = useCallback(
-    async (options?: { notify?: boolean }) => {
-      if (!currentThreadId) return;
-      setLoading(true);
-      try {
-        const { logs: rows } = await AgentController.getThreadAudit(currentThreadId, {
-          limit: 200,
-        });
-        const next = rows ?? [];
-        setAllLogs(next);
-        if (options?.notify) {
-          message.success(
-            intl.formatMessage({ id: "aiAssistant.audit.refreshed" }, { count: next.length }),
-          );
-        }
-      } catch (err) {
-        message.error(
-          err instanceof Error
-            ? err.message
-            : intl.formatMessage({ id: "aiAssistant.audit.loadFailed" }),
-        );
-        setAllLogs([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [currentThreadId, intl],
-  );
-
-  useEffect(() => {
-    void loadAudit();
-  }, [currentThreadId, loadAudit]);
-
-  const handleRefresh = useCallback(() => {
-    void loadAudit({ notify: true });
-  }, [loadAudit]);
-
-  const runIdOptions = useMemo(() => {
-    const ids = new Set<string>();
-    for (const entry of allLogs) {
-      if (entry.run_id) ids.add(entry.run_id);
+function groupLogsByRun(logs: AgentAuditLogEntry[]): RunAuditGroup[] {
+  const order: string[] = [];
+  const map = new Map<string, AgentAuditLogEntry[]>();
+  for (const entry of logs) {
+    const key = entry.run_id?.trim() || "__none__";
+    if (!map.has(key)) {
+      order.push(key);
+      map.set(key, []);
     }
-    return Array.from(ids);
-  }, [allLogs]);
+    map.get(key)!.push(entry);
+  }
 
-  const logs = useMemo(() => {
-    let rows = allLogs;
-    if (filterRunId) {
-      rows = rows.filter((e) => e.run_id === filterRunId);
-    }
+  return order.map((key) => {
+    const groupLogs = map.get(key) ?? [];
+    const latestAt = groupLogs.reduce(
+      (best, e) => (eventTimeMs(e.created_at) > eventTimeMs(best) ? (e.created_at ?? "") : best),
+      groupLogs[0]?.created_at ?? "",
+    );
+    return {
+      runId: key === "__none__" ? null : key,
+      logs: groupLogs,
+      latestAt,
+    };
+  });
+}
+
+function buildSessionGroups(
+  sessions: AiSession[],
+  logsByThread: Record<string, AgentAuditLogEntry[]>,
+  filterEventType?: string,
+): SessionAuditGroup[] {
+  const groups: SessionAuditGroup[] = [];
+  for (const session of sessions) {
+    let logs = logsByThread[session.thread_id] ?? [];
     if (filterEventType) {
-      rows = rows.filter((e) => e.event_type === filterEventType);
+      logs = logs.filter((e) => e.event_type === filterEventType);
     }
-    return rows;
-  }, [allLogs, filterEventType, filterRunId]);
+    if (logs.length === 0) continue;
+    const latestAt = logs.reduce(
+      (best, e) => (eventTimeMs(e.created_at) > eventTimeMs(best) ? (e.created_at ?? "") : best),
+      logs[0]?.created_at ?? session.updated_at ?? "",
+    );
+    groups.push({
+      threadId: session.thread_id,
+      title: session.title || session.thread_id.slice(0, 8),
+      updatedAt: session.updated_at,
+      logs,
+      latestAt,
+      runs: groupLogsByRun(logs),
+    });
+  }
+  groups.sort((a, b) => eventTimeMs(b.latestAt) - eventTimeMs(a.latestAt));
+  return groups;
+}
 
-  const eventLabel = (eventType: string) => {
-    const suffix = EVENT_TYPE_I18N[eventType] ?? "default";
-    return intl.formatMessage({ id: `aiAssistant.audit.event.${suffix}` });
-  };
-
-  const collapseItems = logs.map((entry, index) => {
-    const key = String(entry.id ?? `${entry.created_at}-${index}`);
+function EventCollapse({
+  logs,
+  eventLabel,
+  intl,
+}: {
+  logs: AgentAuditLogEntry[];
+  eventLabel: (eventType: string) => string;
+  intl: IntlShape;
+}) {
+  const items = logs.map((entry, index) => {
+    const key = String(entry.id ?? `${entry.created_at}-${entry.event_type}-${index}`);
     const preview = summarizePayload(entry);
     const tagColor = entry.event_type === "error" ? "error" : undefined;
 
@@ -295,11 +314,6 @@ export default function AuditLogPanel() {
           {entry.tool_name ? (
             <Text code className={styles.auditDrawerTool}>
               {entry.tool_name}
-            </Text>
-          ) : null}
-          {entry.run_id ? (
-            <Text type="secondary" className={styles.auditDrawerRunId} ellipsis>
-              {entry.run_id.slice(0, 8)}
             </Text>
           ) : null}
           <Text type="secondary" ellipsis className={styles.auditDrawerPreview}>
@@ -314,27 +328,201 @@ export default function AuditLogPanel() {
     };
   });
 
+  return <Collapse ghost size="small" className={styles.auditDrawerCollapse} items={items} />;
+}
+
+/** 审计日志面板（配置页内嵌；不再以 Drawer 打开） */
+export default function AuditLogPanel() {
+  const intl = useIntl();
+  const { currentThreadId } = useAiAssistantStore();
+  const [loading, setLoading] = useState(false);
+  const [sessions, setSessions] = useState<AiSession[]>([]);
+  const [logsByThread, setLogsByThread] = useState<Record<string, AgentAuditLogEntry[]>>({});
+  const [filterEventType, setFilterEventType] = useState<string | undefined>();
+  const [activeSessionKeys, setActiveSessionKeys] = useState<string[]>([]);
+
+  const loadAudit = useCallback(
+    async (options?: { notify?: boolean }) => {
+      setLoading(true);
+      try {
+        const { sessions: sessionRows } = await AgentController.getSessions();
+        const nextSessions = sessionRows ?? [];
+        setSessions(nextSessions);
+
+        const results = await Promise.allSettled(
+          nextSessions.map(async (session) => {
+            const { logs } = await AgentController.getThreadAudit(session.thread_id, {
+              limit: 200,
+            });
+            return { threadId: session.thread_id, logs: logs ?? [] };
+          }),
+        );
+
+        const nextLogs: Record<string, AgentAuditLogEntry[]> = {};
+        let total = 0;
+        for (const result of results) {
+          if (result.status !== "fulfilled") continue;
+          nextLogs[result.value.threadId] = result.value.logs;
+          total += result.value.logs.length;
+        }
+        setLogsByThread(nextLogs);
+
+        const withLogs = nextSessions
+          .filter((s) => (nextLogs[s.thread_id] ?? []).length > 0)
+          .map((s) => s.thread_id);
+        // 优先展开当前会话；否则展开最近有记录的会话
+        const activeThreadId = useAiAssistantStore.getState().currentThreadId;
+        const preferred =
+          activeThreadId && withLogs.includes(activeThreadId)
+            ? activeThreadId
+            : (withLogs[0] ?? null);
+        setActiveSessionKeys(preferred ? [preferred] : []);
+
+        if (options?.notify) {
+          message.success(
+            intl.formatMessage(
+              { id: "aiAssistant.audit.refreshedSessions" },
+              { sessions: withLogs.length, count: total },
+            ),
+          );
+        }
+      } catch (err) {
+        message.error(
+          err instanceof Error
+            ? err.message
+            : intl.formatMessage({ id: "aiAssistant.audit.loadFailed" }),
+        );
+        setSessions([]);
+        setLogsByThread({});
+        setActiveSessionKeys([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [intl],
+  );
+
+  useEffect(() => {
+    void loadAudit();
+  }, [loadAudit]);
+
+  // 切到有审计记录的会话时，自动展开对应分组（不重拉数据）
+  useEffect(() => {
+    if (!currentThreadId) return;
+    const hasLogs = (logsByThread[currentThreadId] ?? []).length > 0;
+    if (!hasLogs) return;
+    setActiveSessionKeys((prev) =>
+      prev.includes(currentThreadId) ? prev : [currentThreadId, ...prev],
+    );
+  }, [currentThreadId, logsByThread]);
+
+  const handleRefresh = useCallback(() => {
+    void loadAudit({ notify: true });
+  }, [loadAudit]);
+
+  const sessionGroups = useMemo(
+    () => buildSessionGroups(sessions, logsByThread, filterEventType),
+    [sessions, logsByThread, filterEventType],
+  );
+
+  const totalEvents = useMemo(
+    () => sessionGroups.reduce((sum, g) => sum + g.logs.length, 0),
+    [sessionGroups],
+  );
+
+  const eventLabel = (eventType: string) => {
+    const suffix = EVENT_TYPE_I18N[eventType] ?? "default";
+    return intl.formatMessage({ id: `aiAssistant.audit.event.${suffix}` });
+  };
+
+  const sessionCollapseItems = sessionGroups.map((group) => {
+    const isCurrent = group.threadId === currentThreadId;
+    const runItems = group.runs.map((run, runIndex) => {
+      const runKey = run.runId ?? `none-${runIndex}`;
+      const runTitle = run.runId
+        ? intl.formatMessage(
+            { id: "aiAssistant.audit.runLabel" },
+            { id: run.runId.length > 12 ? `${run.runId.slice(0, 8)}…` : run.runId },
+          )
+        : intl.formatMessage({ id: "aiAssistant.audit.runUnknown" });
+
+      return {
+        key: runKey,
+        label: (
+          <div className={styles.auditRunCollapseLabel}>
+            <Text strong className={styles.auditRunTitle}>
+              {runTitle}
+            </Text>
+            <Text type="secondary" className={styles.auditRunMeta}>
+              {intl.formatMessage(
+                { id: "aiAssistant.audit.runEventCount" },
+                { count: run.logs.length },
+              )}
+            </Text>
+            <Text type="secondary" className={styles.auditDrawerTime}>
+              {formatAuditTime(run.latestAt)}
+            </Text>
+          </div>
+        ),
+        children: <EventCollapse logs={run.logs} eventLabel={eventLabel} intl={intl} />,
+      };
+    });
+
+    return {
+      key: group.threadId,
+      label: (
+        <div className={styles.auditSessionCollapseLabel}>
+          <div className={styles.auditSessionTitleRow}>
+            <Text strong ellipsis className={styles.auditSessionTitle}>
+              {group.title}
+            </Text>
+            {isCurrent ? (
+              <Tag color="processing">
+                {intl.formatMessage({ id: "aiAssistant.audit.currentSession" })}
+              </Tag>
+            ) : null}
+          </div>
+          <div className={styles.auditSessionMetaRow}>
+            <Text type="secondary">
+              {intl.formatMessage(
+                { id: "aiAssistant.audit.sessionMeta" },
+                {
+                  events: group.logs.length,
+                  runs: group.runs.length,
+                },
+              )}
+            </Text>
+            <Text type="secondary" className={styles.auditDrawerTime}>
+              {formatAuditTime(group.latestAt)}
+            </Text>
+          </div>
+        </div>
+      ),
+      children: (
+        <Collapse
+          ghost
+          size="small"
+          className={styles.auditRunCollapse}
+          defaultActiveKey={group.runs.slice(0, 2).map((r, i) => r.runId ?? `none-${i}`)}
+          items={runItems}
+        />
+      ),
+    };
+  });
+
   return (
     <div className={styles.auditPanel}>
+      <Text type="secondary" className={styles.auditPanelIntro}>
+        {intl.formatMessage({ id: "aiAssistant.audit.intro" })}
+      </Text>
+
       <div className={styles.auditDrawerFilters}>
         <Text type="secondary" className={styles.auditDrawerCount}>
           {intl.formatMessage(
-            { id: "aiAssistant.audit.totalCount" },
-            { count: logs.length, total: allLogs.length },
+            { id: "aiAssistant.audit.sessionTotalCount" },
+            { sessions: sessionGroups.length, count: totalEvents },
           )}
         </Text>
-        <Select
-          allowClear
-          size="small"
-          placeholder={intl.formatMessage({ id: "aiAssistant.audit.filterRun" })}
-          value={filterRunId}
-          onChange={(v) => setFilterRunId(v)}
-          options={runIdOptions.map((id) => ({
-            label: id.length > 12 ? `${id.slice(0, 8)}…` : id,
-            value: id,
-          }))}
-          className={styles.auditDrawerFilterSelect}
-        />
         <Select
           allowClear
           size="small"
@@ -358,11 +546,11 @@ export default function AuditLogPanel() {
         </Button>
       </div>
 
-      {loading && allLogs.length === 0 ? (
+      {loading && sessionGroups.length === 0 && sessions.length === 0 ? (
         <div className={styles.auditDrawerLoading}>
           <Spin />
         </div>
-      ) : logs.length === 0 ? (
+      ) : sessionGroups.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description={intl.formatMessage({ id: "aiAssistant.audit.empty" })}
@@ -372,8 +560,12 @@ export default function AuditLogPanel() {
           <Collapse
             ghost
             size="small"
-            className={styles.auditDrawerCollapse}
-            items={collapseItems}
+            className={styles.auditSessionCollapse}
+            activeKey={activeSessionKeys}
+            onChange={(keys) =>
+              setActiveSessionKeys(Array.isArray(keys) ? keys.map(String) : [String(keys)])
+            }
+            items={sessionCollapseItems}
           />
         </div>
       )}

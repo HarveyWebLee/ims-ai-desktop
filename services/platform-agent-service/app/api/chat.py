@@ -308,6 +308,9 @@ async def _sse_from_stream(
                 if event_name == "__keepalive__":
                     yield ": keepalive\n\n"
                     continue
+                # 防御：可观测内部事件绝不应到达桌面 SSE
+                if event_name == "__obs__":
+                    continue
 
                 from contracts.agent_debug import trace_sse_outgoing
 

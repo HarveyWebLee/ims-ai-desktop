@@ -225,6 +225,35 @@ class InMemoryAuditStore:
         """删除某 thread 的全部审计记录（内存模式）。"""
         self._logs.pop(thread_id, None)
 
+    def list_hitl_lifecycle_for_user(
+        self,
+        user_id: str,
+        *,
+        start_ms: int,
+        end_ms: int,
+    ) -> list[dict[str, Any]]:
+        """按用户列出时间窗内 hitl_lifecycle 审计（内存模式）。"""
+        out: list[dict[str, Any]] = []
+        for entries in self._logs.values():
+            for entry in entries:
+                if entry.get("user_id") != user_id:
+                    continue
+                if entry.get("event_type") != "hitl_lifecycle":
+                    continue
+                created = entry.get("created_at")
+                if isinstance(created, str) and created:
+                    try:
+                        created_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                        if created_dt.tzinfo is None:
+                            created_dt = created_dt.replace(tzinfo=UTC)
+                        created_ms = int(created_dt.timestamp() * 1000)
+                        if created_ms < start_ms or created_ms > end_ms:
+                            continue
+                    except ValueError:
+                        pass
+                out.append(entry)
+        return out
+
 
 class PostgresAuditStore:
     """
@@ -309,6 +338,30 @@ class PostgresAuditStore:
                 "DELETE FROM agent_audit_logs WHERE thread_id = %s",
                 (thread_id,),
             )
+
+    def list_hitl_lifecycle_for_user(
+        self,
+        user_id: str,
+        *,
+        start_ms: int,
+        end_ms: int,
+    ) -> list[dict[str, Any]]:
+        """按用户列出时间窗内 hitl_lifecycle 审计。"""
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, thread_id, run_id, user_id, event_type, tool_name,
+                       payload_summary, created_at
+                FROM agent_audit_logs
+                WHERE user_id = %s
+                  AND event_type = 'hitl_lifecycle'
+                  AND created_at >= to_timestamp(%s / 1000.0)
+                  AND created_at <= to_timestamp(%s / 1000.0)
+                ORDER BY created_at DESC
+                """,
+                (user_id, start_ms, end_ms),
+            ).fetchall()
+        return [_row_to_entry(as_dict_row(row)) for row in rows]
 
 
 def _make_entry(

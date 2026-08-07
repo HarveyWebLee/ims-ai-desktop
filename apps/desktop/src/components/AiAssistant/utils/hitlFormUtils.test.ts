@@ -21,6 +21,56 @@ describe("buildHitlInitialValues", () => {
   it("returns empty object without current", () => {
     expect(buildHitlInitialValues({ fields: [], current: undefined })).toEqual({});
   });
+
+  it("strips empty multi-select placeholders from current", () => {
+    const values = buildHitlInitialValues({
+      fields: [
+        {
+          name: "alarm_category_id",
+          label: "报警类型",
+          type: "async_select",
+          mode: "multiple",
+        },
+        {
+          name: "alarm_rank_id",
+          label: "报警级别",
+          type: "async_select",
+          mode: "multiple",
+        },
+        {
+          name: "status",
+          label: "报警状态",
+          type: "select",
+          mode: "multiple",
+          options: [{ label: "待确认", value: "1" }],
+        },
+        { name: "device_name", label: "设备名称", type: "text" },
+      ],
+      current: {
+        device_name: "岗亭-1",
+        status: "",
+        alarm_category_id: [""],
+        alarm_rank_id: "",
+      },
+    });
+    expect(values).toEqual({ device_name: "岗亭-1" });
+  });
+
+  it("normalizes multi-select string to array", () => {
+    const values = buildHitlInitialValues({
+      fields: [
+        {
+          name: "status",
+          label: "报警状态",
+          type: "select",
+          mode: "multiple",
+          options: [{ label: "待确认", value: "1" }],
+        },
+      ],
+      current: { status: "1" },
+    });
+    expect(values.status).toEqual(["1"]);
+  });
 });
 
 describe("normalizeHitlFormValues", () => {

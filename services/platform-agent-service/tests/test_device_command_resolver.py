@@ -347,7 +347,7 @@ class TestResolveDeviceCommand:
 
     @patch("contracts.device_command_resolver.call_platform_api")
     def test_missing_device_generic_uses_variable_picker(self, mock_api):
-        """通用下发：同屏设备表格 + 变量下拉（不再用手填动作文本）。"""
+        """通用下发：同屏设备表格 + 变量下拉 + 写入值（不再用手填动作文本）。"""
         res = resolve_device_command()
         assert "device" in res.missing
         assert res.interrupt is not None
@@ -355,7 +355,37 @@ class TestResolveDeviceCommand:
         assert any(f.get("type") == "device_picker" for f in fields)
         assert any(f.get("type") == "variable_picker" for f in fields)
         assert any(f.get("name") == "variable_name" for f in fields)
+        assert any(f.get("name") == "variable_value" for f in fields)
         assert not any(f.get("name") == "action" for f in fields)
+
+    @patch("contracts.device_command_resolver.fetch_device_variable_records")
+    @patch("contracts.device_command_resolver._resolve_device_with_auto_select")
+    def test_missing_variable_includes_value_same_screen(
+        self,
+        mock_resolve_device,
+        mock_fetch_vars,
+    ):
+        """设备已知、仅缺变量：变量选择与写入值同屏，避免两轮 ask_params。"""
+        mock_resolve_device.return_value = (
+            "D1",
+            {"deviceCode": "D1", "deviceName": "空调1"},
+            None,
+            True,
+        )
+        mock_fetch_vars.return_value = [
+            {"varName": "temp_set", "showName": "设定温度", "isWrite": 1},
+            {"varName": "switch", "showName": "开关", "isWrite": 1},
+        ]
+
+        res = resolve_device_command(device_code="D1")
+        assert not res.is_complete()
+        assert "variable" in res.missing
+        assert res.interrupt is not None
+        fields = res.interrupt.get("fields") or []
+        assert any(f.get("type") == "variable_picker" for f in fields)
+        assert any(f.get("name") == "variable_value" for f in fields)
+        value_field = next(f for f in fields if f.get("name") == "variable_value")
+        assert value_field.get("required") is True
 
     @patch("contracts.device_command_resolver.call_platform_api")
     def test_missing_device_broadcast_message(self, mock_api):

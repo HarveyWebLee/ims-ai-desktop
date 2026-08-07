@@ -1,11 +1,12 @@
 /**
- * 配置与管理页：知识与术语 / 审计日志 / 语音偏好 / 声纹库
+ * 配置与管理页：知识与术语 / 可观测 / 审计日志 / 语音偏好 / 声纹库
  */
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { Button, Layout, Tabs, Typography, theme } from "antd";
 import { useIntl } from "react-intl";
 import KnowledgeTermsPanel from "@/components/AiAssistant/KnowledgeTermsPanel";
 import AuditLogPanel from "@/components/AiAssistant/AuditLogDrawer";
+import ObservabilityDashboard from "@/components/AiAssistant/ObservabilityDashboard";
 import VoiceprintManagerPanel from "@/components/AiAssistant/VoiceprintManagerModal";
 import VoicePrefsPanel from "@/components/AiAssistant/VoicePrefsPanel";
 import styles from "@/components/AiAssistant/index.module.less";
@@ -39,7 +40,7 @@ export default function SettingsPage({ onBack }: { onBack: () => void }) {
         </div>
       </Header>
       <Content className={styles.settingsContent} style={{ background: token.colorBgLayout }}>
-        <div className={styles.settingsInner}>
+        <div className={styles.settingsInnerWide}>
           <Tabs
             defaultActiveKey="knowledgeTerms"
             size="large"
@@ -48,6 +49,11 @@ export default function SettingsPage({ onBack }: { onBack: () => void }) {
                 key: "knowledgeTerms",
                 label: intl.formatMessage({ id: "aiAssistant.settings.tabKnowledgeTerms" }),
                 children: <KnowledgeTermsPanel />,
+              },
+              {
+                key: "observability",
+                label: intl.formatMessage({ id: "aiAssistant.settings.tabObservability" }),
+                children: <ObservabilityDashboard />,
               },
               {
                 key: "audit",

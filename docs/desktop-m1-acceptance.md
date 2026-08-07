@@ -30,6 +30,7 @@
 14. 运行时 Hooks（可选）：`.env` 设 `AGENT_TOOL_HOOK_DENY_TOOLS=download_file` → 对话触发导出被拒；设置 → 审计可见「Hooks 拦截」；清名单后恢复
 15. client_action 闭环（可选）：`localStorage.setItem('ims_ai_mock_platform_host','1')` → 发「打开设施管理」→ toast 模拟导航成功；设置 → 审计可见「Client 执行回执」；清 mock 后恢复跳过降级
 16. 模型路由（可选）：侧栏选「自动」→ 轻任务走轻量模型、导出/处置走默认通义 3.5 35B；目录仅含实测可用模型（已删除通义 8B / 32B 与无额度的 3.7 Plus / Plus 2025-07-28）
+17. **可观测仪表盘**：设置 → 可观测 → 可见运行数/成功率/延迟/HITL/工具失败率；列表**按会话分组**展开；点某 run 可下钻**本轮过程时间线**（用户输入 → 被动 RAG → LLM 入参 → MCP/RAG 工具参数与结果 → 助手回复 → 结束）；chat → HITL 批准/拒绝 → abort 后刷新可见对应状态（当前用户数据；**新对话后**才有完整 LLM/RAG 时间线，旧 run 可能仅有工具事件）
 
 ## 残留态矩阵（P0）
 

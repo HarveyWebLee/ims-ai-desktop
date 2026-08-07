@@ -1,11 +1,12 @@
 """
-platform-mcp-server 本地代码质量入口：格式化 / Lint / 类型检查。
+platform-mcp-server 本地代码质量入口：格式化 / Lint / 类型检查 / 测试。
 
 用法（需先 ``uv sync --extra dev``）::
 
     uv run check format
     uv run check lint
     uv run check typecheck
+    uv run check test         # pytest（不进 all / pre-commit）
     uv run check fix          # format + lint --fix
     uv run check all          # 只读门禁：format --check + lint + typecheck
 """
@@ -51,6 +52,10 @@ def cmd_typecheck() -> int:
     return _run(_py_module("basedpyright", "--project", str(_PROJECT_ROOT)))
 
 
+def cmd_test(pytest_args: Sequence[str]) -> int:
+    return _run(_py_module("pytest", *pytest_args))
+
+
 def cmd_fix() -> int:
     code = cmd_format(check=False)
     if code != 0:
@@ -59,6 +64,7 @@ def cmd_fix() -> int:
 
 
 def cmd_all() -> int:
+    """提交门禁：静态检查，不跑 pytest（与 Agent gate 对齐）。"""
     steps = (
         ("format --check", lambda: cmd_format(check=True)),
         ("lint", lambda: cmd_lint(fix=False)),
@@ -70,19 +76,24 @@ def cmd_all() -> int:
         if code != 0:
             print(f"\n[check] 失败于: {name} (exit={code})", flush=True)
             return code
-    print("\n[check] 全部通过", flush=True)
+    print("\n[check] 全部通过（未跑 test）", flush=True)
     return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="check",
-        description="platform-mcp-server 本地代码质量管理（format / lint / typecheck）",
+        description="platform-mcp-server 本地代码质量管理（format / lint / typecheck / test）",
     )
     parser.add_argument(
         "command",
-        choices=("format", "lint", "typecheck", "fix", "all"),
+        choices=("format", "lint", "typecheck", "test", "fix", "all"),
         help="要执行的子命令",
+    )
+    parser.add_argument(
+        "pytest_args",
+        nargs=argparse.REMAINDER,
+        help="仅 test 时透传给 pytest，例如：uv run mcp-check test -q",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
@@ -92,6 +103,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_lint(fix=False)
     if args.command == "typecheck":
         return cmd_typecheck()
+    if args.command == "test":
+        return cmd_test(args.pytest_args)
     if args.command == "fix":
         return cmd_fix()
     return cmd_all()

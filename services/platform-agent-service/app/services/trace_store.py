@@ -105,6 +105,40 @@ class InMemoryTraceStore:
         """删除某 thread 的全部 trace（内存模式）。"""
         self._runs.pop(thread_id, None)
 
+    def list_runs_for_user(
+        self,
+        user_id: str,
+        *,
+        start_ms: int,
+        end_ms: int,
+        limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        """
+        跨会话列出用户 runs（内存模式依赖 session_store 枚举 thread）。
+
+        返回的每条 run 可含 thread_title。
+        """
+        from app.services.session_store import session_store
+
+        sessions = session_store.list_sessions(user_id)
+        title_by_thread = {
+            str(s.get("thread_id") or ""): str(s.get("title") or "") for s in sessions
+        }
+        out: list[dict[str, Any]] = []
+        for session in sessions:
+            tid = str(session.get("thread_id") or "").strip()
+            if not tid:
+                continue
+            for run in self.list_runs(tid, limit=50):
+                started = int(run.get("started_at") or 0)
+                if started and (started < start_ms or started > end_ms):
+                    continue
+                item = dict(run)
+                item["thread_title"] = title_by_thread.get(tid, "")
+                out.append(item)
+        out.sort(key=lambda r: int(r.get("started_at") or 0), reverse=True)
+        return out[:limit]
+
 
 class PostgresTraceStore:
     """
@@ -178,6 +212,38 @@ class PostgresTraceStore:
                 "DELETE FROM agent_thread_traces WHERE thread_id = %s",
                 (thread_id,),
             )
+
+    def list_runs_for_user(
+        self,
+        user_id: str,
+        *,
+        start_ms: int,
+        end_ms: int,
+        limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        """JOIN sessions 按 user_id + 时间窗列出 runs。"""
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT t.thread_id, t.run_id, t.events, t.started_at, t.ended_at,
+                       s.title AS thread_title
+                FROM agent_thread_traces t
+                INNER JOIN agent_sessions s ON s.thread_id = t.thread_id
+                WHERE s.user_id = %s
+                  AND t.started_at >= to_timestamp(%s / 1000.0)
+                  AND t.started_at <= to_timestamp(%s / 1000.0)
+                ORDER BY t.started_at DESC
+                LIMIT %s
+                """,
+                (user_id, start_ms, end_ms, limit),
+            ).fetchall()
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            data = as_dict_row(row)
+            run = _row_to_run(str(data["thread_id"]), data)
+            run["thread_title"] = str(data.get("thread_title") or "")
+            result.append(run)
+        return result
 
 
 def _row_to_run(thread_id: str, row: dict[str, Any]) -> dict[str, Any]:

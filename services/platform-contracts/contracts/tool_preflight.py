@@ -202,18 +202,16 @@ def _ask_params_interrupt(
     current: dict[str, Any],
 ) -> dict[str, Any]:
     """构造前端可识别的 ask_params interrupt payload（含 current 供表单预填）。"""
+    from contracts.hitl import filter_hitl_current
+
     payload: dict[str, Any] = {
         "type": "ask_params",
         "tool": tool,
         "message": message,
         "fields": fields,
     }
-    # 仅下发非空预填，避免前端被空字符串冲掉默认态
-    filled = {
-        k: v
-        for k, v in dict(current or {}).items()
-        if v is not None and not (isinstance(v, str) and not str(v).strip())
-    }
+    # 仅下发非空预填，避免空字符串/[""] 把多选 Select 冲成空白已选项
+    filled = filter_hitl_current(current)
     if filled:
         payload["current"] = filled
     return payload
@@ -853,12 +851,18 @@ def ensure_tool_args(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
 
     from contracts.hitl import ask_user_params
 
+    # 优先用 interrupt 已过滤的 current；否则用 args（ask_user_params 内仍会再滤空）
+    interrupt_current = result.interrupt.get("current")
+    current_for_hitl = (
+        dict(interrupt_current) if isinstance(interrupt_current, dict) else dict(result.args)
+    )
+
     # 缺参：抛 McpHitlSignal（不会返回）
     merged = ask_user_params(
         tool=tool_name,
         message=str(result.interrupt.get("message") or "需要补充参数"),
         fields=list(result.interrupt.get("fields") or []),
-        current=result.args,
+        current=current_for_hitl,
     )
     combined = {**result.args, **merged}
     # 用户回来后必须再跑一遍 preflight，防止只填了一半就进 handler
