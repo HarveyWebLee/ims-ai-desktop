@@ -62,20 +62,6 @@ export function buildPlanGraphFromSteps(steps: PlanStep[]): PlanGraph {
   return { nodes, edges, mermaid: mermaidLines.join("\n") };
 }
 
-/** 切换步骤 skipped 状态（plan_confirm 轻量编排） */
-export function togglePlanStepSkip(steps: PlanStep[], stepId: string): PlanStep[] {
-  return steps.map((s) => {
-    if (s.id !== stepId) return s;
-    const next: PlanStepStatus = s.status === "skipped" ? "awaiting_confirm" : "skipped";
-    return { ...s, status: next };
-  });
-}
-
-/** 至少保留一个非 skipped 步骤 */
-export function countActivePlanSteps(steps: PlanStep[]): number {
-  return steps.filter((s) => s.status !== "skipped").length;
-}
-
 /** Plan 流程图节点是否仅为装饰（开始/结束），不应出现在任务时间轴 */
 export function isDecorativePlanGraphNode(node: {
   id: string;

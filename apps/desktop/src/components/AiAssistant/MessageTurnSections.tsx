@@ -243,7 +243,6 @@ export function MessagePlanSection({
         layout="timeline"
         showStatus
         showToolTag={false}
-        hint="none"
       />
     </div>
   );
