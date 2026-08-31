@@ -46,6 +46,10 @@ from contracts.alarm_params import (
     build_alarm_list_filter_payload,
     resolve_or_prepare_alarm_times,
     to_platform_time,
+    _is_unprocessed_scope_token,
+    _map_alarm_status_token,
+    _normalize_hitl_id_list,
+    _normalize_hitl_status_list,
 )
 from contracts.auth_util import get_username_from_token
 from contracts.context import current_auth_token
@@ -89,12 +93,7 @@ BATCH_CONFIRM_PAGE_SIZE = 100
 # - status 1=待确认（未确认）、2=已确认、3=已处理
 # - 「未处理」= 1+2，不含 3；专用接口 getAlarmUnprocessList
 # - 「待确认/未确认」= 仅 status 1
-_UNPROCESSED_STATUS_ALIASES = frozenset(
-    {"未处理", "未处理告警", "unprocessed", "unprocessed_alarm"}
-)
 _PENDING_CONFIRM_ALIASES = frozenset({"待确认", "未确认", "pending", "pending_confirm"})
-# HITL 下拉：未处理范围专用值（非平台 status 码）
-_STATUS_SCOPE_UNPROCESSED = "unprocessed"
 _ALARM_API_LIST = "getAlarmList"
 _ALARM_API_UNPROCESSED = "getAlarmUnprocessList"
 
@@ -116,21 +115,6 @@ _ALARM_STATUS_LABELS: dict[int, str] = {
     1: "待确认",
     2: "已确认",
     3: "已处理",
-}
-
-# 口语 / HITL → 平台 status 数字码（1/2/3）；「未处理」见 _parse_alarm_list_scope，不在此映射
-_ALARM_STATUS_TOKEN_MAP: dict[str, str] = {
-    "未确认": "1",
-    "待确认": "1",
-    "pending": "1",
-    "pending_confirm": "1",
-    "已确认": "2",
-    "confirmed": "2",
-    "已处理": "3",
-    "processed": "3",
-    "1": "1",
-    "2": "2",
-    "3": "3",
 }
 
 
@@ -275,21 +259,6 @@ def _summarize_alarm_list(
     return int(total), brief
 
 
-def _normalize_hitl_id_list(value: Any) -> list[str]:
-    """HITL 多选/单选字段 → 平台 API 所需的字符串 id 列表。"""
-    if value is None or value == "":
-        return []
-    if isinstance(value, list):
-        return [str(v) for v in value if v not in (None, "")]
-    return [str(value)]
-
-
-def _is_unprocessed_scope_token(token: str) -> bool:
-    """是否为「未处理」范围（1+2），而非单一 status 码。"""
-    raw = str(token or "").strip()
-    return raw in _UNPROCESSED_STATUS_ALIASES or raw == _STATUS_SCOPE_UNPROCESSED
-
-
 def _parse_alarm_list_scope(status: str) -> tuple[str, list[str]]:
     """
     解析告警列表应走的平台接口与 status 筛选。
@@ -334,30 +303,6 @@ def _parse_hitl_status_scope(value: Any) -> tuple[str, list[str]]:
     codes = [_map_alarm_status_token(x) for x in items]
     codes = [c for c in codes if c]
     return _ALARM_API_LIST, codes
-
-
-def _map_alarm_status_token(token: str) -> str:
-    """将中文状态名 / 数字码统一为平台 status 字符串（1/2/3）。"""
-    raw = str(token or "").strip()
-    if not raw:
-        return ""
-    if raw in _ALARM_STATUS_TOKEN_MAP:
-        return _ALARM_STATUS_TOKEN_MAP[raw]
-    if raw.isdigit():
-        return raw
-    return ""
-
-
-def _normalize_hitl_status_list(value: Any, *, fallback: Any = "") -> list[str]:
-    """HITL 告警状态 → 平台 status 数字码列表（不含 unprocessed 范围符）。"""
-    items = _normalize_hitl_id_list(value)
-    mapped = [_map_alarm_status_token(x) for x in items if not _is_unprocessed_scope_token(x)]
-    mapped = [x for x in mapped if x]
-    if mapped:
-        return mapped
-    fb_items = _normalize_hitl_id_list(fallback)
-    mapped_fb = [_map_alarm_status_token(x) for x in fb_items if not _is_unprocessed_scope_token(x)]
-    return [x for x in mapped_fb if x]
 
 
 def build_alarm_unprocess_list_payload(
