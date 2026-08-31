@@ -2,7 +2,6 @@
  * Phase D4：Plan 步骤 → 流程图结构
  */
 import type { PlanGraph, PlanStep, PlanStepStatus } from "@ims/shared-types";
-import { getPlanToolShortLabel } from "@/components/BpmnFlowgram/utils/plan-tool-catalog";
 import type { AiMessageBlock } from "../types";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -18,11 +17,6 @@ const STATUS_STYLE: Record<string, string> = {
 /** Plan 步骤状态 → 流程图样式 class 名（与 index.module.less 对齐） */
 export function planStepStyleKey(status?: PlanStepStatus | string): string {
   return STATUS_STYLE[status || "pending"] || "planPending";
-}
-
-/** @deprecated 请使用 getPlanToolShortLabel（与 aiAssistant i18n 对齐） */
-export function planToolLabel(tool?: string): string {
-  return getPlanToolShortLabel(tool ?? "");
 }
 
 export function buildPlanGraphFromSteps(steps: PlanStep[]): PlanGraph {

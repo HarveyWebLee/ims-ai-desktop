@@ -9,10 +9,6 @@ export type BpmnFlowgramEditorApi = {
   getFlowDocument?: () => FlowDocumentJSON;
 };
 
-export function planStepsToFlowDocument(_steps: unknown): FlowDocumentJSON {
-  return { nodes: [], edges: [] };
-}
-
 export function enrichPlanStepCatalogMeta<T extends { tool?: string }>(
   step: T,
 ): T & { side?: PlatformToolSide; riskLevel?: PlatformToolRiskLevel } {
@@ -21,11 +17,6 @@ export function enrichPlanStepCatalogMeta<T extends { tool?: string }>(
 
 export function getPlanToolShortLabel(tool?: string): string {
   return tool || "";
-}
-
-/** M1：无画布条件边，恒为 false */
-export function flowDocumentHasExecutableConditions(_doc?: FlowDocumentJSON | null): boolean {
-  return false;
 }
 
 export default function BpmnFlowgramStub() {
