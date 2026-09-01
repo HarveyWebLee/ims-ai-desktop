@@ -321,22 +321,7 @@ export const AGENT_MODEL_CATALOG: AgentModelCatalogItem[] = [
   },
 ];
 
-/** 获取已启用的模型列表 */
-export function getEnabledModels(): AgentModelCatalogItem[] {
-  return AGENT_MODEL_CATALOG.filter((m) => m.enabled);
-}
-
-/** 获取支持音频输入/转写的模型 */
-export function getAudioModels(): AgentModelCatalogItem[] {
-  return AGENT_MODEL_CATALOG.filter((m) => m.enabled && m.supportsAudio);
-}
-
 /** 按 modelId 查找已启用条目；非法或已禁用返回 undefined */
 export function getCatalogItem(modelId: string): AgentModelCatalogItem | undefined {
   return AGENT_MODEL_CATALOG.find((m) => m.modelId === modelId && m.enabled);
-}
-
-/** 是否为 Auto 路由选择 */
-export function isAutoModelSelection(id: string | null | undefined): boolean {
-  return (id || "").trim() === AUTO_AGENT_MODEL_ID;
 }

@@ -11,7 +11,7 @@ import { parseSseChunk } from "@/components/AiAssistant/utils/sseParser";
 const AGENT_BASE = "/api/agent";
 
 /** BPMN 线程快照（与后端 agent_thread_bpmn 对齐） */
-export interface BpmnThreadSnapshot {
+interface BpmnThreadSnapshot {
   steps?: import("@ims/shared-types").PlanStep[];
   graph?: import("@ims/shared-types").PlanGraph;
   flow_document?: Record<string, unknown>;

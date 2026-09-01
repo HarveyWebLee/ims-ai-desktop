@@ -66,7 +66,7 @@ export function parseToolResultSummary(result: string | undefined): string | nul
 }
 
 /** 格式化工具结果：summary + 平台 API 原样 data（供聊天框/执行步骤展示） */
-export function formatToolResultDetail(result: string | undefined): string | null {
+function formatToolResultDetail(result: string | undefined): string | null {
   if (!result) return null;
   const parsed = parseToolResultJson(result);
   if (!parsed) {

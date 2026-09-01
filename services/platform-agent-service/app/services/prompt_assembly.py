@@ -348,13 +348,6 @@ def build_device_control_intent_note(
     )
 
 
-def _extract_device_token_from_control_message(message: str) -> str | None:
-    """从「给 XXX 播放/开门」等说法中抽出设备名/编码（兼容旧调用，委托 device_context）。"""
-    from contracts.device_context import extract_device_token_from_text
-
-    return extract_device_token_from_text(message)
-
-
 def _extract_broadcast_content(message: str) -> str | None:
     """从「内容为XXX / 播报XXX」抽出播报正文。"""
     text = (message or "").strip()
