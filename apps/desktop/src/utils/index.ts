@@ -1,5 +1,3 @@
-import { getAuthHeaders } from "@ims/desktop-api";
-
 export async function requestTo<P, T>(
   method: "get" | "post",
   options: {
