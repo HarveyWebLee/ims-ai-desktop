@@ -175,16 +175,6 @@ async function consumeSseResponse(res: Response, handlers: AgentSseHandler): Pro
   handlers.onDone?.("");
 }
 
-export async function getModels(): Promise<{
-  defaultModelId: AgentModelId;
-  models: { modelId: AgentModelId; label: string; provider: string }[];
-}> {
-  const res = await fetch(`${AGENT_BASE}/models`, {
-    headers: getAuthHeaders(),
-  });
-  return parseJsonResponse(res);
-}
-
 export async function getSessions(): Promise<{ sessions: AiSession[] }> {
   const res = await fetch(`${AGENT_BASE}/sessions`, {
     headers: getAuthHeaders(),
@@ -729,22 +719,6 @@ export async function getKnowledgeAudit(): Promise<KnowledgeAudit> {
   return parseJsonResponse(res);
 }
 
-export async function listKnowledgePoints(options?: {
-  limit?: number;
-  sourceContains?: string;
-}): Promise<{ items: KnowledgePointItem[]; next_offset: string | null; collection: string }> {
-  const qs = new URLSearchParams({
-    limit: String(options?.limit ?? 20),
-  });
-  if (options?.sourceContains?.trim()) {
-    qs.set("source_contains", options.sourceContains.trim());
-  }
-  const res = await fetch(`${AGENT_BASE}/knowledge/points?${qs.toString()}`, {
-    headers: getAuthHeaders(),
-  });
-  return parseJsonResponse(res);
-}
-
 export async function listKnowledgeDocuments(options?: {
   page?: number;
   pageSize?: number;
@@ -774,26 +748,6 @@ export async function searchKnowledge(params: {
       query: params.query,
       limit: params.limit ?? 5,
     }),
-  });
-  return parseJsonResponse(res);
-}
-
-export async function ingestKnowledgeFile(file: File): Promise<{
-  source: string;
-  doc_id?: string;
-  filename: string;
-  chunks: number;
-  deleted_before: number;
-}> {
-  const form = new FormData();
-  form.append("file", file, file.name);
-  const headers: Record<string, string> = {};
-  const authHeaders = getAuthHeaders();
-  if (authHeaders.Authorization) headers.Authorization = authHeaders.Authorization;
-  const res = await fetch(`${AGENT_BASE}/knowledge/ingest`, {
-    method: "POST",
-    headers,
-    body: form,
   });
   return parseJsonResponse(res);
 }
@@ -985,16 +939,6 @@ export interface VoiceprintProfile {
   updated_at?: string;
 }
 
-export interface VoiceprintSample {
-  id: string;
-  profile_id: string;
-  model_id: string;
-  duration_ms: number;
-  device_hint?: string;
-  env_hint?: string;
-  created_at?: string;
-}
-
 export interface VoiceprintMatchResult {
   matched: boolean;
   decision?: "accept" | "unknown" | "reject";
@@ -1072,28 +1016,6 @@ export async function deleteVoiceprint(id: string): Promise<{ deleted: boolean }
   return parseJsonResponse(res);
 }
 
-export async function listVoiceprintSamples(id: string): Promise<{ items: VoiceprintSample[] }> {
-  const res = await fetch(`${AGENT_BASE}/voiceprints/${encodeURIComponent(id)}/samples`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-  return parseJsonResponse(res);
-}
-
-export async function deleteVoiceprintSample(
-  profileId: string,
-  sampleId: string,
-): Promise<VoiceprintProfile> {
-  const res = await fetch(
-    `${AGENT_BASE}/voiceprints/${encodeURIComponent(profileId)}/samples/${encodeURIComponent(sampleId)}`,
-    {
-      method: "DELETE",
-      headers: getAuthHeaders(),
-    },
-  );
-  return parseJsonResponse(res);
-}
-
 export async function enrollVoiceprint(
   id: string,
   pcm: Blob,
@@ -1134,26 +1056,6 @@ export async function verifyVoiceprint(
   const authHeaders = getAuthHeaders();
   if (authHeaders.Authorization) headers.Authorization = authHeaders.Authorization;
   const res = await fetch(`${AGENT_BASE}/voiceprints/verify`, {
-    method: "POST",
-    headers,
-    body: form,
-  });
-  return parseJsonResponse(res);
-}
-
-export async function identifyVoiceprint(
-  pcm: Blob,
-  options?: { sampleRate?: number; filename?: string; scene?: string; topK?: number },
-): Promise<VoiceprintMatchResult> {
-  const form = new FormData();
-  form.append("file", pcm, options?.filename ?? "identify.pcm");
-  form.append("sample_rate", String(options?.sampleRate ?? 16000));
-  form.append("scene", options?.scene ?? "identify_open");
-  if (options?.topK != null) form.append("top_k", String(options.topK));
-  const headers: Record<string, string> = {};
-  const authHeaders = getAuthHeaders();
-  if (authHeaders.Authorization) headers.Authorization = authHeaders.Authorization;
-  const res = await fetch(`${AGENT_BASE}/voiceprints/identify`, {
     method: "POST",
     headers,
     body: form,

@@ -39,7 +39,6 @@ import {
   resolveActiveHitlMessageId,
   shouldPreserveHitlOnStreamDone,
 } from "../utils/hitlInterruptUtils";
-import { enrichPlanStepCatalogMeta } from "@/components/BpmnFlowgram";
 
 export function useAgentStream() {
   const intl = useIntl();
@@ -179,18 +178,14 @@ export function useAgentStream() {
                 s.status === "running"),
           );
           if (runningStep) {
-            const enriched = enrichPlanStepCatalogMeta({
-              ...runningStep,
-              tool,
-            });
             updateAssistantPlanStep(id, runningStep.id, "running", {
               args:
                 args && typeof args === "object" ? (args as Record<string, unknown>) : undefined,
               startedAt: runningStep.startedAt ?? Date.now(),
               errorMessage: undefined,
               resultSummary: undefined,
-              side: enriched.side,
-              riskLevel: enriched.riskLevel,
+              side: runningStep.side,
+              riskLevel: runningStep.riskLevel,
               retry: Boolean(meta?.retry),
               attempt: typeof meta?.attempt === "number" ? meta.attempt : undefined,
             });
@@ -240,13 +235,6 @@ export function useAgentStream() {
               endedAt: Date.now(),
               resultSummary: ok && shortSummary ? shortSummary : undefined,
               errorMessage: !ok && !userCancelled ? shortSummary || "工具执行失败" : undefined,
-              ...(() => {
-                const metaEnriched = enrichPlanStepCatalogMeta({ tool });
-                return {
-                  side: metaEnriched.side,
-                  riskLevel: metaEnriched.riskLevel,
-                };
-              })(),
               retry: Boolean(meta?.retry) || Boolean(autoRetry),
               attempt: typeof meta?.attempt === "number" ? meta.attempt : undefined,
               autoRetryFrom: autoRetry?.from,
@@ -278,10 +266,9 @@ export function useAgentStream() {
             const msg = getWriteTargetMessages().find((m) => m.id === id);
             const steps = msg?.planSteps?.length ? msg.planSteps : (interruptPayload.steps ?? []);
             steps.forEach((step) => {
-              const enriched = enrichPlanStepCatalogMeta(step);
               updateAssistantPlanStep(id, step.id, "awaiting_confirm", {
-                side: enriched.side,
-                riskLevel: enriched.riskLevel,
+                side: step.side,
+                riskLevel: step.riskLevel,
                 hitl: {
                   type: "plan_confirm",
                   message:
@@ -294,9 +281,8 @@ export function useAgentStream() {
             if (!msg?.planSteps?.length && interruptPayload.steps?.length) {
               patchAssistantMessage(id, {
                 planSteps: interruptPayload.steps.map((s) => {
-                  const enriched = enrichPlanStepCatalogMeta(s);
                   return {
-                    ...enriched,
+                    ...s,
                     status: "awaiting_confirm" as const,
                     hitl: {
                       type: "plan_confirm" as const,
@@ -380,12 +366,8 @@ export function useAgentStream() {
                     ? interruptPayload.message.trim().slice(0, 200)
                     : undefined,
               },
-              ...(() => {
-                const meta = enrichPlanStepCatalogMeta({
-                  tool: interruptPayload.tool,
-                });
-                return { side: meta.side, riskLevel: meta.riskLevel };
-              })(),
+              side: hitlStep.side,
+              riskLevel: hitlStep.riskLevel,
             });
           }
           notifyBackgroundThread(boundThreadId, "hitl");
@@ -432,7 +414,7 @@ export function useAgentStream() {
             stepStatuses: normalized.steps?.map((s) => s.status),
           });
           patchAssistantMessage(assistantId, {
-            planSteps: (normalized.steps ?? []).map((s) => enrichPlanStepCatalogMeta(s)),
+            planSteps: normalized.steps ?? [],
             planGraph: normalized.graph ?? null,
             planFlowDocument: (normalized.flow_document as FlowDocumentJSON | undefined) ?? null,
           });
@@ -1053,9 +1035,8 @@ export function useAgentStream() {
         };
         if (options?.steps?.length) {
           patch.planSteps = options.steps.map((s) => {
-            const enriched = enrichPlanStepCatalogMeta(s);
             return {
-              ...enriched,
+              ...s,
               status:
                 s.status === "skipped"
                   ? ("skipped" as const)
@@ -1063,7 +1044,7 @@ export function useAgentStream() {
                     ? ("pending" as const)
                     : s.status,
               hitl: {
-                ...(enriched.hitl ?? {}),
+                ...(s.hitl ?? {}),
                 type: "plan_confirm",
                 resolution: "approved" as const,
               },

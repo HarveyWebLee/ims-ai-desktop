@@ -149,8 +149,6 @@ export default {
     tabKnowledgeTerms: "Knowledge & terms",
     subTabDocs: "Documents",
     subTabEntities: "Entity terms",
-    tabKnowledge: "Knowledge",
-    tabSync: "Vector sync",
     tabObservability: "Observability",
     tabAudit: "Audit log",
     tabVoice: "Voice",
@@ -358,9 +356,6 @@ export default {
     },
   },
   card: {
-    execution: {
-      title: "Execution",
-    },
     tool: {
       navigate: "Navigate",
       pause: "Wait",
@@ -424,21 +419,6 @@ export default {
     statusRunning: "Running",
     statusPending: "Pending",
     graphStart: "Start",
-    graphEditHint: "Click a step to skip it. At least one step must remain.",
-    graphPreviewHint: "Read-only plan preview. Use BPMN orchestration to edit steps or order.",
-    bpmnHint: "Drag nodes, remove steps, or rewire edges on the canvas, then click Apply.",
-    openBpmnEditor: "BPMN Orchestration",
-    bpmnDrawerTitle: "Plan BPMN Orchestration",
-    bpmnApply: "Apply",
-    bpmnCancel: "Cancel",
-    bpmnApplied: "Orchestration applied to the execution plan",
-    bpmnNoTask: "Keep at least one task node",
-    bpmnMinOneStep: "Keep at least one non-skipped step",
-    viewBpmn: "BPMN Preview",
-    bpmnReadonlyTitle: "Plan BPMN Preview (Read-only)",
-    bpmnValidateFailed: "BPMN canvas validation failed",
-    conditionalExecHint:
-      "This plan includes conditional branches. After approval, only the matching branch will run; others will be skipped.",
     skipReason: "Skipped: {reason}",
   },
   trace: {

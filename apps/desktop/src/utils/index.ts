@@ -1,15 +1,4 @@
-import { getToken } from "@ims/desktop-api";
-
-export function getCookie(name: string): string | undefined {
-  if (name === "access_token" || name === "ims_ai_desktop_token") {
-    return getToken() || undefined;
-  }
-  return undefined;
-}
-
-export function setCookie(_name: string, _value: string): void {
-  // 桌面端使用 localStorage token，忽略 cookie
-}
+import { getAuthHeaders } from "@ims/desktop-api";
 
 export async function requestTo<P, T>(
   method: "get" | "post",
