@@ -152,7 +152,6 @@ export default function HitlInteractionCard({
             layout="timeline"
             showStatus
             showToolTag={false}
-            hint="none"
           />
         </div>
       ) : null}

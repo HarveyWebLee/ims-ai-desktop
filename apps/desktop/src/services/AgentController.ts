@@ -18,13 +18,6 @@ export interface BpmnThreadSnapshot {
   updated_at?: string | null;
 }
 
-/** BPMN 画布校验结果 */
-export interface BpmnValidateResult {
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-}
-
 async function parseJsonResponse<T>(res: Response): Promise<T> {
   const raw = await res.text();
   let json: AgentApiResponse<T>;
@@ -377,65 +370,6 @@ export async function reportClientActionResult(
       body: JSON.stringify(result),
     },
   );
-  return parseJsonResponse(res);
-}
-
-/** BPMN：画布 JSON ↔ Plan 步骤互转 */
-export async function convertBpmn(params: {
-  direction: "steps_to_document" | "document_to_steps";
-  steps?: import("@ims/shared-types").PlanStep[];
-  flow_document?: Record<string, unknown>;
-  previous_steps?: import("@ims/shared-types").PlanStep[];
-}): Promise<{
-  steps?: import("@ims/shared-types").PlanStep[];
-  flow_document?: Record<string, unknown>;
-  active_step_count?: number;
-}> {
-  const res = await fetch(`${AGENT_BASE}/bpmn/convert`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(params),
-  });
-  return parseJsonResponse(res);
-}
-
-/** BPMN：校验画布结构 */
-export async function validateBpmn(
-  flowDocument: Record<string, unknown>,
-): Promise<BpmnValidateResult> {
-  const res = await fetch(`${AGENT_BASE}/bpmn/validate`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ flow_document: flowDocument }),
-  });
-  return parseJsonResponse(res);
-}
-
-/** 读取线程 BPMN 快照 */
-export async function getThreadBpmn(threadId: string): Promise<{
-  thread_id: string;
-  snapshot: BpmnThreadSnapshot | null;
-}> {
-  const res = await fetch(`${AGENT_BASE}/threads/${threadId}/bpmn`, {
-    headers: getAuthHeaders(),
-  });
-  return parseJsonResponse(res);
-}
-
-/** 保存线程 BPMN 编排草稿 */
-export async function saveThreadBpmn(
-  threadId: string,
-  payload: {
-    flow_document?: Record<string, unknown>;
-    steps?: import("@ims/shared-types").PlanStep[];
-    graph?: import("@ims/shared-types").PlanGraph;
-  },
-): Promise<{ thread_id: string; snapshot: BpmnThreadSnapshot }> {
-  const res = await fetch(`${AGENT_BASE}/threads/${threadId}/bpmn`, {
-    method: "PUT",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
-  });
   return parseJsonResponse(res);
 }
 
