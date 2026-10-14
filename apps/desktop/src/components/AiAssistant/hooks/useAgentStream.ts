@@ -39,6 +39,7 @@ import {
   resolveActiveHitlMessageId,
   shouldPreserveHitlOnStreamDone,
 } from "../utils/hitlInterruptUtils";
+import { enrichPlanStepCatalogMeta } from "@/components/BpmnFlowgram";
 
 export function useAgentStream() {
   const intl = useIntl();
