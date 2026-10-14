@@ -10,7 +10,7 @@
 数据源
 ------
 ``app/data/device_action_catalog.json``
-与 ``packages/agent-core/device-action-catalog.ts`` 同步（前端/契约侧同源概念）。
+与 ``services/platform-agent-service/app/data/device_action_catalog.json`` 同步（前端/契约侧同源概念）。
 开门/关门：``requiredVarName: status_door_control``；播报：``requiredVarName: play``。
 
 在 Agent 流程中的位置

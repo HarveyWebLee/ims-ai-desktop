@@ -7,7 +7,6 @@ import qs from "qs";
 import { message } from "@/antd/feedback";
 import { requestTo } from "@/utils";
 import { download } from "@/utils/tools";
-import { dispatchAlarmDataChanged } from "./utils/alarmDataSync";
 import { hostNavigate, hostOpenModal } from "./platformHost";
 
 export type ClientActionExecResult = ClientActionResult;
@@ -137,7 +136,6 @@ export async function executeClientAction(action: ClientAction): Promise<ClientA
       }
 
       case "refresh": {
-        dispatchAlarmDataChanged();
         return toResult("refresh", { ok: true, summary: "Workspace 数据已同步刷新" });
       }
 

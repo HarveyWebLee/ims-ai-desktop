@@ -11,7 +11,6 @@
   "exports": {
     ".": "./index.ts",
     "./model-catalog": "./model-catalog.ts",
-    "./tool-catalog": "./tool-catalog.ts",
-    "./route-catalog": "./route-catalog.ts"
+    "./tool-catalog": "./tool-catalog.ts"
   }
 }

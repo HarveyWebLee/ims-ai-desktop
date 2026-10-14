@@ -1,5 +1,5 @@
 /**
- * Phase D4：多步 Plan 流程图（只读 / plan_confirm 轻量编排 / 执行态时间轴）
+ * Phase D4：多步 Plan 流程图（只读 / 执行态时间轴）
  */
 import {
   CheckCircleFilled,
@@ -15,7 +15,6 @@ import type { PlanGraph, PlanStep, PlanStepStatus } from "@ims/shared-types";
 import { getToolLabelKey } from "./chatCardUtils";
 import {
   buildPlanGraphFromSteps,
-  countActivePlanSteps,
   findPlanStepForGraphNode,
   isDecorativePlanGraphNode,
   planStepStyleKey,
@@ -45,16 +44,8 @@ export interface PlanFlowChartProps {
   layout?: "chain" | "timeline";
   /** 是否展示步骤状态文案（timeline 默认开启） */
   showStatus?: boolean;
-  /**
-   * 顶部提示：preview=只读预览（plan_confirm）；skip=点击跳过（已弃用，保留兼容）
-   * @deprecated 编排请使用 BPMN 抽屉；skip 仅作遗留 API
-   */
-  hint?: "none" | "preview" | "skip";
   /** 是否在节点上展示工具短标签（与 label 重复时可关闭） */
   showToolTag?: boolean;
-  /** @deprecated 请使用 hint="skip"；plan_confirm 内应只读 */
-  editable?: boolean;
-  onStepsChange?: (steps: PlanStep[]) => void;
 }
 
 function planStepStatusLabel(
@@ -102,42 +93,14 @@ export default function PlanFlowChart({
   graph: graphProp,
   layout = "chain",
   showStatus,
-  hint = "none",
   showToolTag = true,
-  editable = false,
-  onStepsChange,
 }: PlanFlowChartProps) {
   const intl = useIntl();
   if (!steps.length) return null;
 
   const graph = graphProp ?? buildPlanGraphFromSteps(steps);
   const planNodes = graph.nodes.filter((n) => !isDecorativePlanGraphNode(n));
-  const activeCount = countActivePlanSteps(steps);
-  const skipEditable = editable || hint === "skip";
   const showStatusText = showStatus ?? layout === "timeline";
-
-  const handleNodeClick = (stepId: string) => {
-    if (!skipEditable || !onStepsChange) return;
-    const target = findPlanStepForGraphNode(steps, { id: stepId });
-    if (!target) return;
-    if (target.status !== "skipped" && activeCount <= 1) return;
-
-    const next = steps.map((s) => {
-      if (s.id !== target.id) return s;
-      return {
-        ...s,
-        status: s.status === "skipped" ? ("awaiting_confirm" as const) : ("skipped" as const),
-      };
-    });
-    onStepsChange(next);
-  };
-
-  const hintMessageId =
-    hint === "preview"
-      ? "aiAssistant.plan.graphPreviewHint"
-      : hint === "skip" || skipEditable
-        ? "aiAssistant.plan.graphEditHint"
-        : null;
 
   const renderStepNode = (
     node: (typeof planNodes)[number],
@@ -151,7 +114,6 @@ export default function PlanFlowChart({
     const styleKey = planStepStyleKey(status);
     const styleClass = styles[styleKey];
     const skipped = status === "skipped";
-    const canToggle = skipEditable && (!skipped ? activeCount > 1 : true);
     const statusLabel = planStepStatusLabel(status, intl);
     const displayLabel = resolvePlanStepDisplayLabel(step, node.label, (d) =>
       intl.formatMessage(d),
@@ -224,13 +186,10 @@ export default function PlanFlowChart({
           →
         </span>
         <Tooltip title={step?.tool ? toolDisplayLabel : undefined}>
-          <button
-            type="button"
+          <span
             className={`${styles.planFlowNode} ${styleClass} ${
               skipped ? styles.planFlowNodeSkipped : ""
-            } ${skipEditable && canToggle ? styles.planFlowNodeEditable : ""}`}
-            disabled={!skipEditable || !canToggle}
-            onClick={() => handleNodeClick(node.id)}
+            }`}
           >
             <span className={styles.planFlowNodeHeader}>
               <PlanStepStatusIcon status={status} />
@@ -244,7 +203,7 @@ export default function PlanFlowChart({
                 {toolDisplayLabel}
               </Tag>
             ) : null}
-          </button>
+          </span>
         </Tooltip>
       </div>
     );
@@ -256,12 +215,6 @@ export default function PlanFlowChart({
         layout === "timeline" ? styles.planFlowChartTimeline : ""
       }`}
     >
-      {hintMessageId ? (
-        <Text type="secondary" className={styles.planFlowHint}>
-          {intl.formatMessage({ id: hintMessageId })}
-        </Text>
-      ) : null}
-
       {layout === "timeline" ? (
         <div className={styles.planFlowTimeline} role="list">
           <div className={styles.planFlowTimelineItem} role="listitem">

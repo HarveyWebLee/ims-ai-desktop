@@ -710,7 +710,3 @@ export const PLATFORM_TOOL_CATALOG: PlatformToolDefinition[] = [
     enabled: true,
   },
 ];
-
-export function getToolDefinition(name: string): PlatformToolDefinition | undefined {
-  return PLATFORM_TOOL_CATALOG.find((t) => t.name === name);
-}
